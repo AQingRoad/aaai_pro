@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
-CONDA_ENV_NAME=${CONDA_ENV_NAME:-swift}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/sft.jsonl}
@@ -26,27 +25,12 @@ activate_swift_env() {
     return
   fi
 
-  if [[ -n "${VENV:-}" && -f "$VENV/bin/activate" ]]; then
-    # shellcheck disable=SC1091
-    source "$VENV/bin/activate"
+  if [[ -n "${VENV:-}" && -x "$VENV/bin/swift" ]]; then
+    export PATH="$VENV/bin:$PATH"
     return
   fi
 
-  local conda_sh=""
-  if [[ -n "${CONDA_EXE:-}" ]]; then
-    conda_sh="$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh"
-  fi
-  if [[ ! -f "$conda_sh" && -f /root/miniconda3/etc/profile.d/conda.sh ]]; then
-    conda_sh=/root/miniconda3/etc/profile.d/conda.sh
-  fi
-  if [[ -f "$conda_sh" ]]; then
-    # shellcheck disable=SC1090
-    source "$conda_sh"
-    conda activate "$CONDA_ENV_NAME"
-    return
-  fi
-
-  echo "Cannot find swift. Activate the conda env first or set VENV/CONDA_ENV_NAME." >&2
+  echo "Cannot find swift. Activate the swift env first or set VENV to an env that contains bin/swift." >&2
   exit 1
 }
 
