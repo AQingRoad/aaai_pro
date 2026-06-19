@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
+VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
+MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
+MODEL_TYPE=${MODEL_TYPE:-}
+QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B}
+ADAPTERS=${ADAPTERS:-}
+DATASET=${DATASET:-$ROOT/outputs/ml1m/grpo.jsonl}
+OUT=${OUT:-$ROOT/checkpoints/qwen3_4b_grpo_rubric_gated}
+MAX_STEPS=${MAX_STEPS:-20}
+NUM_GENERATIONS=${NUM_GENERATIONS:-4}
+TRAIN_TYPE=${TRAIN_TYPE:-lora}
+LORA_RANK=${LORA_RANK:-64}
+LORA_ALPHA=${LORA_ALPHA:-128}
+BATCH_SIZE=${BATCH_SIZE:-1}
+GRAD_ACCUM=${GRAD_ACCUM:-4}
+MAX_LENGTH=${MAX_LENGTH:-2048}
+MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-384}
+LEARNING_RATE=${LEARNING_RATE:-1e-5}
+FORMAT_WEIGHT=${FORMAT_WEIGHT:-0.2}
+QUALITY_WEIGHT=${QUALITY_WEIGHT:-0.3}
+GAIN_WEIGHT=${GAIN_WEIGHT:-1.0}
+RUBRIC_REWARD_SCORER=${RUBRIC_REWARD_SCORER:-api}
+RUBRIC_REWARD_API_PROVIDER=${RUBRIC_REWARD_API_PROVIDER:-${RUBRIC_JUDGE_API_PROVIDER:-openai_compatible}}
+RUBRIC_REWARD_API_BASE_URL=${RUBRIC_REWARD_API_BASE_URL:-${RUBRIC_JUDGE_API_BASE_URL:-http://127.0.0.1:18080/v1}}
+RUBRIC_REWARD_API_MODEL=${RUBRIC_REWARD_API_MODEL:-${RUBRIC_JUDGE_API_MODEL:-glm-5-1}}
+RUBRIC_REWARD_API_KEY=${RUBRIC_REWARD_API_KEY:-${RUBRIC_JUDGE_API_KEY:-}}
+RUBRIC_REWARD_API_TIMEOUT=${RUBRIC_REWARD_API_TIMEOUT:-${RUBRIC_JUDGE_API_TIMEOUT:-60}}
+RUBRIC_REWARD_API_MAX_RETRIES=${RUBRIC_REWARD_API_MAX_RETRIES:-${RUBRIC_JUDGE_API_MAX_RETRIES:-2}}
+RUBRIC_REWARD_API_MAX_TOKENS=${RUBRIC_REWARD_API_MAX_TOKENS:-${RUBRIC_JUDGE_API_MAX_TOKENS:-128}}
+RUBRIC_REWARD_API_THINKING=${RUBRIC_REWARD_API_THINKING:-${RUBRIC_JUDGE_API_THINKING:-disabled}}
+RUBRIC_REWARD_API_FALLBACK=${RUBRIC_REWARD_API_FALLBACK:-rules}
+USE_VLLM=${USE_VLLM:-0}
+VLLM_MODE=${VLLM_MODE:-colocate}
+VLLM_TENSOR_PARALLEL_SIZE=${VLLM_TENSOR_PARALLEL_SIZE:-1}
+VLLM_PIPELINE_PARALLEL_SIZE=${VLLM_PIPELINE_PARALLEL_SIZE:-1}
+VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.45}
+VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4096}
+VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-$NUM_GENERATIONS}
+VLLM_ENABLE_LORA=${VLLM_ENABLE_LORA:-true}
+VLLM_MAX_LORA_RANK=${VLLM_MAX_LORA_RANK:-$LORA_RANK}
+VLLM_SERVER_BASE_URL=${VLLM_SERVER_BASE_URL:-}
+VLLM_SERVER_HOST=${VLLM_SERVER_HOST:-}
+VLLM_SERVER_PORT=${VLLM_SERVER_PORT:-8000}
+VLLM_SERVER_TIMEOUT=${VLLM_SERVER_TIMEOUT:-240}
+
+source "$VENV/bin/activate"
+cd "$ROOT"
+
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+export MODELSCOPE_CACHE=${MODELSCOPE_CACHE:-/root/autodl-tmp/modelscope_cache}
+export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
+export RUBRIC_GATE_THRESHOLD=${RUBRIC_GATE_THRESHOLD:-0.45}
+export RUBRIC_GATE_PENALTY=${RUBRIC_GATE_PENALTY:--0.05}
+export RUBRIC_REWARD_SCORER="$RUBRIC_REWARD_SCORER"
+export RUBRIC_REWARD_API_PROVIDER="$RUBRIC_REWARD_API_PROVIDER"
+export RUBRIC_REWARD_API_BASE_URL="$RUBRIC_REWARD_API_BASE_URL"
+export RUBRIC_REWARD_API_MODEL="$RUBRIC_REWARD_API_MODEL"
+if [[ -n "$RUBRIC_REWARD_API_KEY" ]]; then
+  export RUBRIC_REWARD_API_KEY="$RUBRIC_REWARD_API_KEY"
+fi
+export RUBRIC_REWARD_API_TIMEOUT="$RUBRIC_REWARD_API_TIMEOUT"
+export RUBRIC_REWARD_API_MAX_RETRIES="$RUBRIC_REWARD_API_MAX_RETRIES"
+export RUBRIC_REWARD_API_MAX_TOKENS="$RUBRIC_REWARD_API_MAX_TOKENS"
+export RUBRIC_REWARD_API_THINKING="$RUBRIC_REWARD_API_THINKING"
+export RUBRIC_REWARD_API_FALLBACK="$RUBRIC_REWARD_API_FALLBACK"
+export RUBRIC_GAIN_EMBEDDER_MODE=${RUBRIC_GAIN_EMBEDDER_MODE:-qwen3_embedding}
+export QWEN3_EMBEDDING_MODEL="$QWEN3_EMBEDDING_MODEL"
+export QWEN3_EMBEDDING_BATCH_SIZE=${QWEN3_EMBEDDING_BATCH_SIZE:-4}
+export QWEN3_EMBEDDING_MAX_LENGTH=${QWEN3_EMBEDDING_MAX_LENGTH:-4096}
+
+TRAIN_ARGS=(--train_type "$TRAIN_TYPE")
+if [[ "$TRAIN_TYPE" == "lora" ]]; then
+  TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
+fi
+
+ADAPTER_ARGS=()
+if [[ -n "$ADAPTERS" ]]; then
+  ADAPTER_ARGS+=(--adapters "$ADAPTERS")
+fi
+
+MODEL_ARGS=(--model "$MODEL")
+if [[ -n "$MODEL_TYPE" ]]; then
+  MODEL_ARGS+=(--model_type "$MODEL_TYPE")
+fi
+
+VLLM_ARGS=()
+if [[ "$USE_VLLM" == "1" || "$USE_VLLM" == "true" ]]; then
+  VLLM_ARGS+=(
+    --use_vllm true
+    --vllm_mode "$VLLM_MODE"
+  )
+  if [[ "$VLLM_MODE" == "server" ]]; then
+    if [[ -n "$VLLM_SERVER_BASE_URL" ]]; then
+      VLLM_ARGS+=(--vllm_server_base_url "$VLLM_SERVER_BASE_URL")
+    else
+      VLLM_ARGS+=(--vllm_server_host "$VLLM_SERVER_HOST" --vllm_server_port "$VLLM_SERVER_PORT")
+    fi
+    VLLM_ARGS+=(--vllm_server_timeout "$VLLM_SERVER_TIMEOUT")
+  else
+    VLLM_ARGS+=(
+      --vllm_tensor_parallel_size "$VLLM_TENSOR_PARALLEL_SIZE"
+      --vllm_pipeline_parallel_size "$VLLM_PIPELINE_PARALLEL_SIZE"
+      --vllm_gpu_memory_utilization "$VLLM_GPU_MEMORY_UTILIZATION"
+      --vllm_max_model_len "$VLLM_MAX_MODEL_LEN"
+      --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS"
+    )
+  fi
+  if [[ "$TRAIN_TYPE" == "lora" && "$VLLM_MODE" != "server" ]]; then
+    VLLM_ARGS+=(
+      --vllm_enable_lora "$VLLM_ENABLE_LORA"
+      --vllm_max_lora_rank "$VLLM_MAX_LORA_RANK"
+    )
+  fi
+fi
+
+swift rlhf \
+  --rlhf_type grpo \
+  "${MODEL_ARGS[@]}" \
+  "${ADAPTER_ARGS[@]}" \
+  "${VLLM_ARGS[@]}" \
+  --dataset "$DATASET" \
+  --external_plugins "$ROOT/scripts/rubric_gated_reward.py" \
+  --reward_funcs rubric_format rubric_quality rubric_gated_gain \
+  --reward_weights "$FORMAT_WEIGHT" "$QUALITY_WEIGHT" "$GAIN_WEIGHT" \
+  --num_generations "$NUM_GENERATIONS" \
+  --generation_batch_size "$NUM_GENERATIONS" \
+  --per_device_train_batch_size "$BATCH_SIZE" \
+  --gradient_accumulation_steps "$GRAD_ACCUM" \
+  --max_steps "$MAX_STEPS" \
+  --max_length "$MAX_LENGTH" \
+  --max_completion_length "$MAX_COMPLETION_LENGTH" \
+  --learning_rate "$LEARNING_RATE" \
+  --lr_scheduler_type cosine \
+  --warmup_ratio 0.05 \
+  "${TRAIN_ARGS[@]}" \
+  --torch_dtype bfloat16 \
+  --gradient_checkpointing true \
+  --save_only_model true \
+  --save_steps "$MAX_STEPS" \
+  --save_total_limit 2 \
+  --logging_steps 1 \
+  --log_completions true \
+  --report_to none \
+  --output_dir "$OUT"
