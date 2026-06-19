@@ -17,6 +17,8 @@ CANDIDATE_LISTS=${CANDIDATE_LISTS:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepsee
 RUBRIC_SCORES=${RUBRIC_SCORES:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepseek_v4_pro_low.rubric_deepseek_v4_pro.jsonl}
 RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
 GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
+RREC_DATA_ROOT=${RREC_DATA_ROOT:-$ROOT/data}
+PHASE0_TRAIN_DATASET=${PHASE0_TRAIN_DATASET:-$ROOT/github_artifacts/CDs_and_Vinyl/phase0/phase0_embedder_rrec_amazon_cds_and_vinyl_train.jsonl}
 
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
 COT_JUDGED=${COT_JUDGED:-$OUT_DIR/cot_judged_${RUN_NAME}.jsonl}
@@ -29,6 +31,7 @@ COT_SCORE_PLOT=${COT_SCORE_PLOT:-$OUT_DIR/cot_gain_distribution_${RUN_NAME}.svg}
 COT_SCORE_SUMMARY=${COT_SCORE_SUMMARY:-$OUT_DIR/cot_gain_distribution_${RUN_NAME}.json}
 SFT_DATASET=${SFT_DATASET:-$OUT_DIR/sft_${RUN_NAME}.jsonl}
 GRPO_DATASET=${GRPO_DATASET:-$OUT_DIR/grpo_${RUN_NAME}.jsonl}
+GRPO_INPUT=${GRPO_INPUT:-$ROOT/data/rrec_amazon/$CATEGORY/examples.jsonl}
 
 EMBEDDER_OUT=${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_tidal}
 QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-}
@@ -88,6 +91,66 @@ latest_checkpoint() {
   find "$dir" -type d -name 'checkpoint-*' -print 2>/dev/null | sort -V | tail -n 1
 }
 
+prepare_grpo_input() {
+  if [[ -s "$GRPO_INPUT" ]]; then
+    echo "Using full GRPO train examples: $GRPO_INPUT"
+    return
+  fi
+
+  local rrec_dataset_dir="$RREC_DATA_ROOT/${CATEGORY}_0_2022-10-2023-10"
+  if [[ -d "$rrec_dataset_dir" ]]; then
+    echo "Preparing full GRPO train examples from RRec dataset -> $GRPO_INPUT"
+    "$PYTHON_BIN" scripts/prepare_rrec_amazon_examples.py \
+      --data-root "$RREC_DATA_ROOT" \
+      --category "$CATEGORY" \
+      --split train \
+      --output "$GRPO_INPUT" \
+      --max-examples 0 \
+      --max-history-items 20
+    return
+  fi
+
+  require_file "phase0 train dataset for GRPO input fallback" "$PHASE0_TRAIN_DATASET"
+  echo "Converting phase0 train dataset to full GRPO examples -> $GRPO_INPUT"
+  "$PYTHON_BIN" - "$PHASE0_TRAIN_DATASET" "$GRPO_INPUT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+dst.parent.mkdir(parents=True, exist_ok=True)
+count = 0
+with src.open("r", encoding="utf-8") as fin, dst.open("w", encoding="utf-8") as fout:
+    for line in fin:
+        line = line.strip()
+        if not line:
+            continue
+        row = json.loads(line)
+        category = row.get("category", "CDs_and_Vinyl")
+        split = row.get("split", "train")
+        interaction_id = row.get("interaction_id", count)
+        user_id = row.get("user_id", "")
+        out = {
+            "example_id": f"{category}:{split}:{interaction_id}:{user_id}",
+            "dataset": "rrec-amazon-2023",
+            "category": category,
+            "split": split,
+            "user_id": user_id,
+            "interaction_id": interaction_id,
+            "target_item_id": row.get("target_item_id"),
+            "target_item_title": row.get("target_item_title", ""),
+            "target_item_text": row.get("positive", ""),
+            "target_rating": row.get("target_rating", 0.0),
+            "history_item_count": row.get("history_item_count", 0),
+            "user_history": row.get("query", ""),
+        }
+        fout.write(json.dumps(out, ensure_ascii=False) + "\n")
+        count += 1
+print(f"wrote {count} full GRPO examples to {dst}")
+PY
+}
+
 require_path "project root" "$ROOT"
 require_path "python" "$PYTHON_BIN"
 require_file "candidate lists" "$CANDIDATE_LISTS"
@@ -128,6 +191,8 @@ echo "GAIN_BASELINE_CACHE=$GAIN_BASELINE_CACHE"
 echo "FINAL_FILTERED_COT=$FINAL_FILTERED_COT"
 echo "COT_SCORE_PLOT=$COT_SCORE_PLOT"
 echo "FINAL_MIN_GAIN=$FINAL_MIN_GAIN"
+echo "GRPO_INPUT=$GRPO_INPUT"
+echo "GRPO_EXCLUDE_SFT=$GRPO_EXCLUDE_SFT"
 
 if [[ "$RUN_MERGE" == "1" ]]; then
   "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
@@ -280,7 +345,9 @@ fi
 
 if [[ "$RUN_DATASETS" == "1" ]]; then
   require_file "filtered CoT" "$FILTERED_COT"
-  require_file "scored examples" "$SCORED_EXAMPLES"
+  prepare_grpo_input
+  require_file "full GRPO train examples" "$GRPO_INPUT"
+
   "$PYTHON_BIN" scripts/finalize_cot_selection.py \
     --input "$FILTERED_COT" \
     --output "$FINAL_FILTERED_COT" \
@@ -301,7 +368,7 @@ if [[ "$RUN_DATASETS" == "1" ]]; then
     grpo_exclude_args+=(--exclude-prompts-from "$SFT_DATASET")
   fi
   "$PYTHON_BIN" scripts/make_grpo_dataset.py \
-    --input "$SCORED_EXAMPLES" \
+    --input "$GRPO_INPUT" \
     --output "$GRPO_DATASET" \
     --baseline-mode "$GRPO_BASELINE_EMBEDDER_MODE" \
     --embedding-model "$QWEN3_EMBEDDING_MODEL" \
@@ -336,6 +403,7 @@ echo "  filtered: $FILTERED_COT"
 echo "  final:    $FINAL_FILTERED_COT"
 echo "  rejected: $REJECTED_COT"
 echo "  examples: $SCORED_EXAMPLES"
+echo "  grpo_in:  $GRPO_INPUT"
 echo "  plot:     $COT_SCORE_PLOT"
 echo "  summary:  $COT_SCORE_SUMMARY"
 echo "  sft:      $SFT_DATASET"
