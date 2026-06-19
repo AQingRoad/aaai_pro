@@ -5,6 +5,7 @@ ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
 CONDA_ENV_NAME=${CONDA_ENV_NAME:-swift}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
+MODEL_TYPE=${MODEL_TYPE:-qwen3}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/sft.jsonl}
 OUT=${OUT:-$ROOT/checkpoints/qwen3_4b_sft_rubric_cot}
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
@@ -17,6 +18,7 @@ GRAD_ACCUM=${GRAD_ACCUM:-8}
 MAX_LENGTH=${MAX_LENGTH:-2048}
 LEARNING_RATE=${LEARNING_RATE:-1e-5}
 SAVE_STEPS=${SAVE_STEPS:-200}
+SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-2}
 
 activate_swift_env() {
   if command -v swift >/dev/null 2>&1; then
@@ -66,6 +68,7 @@ fi
 
 swift sft \
   --model "$MODEL" \
+  --model_type "$MODEL_TYPE" \
   --dataset "$DATASET" \
   --per_device_train_batch_size "$BATCH_SIZE" \
   --gradient_accumulation_steps "$GRAD_ACCUM" \
@@ -79,7 +82,7 @@ swift sft \
   --gradient_checkpointing true \
   --save_only_model true \
   --save_steps "$SAVE_STEPS" \
-  --save_total_limit 2 \
+  --save_total_limit "$SAVE_TOTAL_LIMIT" \
   --logging_steps 10 \
   --report_to none \
   --output_dir "$OUT"
