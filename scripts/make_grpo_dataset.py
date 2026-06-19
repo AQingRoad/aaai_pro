@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -56,7 +57,7 @@ def main() -> None:
     parser.add_argument("--embedding-output-dim", type=int, default=0)
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--torch-dtype", default="bfloat16")
-    parser.add_argument("--device", default="auto")
+    parser.add_argument("--device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
     args = parser.parse_args()
 
     baseline_mode = "lexical" if args.precompute_lexical_baseline else args.baseline_mode

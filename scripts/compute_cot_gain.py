@@ -99,7 +99,7 @@ def main() -> None:
         help="Override the default Qwen3-Embedding query instruction. Empty uses the recommendation default.",
     )
     parser.add_argument("--torch-dtype", default="bfloat16")
-    parser.add_argument("--device", default="auto")
+    parser.add_argument("--device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
     args = parser.parse_args()
 
     ensure_parent(args.output).write_text("", encoding="utf-8")

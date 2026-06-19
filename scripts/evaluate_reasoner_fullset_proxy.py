@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from collections import Counter
@@ -152,7 +153,7 @@ def main() -> None:
     parser.add_argument("--embedding-output-dim", type=int, default=0)
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--embedding-torch-dtype", default="bfloat16")
-    parser.add_argument("--embedding-device", default="auto")
+    parser.add_argument("--embedding-device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
     parser.add_argument("--output", default="")
     parser.add_argument("--predictions-output", default="")
     args = parser.parse_args()

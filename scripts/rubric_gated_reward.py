@@ -70,7 +70,7 @@ def _get_qwen3_embedder() -> Qwen3TextEmbedder:
             max_length=int(os.getenv("QWEN3_EMBEDDING_MAX_LENGTH", "4096")),
             batch_size=int(os.getenv("QWEN3_EMBEDDING_BATCH_SIZE", "4")),
             torch_dtype=os.getenv("QWEN3_EMBEDDING_TORCH_DTYPE", "bfloat16"),
-            device=os.getenv("QWEN3_EMBEDDING_DEVICE", "auto"),
+            device=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"),
             query_instruction=os.getenv("QWEN3_EMBEDDING_QUERY_INSTRUCTION", DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION),
             output_dim=int(os.getenv("QWEN3_EMBEDDING_OUTPUT_DIM", "0")),
         )
