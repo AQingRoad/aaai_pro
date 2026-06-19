@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
-MODEL_TYPE=${MODEL_TYPE:-}
+MODEL_TYPE=${MODEL_TYPE:-qwen3}
 QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B}
 ADAPTERS=${ADAPTERS:-}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/grpo.jsonl}
@@ -45,8 +45,23 @@ VLLM_SERVER_BASE_URL=${VLLM_SERVER_BASE_URL:-}
 VLLM_SERVER_HOST=${VLLM_SERVER_HOST:-}
 VLLM_SERVER_PORT=${VLLM_SERVER_PORT:-8000}
 VLLM_SERVER_TIMEOUT=${VLLM_SERVER_TIMEOUT:-240}
+SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
 
-source "$VENV/bin/activate"
+activate_swift_env() {
+  if command -v swift >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ -n "${VENV:-}" && -x "$VENV/bin/swift" ]]; then
+    export PATH="$VENV/bin:$PATH"
+    return
+  fi
+
+  echo "Cannot find swift. Activate the swift env first or set VENV to an env that contains bin/swift." >&2
+  exit 1
+}
+
+activate_swift_env
 cd "$ROOT"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
@@ -83,8 +98,32 @@ fi
 
 MODEL_ARGS=(--model "$MODEL")
 if [[ -n "$MODEL_TYPE" ]]; then
-  MODEL_ARGS+=(--model_type "$MODEL_TYPE")
+  resolve_model_type_flag() {
+    if [[ -n "$SWIFT_MODEL_TYPE_FLAG" ]]; then
+      echo "$SWIFT_MODEL_TYPE_FLAG"
+      return
+    fi
+
+    local help_text
+    help_text="$(swift rlhf --help 2>&1 || true)"
+    if grep -q -- "--model-type" <<<"$help_text" && ! grep -q -- "--model_type" <<<"$help_text"; then
+      echo "--model-type"
+    else
+      echo "--model_type"
+    fi
+  }
+  MODEL_TYPE_FLAG="$(resolve_model_type_flag)"
+  MODEL_ARGS+=("$MODEL_TYPE_FLAG" "$MODEL_TYPE")
 fi
+
+echo "GRPO config:"
+echo "  MODEL=$MODEL"
+echo "  MODEL_TYPE=$MODEL_TYPE"
+echo "  DATASET=$DATASET"
+echo "  OUT=$OUT"
+echo "  TRAIN_TYPE=$TRAIN_TYPE"
+echo "  MAX_STEPS=$MAX_STEPS"
+echo "  CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 
 VLLM_ARGS=()
 if [[ "$USE_VLLM" == "1" || "$USE_VLLM" == "true" ]]; then
