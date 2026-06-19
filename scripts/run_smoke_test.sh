@@ -37,7 +37,8 @@ python scripts/judge_cot_quality.py \
 python scripts/compute_cot_gain.py \
   --input outputs/smoke/cot_judged.jsonl \
   --output outputs/smoke/cot_scored.jsonl \
-  --embedder-mode lexical
+  --embedder-mode lexical \
+  --gain-mode sim
 
 python scripts/select_filtered_cot.py \
   --input outputs/smoke/cot_scored.jsonl \

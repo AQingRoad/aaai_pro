@@ -15,6 +15,8 @@ MODEL=${MODEL:-/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3/4B}
 COT_ARTIFACT_DIR=${COT_ARTIFACT_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/cot}
 CANDIDATE_LISTS=${CANDIDATE_LISTS:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepseek_v4_pro_low.jsonl}
 RUBRIC_SCORES=${RUBRIC_SCORES:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepseek_v4_pro_low.rubric_deepseek_v4_pro.jsonl}
+RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
+GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
 
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
 COT_JUDGED=${COT_JUDGED:-$OUT_DIR/cot_judged_${RUN_NAME}.jsonl}
@@ -29,6 +31,8 @@ EMBEDDER_OUT=${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_e
 QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-}
 GAIN_CUDA_VISIBLE_DEVICES=${GAIN_CUDA_VISIBLE_DEVICES:-0}
 GAIN_EMBEDDER_MODE=${GAIN_EMBEDDER_MODE:-qwen3_embedding}
+GAIN_MODE=${GAIN_MODE:-ndcg}
+GAIN_NDCG_K=${GAIN_NDCG_K:-100}
 GRPO_BASELINE_EMBEDDER_MODE=${GRPO_BASELINE_EMBEDDER_MODE:-$GAIN_EMBEDDER_MODE}
 GAIN_EMBEDDING_BATCH_SIZE=${GAIN_EMBEDDING_BATCH_SIZE:-8}
 GAIN_EMBEDDING_MAX_LENGTH=${GAIN_EMBEDDING_MAX_LENGTH:-8192}
@@ -75,6 +79,9 @@ require_path "project root" "$ROOT"
 require_path "python" "$PYTHON_BIN"
 require_file "candidate lists" "$CANDIDATE_LISTS"
 require_file "rubric scores" "$RUBRIC_SCORES"
+if [[ "$RUN_GAIN" == "1" && "$GAIN_MODE" == "ndcg" ]]; then
+  require_file "gain item_info" "$GAIN_ITEM_INFO"
+fi
 
 if [[ "$RUN_GAIN" == "1" || "$RUN_DATASETS" == "1" ]]; then
   if [[ -z "$QWEN3_EMBEDDING_MODEL" ]]; then
@@ -97,6 +104,9 @@ echo "RUBRIC_SCORES=$RUBRIC_SCORES"
 echo "QWEN3_EMBEDDING_MODEL=$QWEN3_EMBEDDING_MODEL"
 echo "RUN_NAME=$RUN_NAME"
 echo "OUT_DIR=$OUT_DIR"
+echo "GAIN_MODE=$GAIN_MODE"
+echo "GAIN_NDCG_K=$GAIN_NDCG_K"
+echo "GAIN_ITEM_INFO=$GAIN_ITEM_INFO"
 echo "GAIN_EMBEDDING_DEVICE=$GAIN_EMBEDDING_DEVICE"
 
 if [[ "$RUN_MERGE" == "1" ]]; then
@@ -116,6 +126,9 @@ if [[ "$RUN_GAIN" == "1" ]]; then
     --input "$COT_JUDGED" \
     --output "$COT_SCORED" \
     --embedder-mode "$GAIN_EMBEDDER_MODE" \
+    --gain-mode "$GAIN_MODE" \
+    --item-info "$GAIN_ITEM_INFO" \
+    --ndcg-k "$GAIN_NDCG_K" \
     --model "$MODEL" \
     --embedding-model "$QWEN3_EMBEDDING_MODEL" \
     --embedding-batch-size "$GAIN_EMBEDDING_BATCH_SIZE" \

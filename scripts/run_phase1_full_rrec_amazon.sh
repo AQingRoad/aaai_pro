@@ -11,6 +11,9 @@ SPLIT=${SPLIT:-train}
 MAX_EXAMPLES=${MAX_EXAMPLES:-1000}
 NUM_CANDIDATES=${NUM_CANDIDATES:-4}
 GAIN_EMBEDDER_MODE=${GAIN_EMBEDDER_MODE:-qwen3_embedding}
+GAIN_MODE=${GAIN_MODE:-ndcg}
+GAIN_NDCG_K=${GAIN_NDCG_K:-100}
+GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$ROOT/github_artifacts/$CATEGORY/rrec_eval/item_info.jsonl}
 GRPO_BASELINE_EMBEDDER_MODE=${GRPO_BASELINE_EMBEDDER_MODE:-$GAIN_EMBEDDER_MODE}
 JUDGE_MODE=${JUDGE_MODE:-api}
 API_PROVIDER=${API_PROVIDER:-openai_compatible}
@@ -95,6 +98,9 @@ python scripts/compute_cot_gain.py \
   --input "$OUT_DIR/cot_judged.jsonl" \
   --output "$OUT_DIR/cot_scored.jsonl" \
   --embedder-mode "$GAIN_EMBEDDER_MODE" \
+  --gain-mode "$GAIN_MODE" \
+  --item-info "$GAIN_ITEM_INFO" \
+  --ndcg-k "$GAIN_NDCG_K" \
   --model "$MODEL" \
   --embedding-model "$QWEN3_EMBEDDING_MODEL"
 

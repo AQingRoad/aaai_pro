@@ -64,6 +64,7 @@ FILTERED_COT=${FILTERED_COT:-$OUT_DIR/filtered_high_quality_cot_${RUN_NAME}.json
 REJECTED_COT=${REJECTED_COT:-$OUT_DIR/rejected_cot_${RUN_NAME}.jsonl}
 SFT_DATASET=${SFT_DATASET:-$OUT_DIR/sft_${RUN_NAME}.jsonl}
 GRPO_DATASET=${GRPO_DATASET:-$OUT_DIR/grpo_${RUN_NAME}.jsonl}
+GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$ROOT/github_artifacts/$CATEGORY/rrec_eval/item_info.jsonl}
 
 SFT_OUT=${SFT_OUT:-$CKPT_ROOT/qwen3_4b_sft_${RUN_NAME}}
 SFT_MERGED_MODEL=${SFT_MERGED_MODEL:-$CKPT_ROOT/qwen3_4b_sft_merged_${RUN_NAME}}
@@ -152,6 +153,8 @@ RUBRIC_JUDGE_SAVE_RAW=${RUBRIC_JUDGE_SAVE_RAW:-0}
 
 # Gain/select.
 GAIN_EMBEDDER_MODE=${GAIN_EMBEDDER_MODE:-qwen3_embedding}
+GAIN_MODE=${GAIN_MODE:-ndcg}
+GAIN_NDCG_K=${GAIN_NDCG_K:-100}
 GRPO_BASELINE_EMBEDDER_MODE=${GRPO_BASELINE_EMBEDDER_MODE:-$GAIN_EMBEDDER_MODE}
 MIN_RUBRIC=${MIN_RUBRIC:-0.5}
 MIN_GAIN=${MIN_GAIN:-0.0}
@@ -474,11 +477,17 @@ fi
 
 if stage_enabled "$RUN_GAIN" "$COT_SCORED"; then
   require_file "$COT_JUDGED"
+  if [[ "$GAIN_MODE" == "ndcg" ]]; then
+    require_file "$GAIN_ITEM_INFO"
+  fi
   log "Computing CoT gain with $GAIN_EMBEDDER_MODE -> $COT_SCORED"
   "$PYTHON_BIN" scripts/compute_cot_gain.py \
     --input "$COT_JUDGED" \
     --output "$COT_SCORED" \
     --embedder-mode "$GAIN_EMBEDDER_MODE" \
+    --gain-mode "$GAIN_MODE" \
+    --item-info "$GAIN_ITEM_INFO" \
+    --ndcg-k "$GAIN_NDCG_K" \
     --model "$MODEL" \
     --embedding-model "$QWEN3_EMBEDDING_MODEL" \
     --embedding-batch-size "${GAIN_EMBEDDING_BATCH_SIZE:-8}" \

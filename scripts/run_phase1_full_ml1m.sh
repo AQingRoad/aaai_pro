@@ -38,6 +38,7 @@ python scripts/compute_cot_gain.py \
   --input outputs/ml1m/cot_judged.jsonl \
   --output outputs/ml1m/cot_scored.jsonl \
   --embedder-mode "$GAIN_EMBEDDER_MODE" \
+  --gain-mode sim \
   --model "$MODEL"
 
 python scripts/select_filtered_cot.py \

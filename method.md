@@ -180,8 +180,11 @@ SFT 后的 Reasoner 已具备生成推荐推理的基本能力，但可能过拟
 ```
 For each user u, ground-truth item v+, generated CoT r:
 
-  # 推荐增益（连续值，可正可负）
-  R_gain(r) = cos(embed(u + r), embed(v+)) - cos(embed(u), embed(v+))
+  # 推荐增益：CoT 对目标物品全量排序位置的影响
+  rank(q, v+) = 1 + Σ_{v∈I, v≠v+} 1[s(q, v) > s(q, v+)]
+  NDCG@100(q, v+) = 1 / log2(rank(q, v+) + 1)   if rank(q, v+) ≤ 100
+                   = 0                            otherwise
+  R_gain(r) = NDCG@100(u + r, v+) - NDCG@100(u, v+)
 
   # Rubric 质量评分（可选：LLM Judge 或轻量 classifier）
   R_rubric(r) = Rubric_Score(r) / 25.0   # 归一化到 [0, 1]
