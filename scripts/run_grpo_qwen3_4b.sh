@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
+CONFIG_ENV_FILE=${CONFIG_ENV_FILE:-$ROOT/configs/glm_codeplan.env}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
@@ -27,6 +28,29 @@ RUBRIC_REWARD_SCORER=${RUBRIC_REWARD_SCORER:-api}
 RUBRIC_REWARD_API_PROVIDER=${RUBRIC_REWARD_API_PROVIDER:-${RUBRIC_JUDGE_API_PROVIDER:-zhipu}}
 RUBRIC_REWARD_API_BASE_URL=${RUBRIC_REWARD_API_BASE_URL:-${RUBRIC_JUDGE_API_BASE_URL:-https://open.bigmodel.cn/api/coding/paas/v4}}
 RUBRIC_REWARD_API_MODEL=${RUBRIC_REWARD_API_MODEL:-${RUBRIC_JUDGE_API_MODEL:-glm-5.2}}
+
+load_bigmodel_api_key() {
+  if [[ -n "${BIGMODEL_API_KEY:-}" || ! -f "$CONFIG_ENV_FILE" ]]; then
+    return
+  fi
+
+  local line value
+  line="$(grep -E '^[[:space:]]*(export[[:space:]]+)?BIGMODEL_API_KEY=' "$CONFIG_ENV_FILE" | tail -n 1 || true)"
+  if [[ -z "$line" ]]; then
+    return
+  fi
+  value="${line#*=}"
+  value="${value%$'\r'}"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  if [[ -n "$value" ]]; then
+    export BIGMODEL_API_KEY="$value"
+  fi
+}
+
+load_bigmodel_api_key
 RUBRIC_REWARD_API_KEY=${RUBRIC_REWARD_API_KEY:-${RUBRIC_JUDGE_API_KEY:-${BIGMODEL_API_KEY:-}}}
 RUBRIC_REWARD_API_TIMEOUT=${RUBRIC_REWARD_API_TIMEOUT:-${RUBRIC_JUDGE_API_TIMEOUT:-60}}
 RUBRIC_REWARD_API_MAX_RETRIES=${RUBRIC_REWARD_API_MAX_RETRIES:-${RUBRIC_JUDGE_API_MAX_RETRIES:-2}}
@@ -143,6 +167,7 @@ echo "  TRAIN_TYPE=$TRAIN_TYPE"
 echo "  MAX_STEPS=$MAX_STEPS"
 echo "  NUM_GENERATIONS=$NUM_GENERATIONS"
 echo "  GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-auto}"
+echo "  CONFIG_ENV_FILE=$CONFIG_ENV_FILE"
 echo "  RUBRIC_REWARD_API_MODEL=$RUBRIC_REWARD_API_MODEL"
 echo "  RUBRIC_GAIN_MODE=$RUBRIC_GAIN_MODE"
 echo "  RUBRIC_NDCG_ITEM_INFO=$RUBRIC_NDCG_ITEM_INFO"
