@@ -19,6 +19,7 @@ MAX_LENGTH=${MAX_LENGTH:-2048}
 LEARNING_RATE=${LEARNING_RATE:-1e-5}
 SAVE_STEPS=${SAVE_STEPS:-200}
 SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-2}
+SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
 
 activate_swift_env() {
   if command -v swift >/dev/null 2>&1; then
@@ -66,9 +67,35 @@ if [[ "$MAX_STEPS" != "-1" ]]; then
   STEP_ARGS=(--max_steps "$MAX_STEPS")
 fi
 
+resolve_model_type_flag() {
+  if [[ -n "$SWIFT_MODEL_TYPE_FLAG" ]]; then
+    echo "$SWIFT_MODEL_TYPE_FLAG"
+    return
+  fi
+
+  local help_text
+  help_text="$(swift sft --help 2>&1 || true)"
+  if grep -q -- "--model-type" <<<"$help_text" && ! grep -q -- "--model_type" <<<"$help_text"; then
+    echo "--model-type"
+  else
+    echo "--model_type"
+  fi
+}
+
+MODEL_TYPE_FLAG="$(resolve_model_type_flag)"
+
+echo "SFT config:"
+echo "  MODEL=$MODEL"
+echo "  MODEL_TYPE=$MODEL_TYPE"
+echo "  MODEL_TYPE_FLAG=$MODEL_TYPE_FLAG"
+echo "  DATASET=$DATASET"
+echo "  OUT=$OUT"
+echo "  TRAIN_TYPE=$TRAIN_TYPE"
+echo "  CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+
 swift sft \
   --model "$MODEL" \
-  --model_type "$MODEL_TYPE" \
+  "$MODEL_TYPE_FLAG" "$MODEL_TYPE" \
   --dataset "$DATASET" \
   --per_device_train_batch_size "$BATCH_SIZE" \
   --gradient_accumulation_steps "$GRAD_ACCUM" \
