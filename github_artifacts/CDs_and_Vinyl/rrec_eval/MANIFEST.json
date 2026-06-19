@@ -1,0 +1,38 @@
+{
+  "source": "Amazon Reviews 2023 rating_only + raw meta_categories, processed with RRec preprocess semantics",
+  "category": "CDs_and_Vinyl",
+  "params": {
+    "K": 0,
+    "st_year": 2022,
+    "st_month": 10,
+    "ed_year": 2023,
+    "ed_month": 10,
+    "window_size": 20
+  },
+  "counts": {
+    "train": 10722,
+    "valid": 1340,
+    "test": 1341,
+    "item_info": 12001,
+    "interactions_total": 13403
+  },
+  "gao": {
+    "users": 7697,
+    "items": 12000,
+    "reviews": 21100,
+    "start_time": "2022-07-01",
+    "end_time": "2023-10-01"
+  },
+  "metadata_filter": {
+    "num_no_title": 699,
+    "num_invalid_title": 0,
+    "num_too_long_title": 2683,
+    "num_invalid_price": 148444,
+    "raw": 701959
+  },
+  "files": {
+    "valid": "valid.jsonl",
+    "test": "test.jsonl",
+    "item_info": "item_info.jsonl"
+  }
+}
