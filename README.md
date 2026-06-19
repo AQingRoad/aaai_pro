@@ -82,6 +82,32 @@ uses the resulting checkpoint for GRPO reward computation. It reads
 `SFT_DATASET` and `GRPO_DATASET` directly for training. If a required JSONL is
 missing or empty, it exits before launching ms-swift.
 
+For the Tidal server paths:
+
+```bash
+cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+
+cat > configs/glm_codeplan.env <<'EOF'
+export BIGMODEL_API_KEY=<your_key>
+EOF
+chmod 600 configs/glm_codeplan.env
+
+SMOKE=1 PIPELINE_ENV_FILE=configs/rrec_train_only_tidal.env \
+bash scripts/run_rrec_full_training_pipeline.sh
+
+PIPELINE_ENV_FILE=configs/rrec_train_only_tidal.env \
+bash scripts/run_rrec_full_training_pipeline.sh
+```
+
+The Tidal config uses:
+
+```text
+LLM: /mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3/4B
+Embedding base: /mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3_embedding/0.6B
+Project root: /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+Conda env: /root/miniconda3/envs/swift
+```
+
 It defaults to full-parameter SFT/GRPO. LoRA is optional:
 
 ```bash
