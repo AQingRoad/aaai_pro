@@ -384,7 +384,7 @@ class RubricGatedGainReward(ORM):
         baselines = _as_float_list(baseline_sim, n)
         baseline_ndcgs = _as_float_list(baseline_ndcg, n)
         baseline_modes = _as_list(baseline_embedder_mode, n)
-        reward_gain_mode = os.getenv("RUBRIC_GAIN_MODE", "cosine").strip().lower()
+        reward_gain_mode = os.getenv("RUBRIC_GAIN_MODE", "ndcg").strip().lower()
         gain_mode = os.getenv("RUBRIC_GAIN_EMBEDDER_MODE", "lexical")
         threshold = float(os.getenv("RUBRIC_GATE_THRESHOLD", "0.45"))
         penalty = float(os.getenv("RUBRIC_GATE_PENALTY", "-0.05"))
