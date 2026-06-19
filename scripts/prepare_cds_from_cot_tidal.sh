@@ -30,6 +30,10 @@ GRPO_DATASET=${GRPO_DATASET:-$OUT_DIR/grpo_${RUN_NAME}.jsonl}
 EMBEDDER_OUT=${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_tidal}
 QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-}
 GAIN_CUDA_VISIBLE_DEVICES=${GAIN_CUDA_VISIBLE_DEVICES:-0}
+GAIN_PARALLEL_DEVICES=${GAIN_PARALLEL_DEVICES:-$GAIN_CUDA_VISIBLE_DEVICES}
+GAIN_NUM_SHARDS=${GAIN_NUM_SHARDS:-auto}
+GAIN_ROW_BATCH_SIZE=${GAIN_ROW_BATCH_SIZE:-32}
+GAIN_BASELINE_CACHE=${GAIN_BASELINE_CACHE:-$COT_SCORED.baseline_ndcg.jsonl}
 GAIN_EMBEDDER_MODE=${GAIN_EMBEDDER_MODE:-qwen3_embedding}
 GAIN_MODE=${GAIN_MODE:-ndcg}
 GAIN_NDCG_K=${GAIN_NDCG_K:-100}
@@ -108,6 +112,10 @@ echo "GAIN_MODE=$GAIN_MODE"
 echo "GAIN_NDCG_K=$GAIN_NDCG_K"
 echo "GAIN_ITEM_INFO=$GAIN_ITEM_INFO"
 echo "GAIN_EMBEDDING_DEVICE=$GAIN_EMBEDDING_DEVICE"
+echo "GAIN_PARALLEL_DEVICES=$GAIN_PARALLEL_DEVICES"
+echo "GAIN_NUM_SHARDS=$GAIN_NUM_SHARDS"
+echo "GAIN_ROW_BATCH_SIZE=$GAIN_ROW_BATCH_SIZE"
+echo "GAIN_BASELINE_CACHE=$GAIN_BASELINE_CACHE"
 
 if [[ "$RUN_MERGE" == "1" ]]; then
   "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
@@ -121,19 +129,121 @@ fi
 
 if [[ "$RUN_GAIN" == "1" ]]; then
   require_file "merged CoT" "$COT_JUDGED"
-  CUDA_VISIBLE_DEVICES="$GAIN_CUDA_VISIBLE_DEVICES" \
-  "$PYTHON_BIN" scripts/compute_cot_gain.py \
-    --input "$COT_JUDGED" \
-    --output "$COT_SCORED" \
-    --embedder-mode "$GAIN_EMBEDDER_MODE" \
-    --gain-mode "$GAIN_MODE" \
-    --item-info "$GAIN_ITEM_INFO" \
-    --ndcg-k "$GAIN_NDCG_K" \
-    --model "$MODEL" \
-    --embedding-model "$QWEN3_EMBEDDING_MODEL" \
-    --embedding-batch-size "$GAIN_EMBEDDING_BATCH_SIZE" \
-    --embedding-max-length "$GAIN_EMBEDDING_MAX_LENGTH" \
-    --device "$GAIN_EMBEDDING_DEVICE"
+  IFS=',' read -r -a gain_devices <<< "$GAIN_PARALLEL_DEVICES"
+  if [[ "${#gain_devices[@]}" -eq 0 || -z "${gain_devices[0]}" ]]; then
+    gain_devices=(0)
+  fi
+  if [[ "$GAIN_NUM_SHARDS" == "auto" ]]; then
+    gain_num_shards=${#gain_devices[@]}
+  else
+    gain_num_shards=$GAIN_NUM_SHARDS
+  fi
+
+  if [[ "$gain_num_shards" -gt 1 ]]; then
+    gain_part_dir=${GAIN_PART_DIR:-$COT_SCORED.parts}
+    mkdir -p "$gain_part_dir"
+    rm -f "$gain_part_dir"/input-*.jsonl "$gain_part_dir"/scored-*.jsonl
+
+    "$PYTHON_BIN" - "$COT_JUDGED" "$gain_part_dir" "$gain_num_shards" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+out_dir = Path(sys.argv[2])
+num_shards = int(sys.argv[3])
+files = []
+counts = [0 for _ in range(num_shards)]
+for idx in range(num_shards):
+    path = out_dir / f"input-{idx:05d}-of-{num_shards:05d}.jsonl"
+    files.append(path.open("w", encoding="utf-8"))
+try:
+    with src.open("r", encoding="utf-8") as fin:
+        for line_no, line in enumerate(fin, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            key = str(row.get("example_id") or row.get("user_id") or row.get("candidate_id") or row.get("interaction_id") or line_no)
+            digest = hashlib.md5(key.encode("utf-8")).digest()
+            shard = int.from_bytes(digest[:8], "big") % num_shards
+            files[shard].write(json.dumps(row, ensure_ascii=False) + "\n")
+            counts[shard] += 1
+finally:
+    for f in files:
+        f.close()
+for idx, count in enumerate(counts):
+    print(f"gain_shard_input[{idx}]={count}", flush=True)
+PY
+
+    pids=()
+    for ((shard_idx=0; shard_idx<gain_num_shards; shard_idx++)); do
+      device=${gain_devices[$((shard_idx % ${#gain_devices[@]}))]}
+      input_part="$gain_part_dir/input-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl"
+      output_part="$gain_part_dir/scored-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl"
+      echo "Starting gain shard $shard_idx/$gain_num_shards on CUDA_VISIBLE_DEVICES=$device -> $output_part"
+      CUDA_VISIBLE_DEVICES="$device" \
+      "$PYTHON_BIN" scripts/compute_cot_gain.py \
+        --input "$input_part" \
+        --output "$output_part" \
+        --embedder-mode "$GAIN_EMBEDDER_MODE" \
+        --gain-mode "$GAIN_MODE" \
+        --item-info "$GAIN_ITEM_INFO" \
+        --ndcg-k "$GAIN_NDCG_K" \
+        --model "$MODEL" \
+        --embedding-model "$QWEN3_EMBEDDING_MODEL" \
+        --embedding-batch-size "$GAIN_EMBEDDING_BATCH_SIZE" \
+        --embedding-max-length "$GAIN_EMBEDDING_MAX_LENGTH" \
+        --row-batch-size "$GAIN_ROW_BATCH_SIZE" \
+        --baseline-cache "$gain_part_dir/baseline-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl" \
+        --num-shards 1 \
+        --shard-index 0 \
+        --device "$GAIN_EMBEDDING_DEVICE" &
+      pids+=("$!")
+    done
+
+    failed=0
+    for pid in "${pids[@]}"; do
+      if ! wait "$pid"; then
+        failed=1
+      fi
+    done
+    if [[ "$failed" != "0" ]]; then
+      echo "At least one gain shard failed. Check $gain_part_dir." >&2
+      exit 1
+    fi
+
+    : > "$COT_SCORED"
+    : > "$GAIN_BASELINE_CACHE"
+    for ((shard_idx=0; shard_idx<gain_num_shards; shard_idx++)); do
+      output_part="$gain_part_dir/scored-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl"
+      require_file "gain shard output" "$output_part"
+      cat "$output_part" >> "$COT_SCORED"
+      baseline_part="$gain_part_dir/baseline-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl"
+      if [[ -s "$baseline_part" ]]; then
+        cat "$baseline_part" >> "$GAIN_BASELINE_CACHE"
+      fi
+    done
+    echo "Merged gain shards -> $COT_SCORED"
+    echo "Merged baseline cache -> $GAIN_BASELINE_CACHE"
+  else
+    CUDA_VISIBLE_DEVICES="$GAIN_CUDA_VISIBLE_DEVICES" \
+    "$PYTHON_BIN" scripts/compute_cot_gain.py \
+      --input "$COT_JUDGED" \
+      --output "$COT_SCORED" \
+      --embedder-mode "$GAIN_EMBEDDER_MODE" \
+      --gain-mode "$GAIN_MODE" \
+      --item-info "$GAIN_ITEM_INFO" \
+      --ndcg-k "$GAIN_NDCG_K" \
+      --model "$MODEL" \
+      --embedding-model "$QWEN3_EMBEDDING_MODEL" \
+      --embedding-batch-size "$GAIN_EMBEDDING_BATCH_SIZE" \
+      --embedding-max-length "$GAIN_EMBEDDING_MAX_LENGTH" \
+      --row-batch-size "$GAIN_ROW_BATCH_SIZE" \
+      --baseline-cache "$GAIN_BASELINE_CACHE" \
+      --device "$GAIN_EMBEDDING_DEVICE"
+  fi
 else
   echo "Skipping gain: $COT_SCORED"
 fi

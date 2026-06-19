@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import math
 import os
 import re
@@ -183,6 +185,19 @@ def rank_from_list_scores(scores: list[float], target_index: int, masked_indices
     return rank, float(target_score)
 
 
+def row_shard_key(row: dict[str, Any]) -> str:
+    return str(row.get("example_id") or row.get("user_id") or row.get("candidate_id") or row.get("interaction_id") or "")
+
+
+def stable_shard_index(key: str, num_shards: int) -> int:
+    digest = hashlib.md5(key.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % num_shards
+
+
+def text_hash(text: str) -> str:
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="outputs/cot_judged.jsonl")
@@ -205,6 +220,10 @@ def main() -> None:
         default=os.getenv("QWEN3_EMBEDDING_MODEL", "/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B"),
     )
     parser.add_argument("--max-examples", type=int, default=0)
+    parser.add_argument("--num-shards", type=int, default=int(os.getenv("COT_GAIN_NUM_SHARDS", "1")))
+    parser.add_argument("--shard-index", type=int, default=int(os.getenv("COT_GAIN_SHARD_INDEX", "0")))
+    parser.add_argument("--row-batch-size", type=int, default=int(os.getenv("COT_GAIN_ROW_BATCH_SIZE", "32")))
+    parser.add_argument("--baseline-cache", default=os.getenv("COT_GAIN_BASELINE_CACHE", ""))
     parser.add_argument("--max-tokens", type=int, default=2048)
     parser.add_argument("--embedding-max-length", type=int, default=8192)
     parser.add_argument("--embedding-batch-size", type=int, default=8)
@@ -222,6 +241,12 @@ def main() -> None:
         raise ValueError("--item-info is required when --gain-mode ndcg")
     if args.ndcg_k <= 0:
         raise ValueError("--ndcg-k must be positive")
+    if args.num_shards <= 0:
+        raise ValueError("--num-shards must be positive")
+    if args.shard_index < 0 or args.shard_index >= args.num_shards:
+        raise ValueError("--shard-index must be in [0, num_shards)")
+    if args.row_batch_size <= 0:
+        raise ValueError("--row-batch-size must be positive")
 
     ensure_parent(args.output).write_text("", encoding="utf-8")
     embedder = None
@@ -284,10 +309,157 @@ def main() -> None:
             rank, target_score = rank_from_torch_scores(scores, target_index, mask)
         return target_score, rank, ndcg_at_rank(rank, args.ndcg_k)
 
-    baseline_ndcg_cache: dict[tuple[Any, ...], tuple[float, int, float]] = {}
+    def score_query_embedding_ndcg(query_emb, row: dict[str, Any]) -> tuple[float, int, float]:
+        target_id = int(row["target_item_id"])
+        if target_id not in item_index:
+            return 0.0, len(item_ids) + 1, 0.0
+        target_index = item_index[target_id]
+        scores = item_embs @ query_emb  # type: ignore[operator]
+        rank, target_score = rank_from_torch_scores(scores, target_index, masked_indices(row, target_id))
+        return target_score, rank, ndcg_at_rank(rank, args.ndcg_k)
+
+    def row_in_shard(row: dict[str, Any]) -> bool:
+        if args.num_shards <= 1:
+            return True
+        key = row_shard_key(row)
+        if not key:
+            return False
+        return stable_shard_index(key, args.num_shards) == args.shard_index
+
+    def baseline_cache_key(row: dict[str, Any], user_history: str, target_id: int) -> str:
+        payload = {
+            "example_id": str(row.get("example_id") or ""),
+            "target_id": target_id,
+            "user_history_hash": text_hash(user_history),
+            "history_item_ids": sorted(as_int_set(row.get("history_item_ids") or row.get("history_item_id"))),
+            "embedder_mode": args.embedder_mode,
+            "embedding_model": str(args.embedding_model) if args.embedder_mode == "qwen3_embedding" else "",
+            "gain_mode": args.gain_mode,
+            "item_info": str(args.item_info),
+            "item_max_chars": args.item_max_chars,
+            "ndcg_k": args.ndcg_k,
+            "mask_history_items": args.mask_history_items,
+            "mask_pad_item": args.mask_pad_item,
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        return hashlib.md5(encoded.encode("utf-8")).hexdigest()
+
+    baseline_cache_path = ensure_parent(args.baseline_cache) if args.baseline_cache else None
+    baseline_ndcg_cache: dict[str, tuple[float, int, float]] = {}
+    if baseline_cache_path and baseline_cache_path.exists():
+        for cache_row in read_jsonl(baseline_cache_path):
+            key = str(cache_row.get("cache_key") or "")
+            if not key:
+                continue
+            try:
+                baseline_ndcg_cache[key] = (
+                    float(cache_row["baseline_sim"]),
+                    int(cache_row["baseline_rank"]),
+                    float(cache_row["baseline_ndcg"]),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    def store_baseline_cache(cache_key: str, row: dict[str, Any], values: tuple[float, int, float]) -> None:
+        if not baseline_cache_path:
+            return
+        baseline_sim, baseline_rank, baseline_ndcg = values
+        append_jsonl(
+            baseline_cache_path,
+            {
+                "cache_key": cache_key,
+                "example_id": row.get("example_id"),
+                "user_id": row.get("user_id"),
+                "interaction_id": row.get("interaction_id"),
+                "target_item_id": row.get("target_item_id"),
+                "baseline_sim": baseline_sim,
+                "baseline_rank": baseline_rank,
+                "baseline_ndcg": baseline_ndcg,
+                "ndcg_k": args.ndcg_k,
+                "embedder_mode": args.embedder_mode,
+                "embedding_model": args.embedding_model if args.embedder_mode == "qwen3_embedding" else "",
+                "gain_mode": args.gain_mode,
+            },
+        )
+
+    def process_qwen3_ndcg_batch(rows: list[dict[str, Any]]) -> int:
+        prepared = []
+        missing_base_queries = []
+        missing_base_rows = []
+        missing_base_keys = []
+        cot_queries = []
+
+        for row in rows:
+            user_history = row["user_history"]
+            cot_text = row.get("cot", "")
+            with_cot = append_recommendation_reasoning(user_history, cot_text)
+            target_id = int(row["target_item_id"])
+            cache_key = baseline_cache_key(row, user_history, target_id)
+            prepared.append((row, with_cot, cache_key))
+            if cache_key not in baseline_ndcg_cache:
+                missing_base_queries.append(user_history)
+                missing_base_rows.append(row)
+                missing_base_keys.append(cache_key)
+            cot_queries.append(with_cot)
+
+        if missing_base_queries:
+            base_embs = embedder.encode_queries(missing_base_queries)  # type: ignore[union-attr]
+            for cache_key, row, query_emb in zip(missing_base_keys, missing_base_rows, base_embs):
+                baseline_values = score_query_embedding_ndcg(query_emb, row)
+                baseline_ndcg_cache[cache_key] = baseline_values
+                store_baseline_cache(cache_key, row, baseline_values)
+
+        cot_embs = embedder.encode_queries(cot_queries)  # type: ignore[union-attr]
+        written = 0
+        for (row, _with_cot, cache_key), cot_emb in zip(prepared, cot_embs):
+            baseline_sim, baseline_rank, baseline_ndcg = baseline_ndcg_cache[cache_key]
+            cot_sim, cot_rank, cot_ndcg = score_query_embedding_ndcg(cot_emb, row)
+            out = {
+                **row,
+                "baseline_sim": baseline_sim,
+                "cot_sim": cot_sim,
+                "cot_gain": cot_ndcg - baseline_ndcg,
+                "gain_mode": args.gain_mode,
+                "embedder_mode": args.embedder_mode,
+                "baseline_rank": baseline_rank,
+                "cot_rank": cot_rank,
+                "baseline_ndcg": baseline_ndcg,
+                "cot_ndcg": cot_ndcg,
+                "ndcg_k": args.ndcg_k,
+                "sim_gain": cot_sim - baseline_sim,
+                "masked_history_items": args.mask_history_items,
+                "masked_pad_item": args.mask_pad_item,
+                "num_shards": args.num_shards,
+                "shard_index": args.shard_index,
+            }
+            append_jsonl(args.output, out)
+            written += 1
+        return written
+
+    if args.gain_mode == "ndcg" and args.embedder_mode == "qwen3_embedding":
+        count = 0
+        batch: list[dict[str, Any]] = []
+        seen = 0
+        for row in read_jsonl(args.input):
+            if not row_in_shard(row):
+                continue
+            seen += 1
+            if args.max_examples and seen > args.max_examples:
+                break
+            batch.append(row)
+            if len(batch) >= args.row_batch_size:
+                count += process_qwen3_ndcg_batch(batch)
+                batch = []
+                print(f"scored {count} shard={args.shard_index}/{args.num_shards}", flush=True)
+        if batch:
+            count += process_qwen3_ndcg_batch(batch)
+        print(f"Wrote {count} gain-scored rows to {args.output} shard={args.shard_index}/{args.num_shards}")
+        return
 
     count = 0
     for row in read_jsonl(args.input, limit=args.max_examples):
+        if not row_in_shard(row):
+            continue
         user_history = row["user_history"]
         cot_text = row.get("cot", "")
         target_text = row.get("target_item_text") or row.get("target_item_title", "")
@@ -315,14 +487,11 @@ def main() -> None:
             extra = {}
         else:
             target_id = int(row["target_item_id"])
-            cache_key = (
-                row.get("example_id"),
-                user_history,
-                target_id,
-                tuple(sorted(as_int_set(row.get("history_item_ids") or row.get("history_item_id")))),
-            )
+            cache_key = baseline_cache_key(row, user_history, target_id)
             if cache_key not in baseline_ndcg_cache:
-                baseline_ndcg_cache[cache_key] = score_rank_ndcg(user_history, row)
+                baseline_values = score_rank_ndcg(user_history, row)
+                baseline_ndcg_cache[cache_key] = baseline_values
+                store_baseline_cache(cache_key, row, baseline_values)
             baseline_sim, baseline_rank, baseline_ndcg = baseline_ndcg_cache[cache_key]
             cot_sim, cot_rank, cot_ndcg = score_rank_ndcg(with_cot, row)
             cot_gain = cot_ndcg - baseline_ndcg
@@ -344,6 +513,8 @@ def main() -> None:
             "cot_gain": cot_gain,
             "gain_mode": args.gain_mode,
             "embedder_mode": args.embedder_mode,
+            "num_shards": args.num_shards,
+            "shard_index": args.shard_index,
             **extra,
         }
         append_jsonl(args.output, out)
