@@ -7,6 +7,10 @@ Files:
 - `phase0/phase0_embedder_rrec_amazon_cds_and_vinyl_train.jsonl`
   - 10,722 rows.
   - Query-positive pairs for training the Qwen3-Embedding-0.6B recommendation embedder.
+- `cot/cot_candidate_lists_deepseek_v4_pro_low.jsonl`
+  - 2,187 CoT candidate-list rows, 8,732 candidate CoTs.
+- `cot/cot_candidate_lists_deepseek_v4_pro_low.rubric_deepseek_v4_pro.jsonl`
+  - 8,732 candidate-level rubric scores for the CoT candidate lists.
 - `sft/sft_rrec_amazon_cds_and_vinyl_deepseek_v4_pro_cds_embedder_partial.jsonl`
   - 1,112 rows.
   - Supervised fine-tuning examples selected by rubric-gated CoT gain.
@@ -25,3 +29,9 @@ Files:
 The embedding checkpoint is intentionally not stored here. Train it on the target server from the phase0 JSONL before SFT/GRPO.
 
 The `rrec_eval` files were generated from Amazon Reviews 2023 CDs_and_Vinyl raw ratings and metadata with the same RRec preprocessing semantics used for the train split: `K=0`, date window `2022-10` to `2023-10` with the official item-count window extension, and `window_size=20`. The generated train count is 10,722, matching the phase0 training rows.
+
+To rebuild the SFT/GRPO JSONL files from the committed CoT candidate and rubric files on Tidal, run:
+
+```bash
+bash scripts/prepare_cds_from_cot_tidal.sh
+```
