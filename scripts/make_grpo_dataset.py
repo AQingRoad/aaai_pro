@@ -38,6 +38,14 @@ def row_history(row: dict) -> str:
     return normalize_history(row.get("user_history") or row.get("source_prompt") or message_user_content(row))
 
 
+def row_interaction_key(row: dict) -> tuple[str, str] | None:
+    user_id = row.get("user_id")
+    interaction_id = row.get("interaction_id")
+    if user_id is None or interaction_id is None:
+        return None
+    return str(user_id), str(interaction_id)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data/ml1m_examples.jsonl")
@@ -73,9 +81,17 @@ def main() -> None:
             output_dim=args.embedding_output_dim,
         )
 
+    excluded_example_ids = set()
+    excluded_interactions = set()
     excluded_histories = set()
     for exclude_path in args.exclude_prompts_from:
         for row in read_jsonl(exclude_path):
+            example_id = row.get("example_id")
+            if example_id:
+                excluded_example_ids.add(str(example_id))
+            interaction_key = row_interaction_key(row)
+            if interaction_key is not None:
+                excluded_interactions.add(interaction_key)
             history = row_history(row)
             if history:
                 excluded_histories.add(history)
@@ -83,18 +99,33 @@ def main() -> None:
     rows = []
     for row in read_jsonl(args.input):
         history = row_history(row)
-        if history in excluded_histories:
+        example_id = str(row.get("example_id") or "")
+        interaction_key = row_interaction_key(row)
+        excluded_by_id = bool(example_id and example_id in excluded_example_ids) or (
+            interaction_key is not None and interaction_key in excluded_interactions
+        )
+        excluded_by_history = (
+            not excluded_example_ids
+            and not excluded_interactions
+            and history in excluded_histories
+        )
+        if excluded_by_id or excluded_by_history:
             continue
         out = {
             "example_id": row.get("example_id"),
             "user_id": row["user_id"],
             "interaction_id": row.get("interaction_id"),
             "dataset": row.get("dataset"),
+            "category": row.get("category"),
+            "split": row.get("split"),
             "source_prompt": history,
             "user_history": history,
             "target_item_id": row.get("target_item_id"),
             "target_item_title": row.get("target_item_title", ""),
             "target_item_text": row.get("target_item_text", ""),
+            "target_rating": row.get("target_rating"),
+            "history_item_ids": row.get("history_item_ids") or row.get("history_item_id") or [],
+            "history_item_count": row.get("history_item_count"),
             "messages": [
                 {"role": "system", "content": COT_SYSTEM},
                 {"role": "user", "content": build_user_prompt(row["user_history"], row.get("category", ""))},

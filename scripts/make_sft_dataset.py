@@ -60,9 +60,14 @@ def main() -> None:
         diagnostics = {key: row.get(key) for key in DIAGNOSTIC_FIELDS if key in row}
         rows.append(
             {
+                "example_id": row.get("example_id"),
                 "user_id": row["user_id"],
+                "interaction_id": row.get("interaction_id"),
                 "candidate_id": row.get("candidate_id"),
                 "dataset": row.get("dataset"),
+                "category": row.get("category"),
+                "target_item_id": row.get("target_item_id"),
+                "history_item_ids": row.get("history_item_ids") or row.get("history_item_id") or [],
                 "rubric_total": row.get("rubric_total"),
                 "cot_gain": row.get("cot_gain"),
                 "selection_score": row.get("selection_score"),
