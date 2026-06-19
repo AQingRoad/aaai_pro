@@ -11,6 +11,7 @@ DATASET=${DATASET:-$ROOT/outputs/ml1m/grpo.jsonl}
 OUT=${OUT:-$ROOT/checkpoints/qwen3_4b_grpo_rubric_gated}
 MAX_STEPS=${MAX_STEPS:-20}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
+GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-}
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
 LORA_RANK=${LORA_RANK:-64}
 LORA_ALPHA=${LORA_ALPHA:-128}
@@ -140,6 +141,8 @@ echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
 echo "  MAX_STEPS=$MAX_STEPS"
+echo "  NUM_GENERATIONS=$NUM_GENERATIONS"
+echo "  GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-auto}"
 echo "  RUBRIC_REWARD_API_MODEL=$RUBRIC_REWARD_API_MODEL"
 echo "  RUBRIC_GAIN_MODE=$RUBRIC_GAIN_MODE"
 echo "  RUBRIC_NDCG_ITEM_INFO=$RUBRIC_NDCG_ITEM_INFO"
@@ -176,6 +179,11 @@ if [[ "$USE_VLLM" == "1" || "$USE_VLLM" == "true" ]]; then
   fi
 fi
 
+GENERATION_ARGS=(--num_generations "$NUM_GENERATIONS")
+if [[ -n "$GENERATION_BATCH_SIZE" ]]; then
+  GENERATION_ARGS+=(--generation_batch_size "$GENERATION_BATCH_SIZE")
+fi
+
 swift rlhf \
   --rlhf_type grpo \
   "${MODEL_ARGS[@]}" \
@@ -185,8 +193,7 @@ swift rlhf \
   --external_plugins "$ROOT/scripts/rubric_gated_reward.py" \
   --reward_funcs rubric_format rubric_quality rubric_gated_gain \
   --reward_weights "$FORMAT_WEIGHT" "$QUALITY_WEIGHT" "$GAIN_WEIGHT" \
-  --num_generations "$NUM_GENERATIONS" \
-  --generation_batch_size "$NUM_GENERATIONS" \
+  "${GENERATION_ARGS[@]}" \
   --per_device_train_batch_size "$BATCH_SIZE" \
   --gradient_accumulation_steps "$GRAD_ACCUM" \
   --max_steps "$MAX_STEPS" \
