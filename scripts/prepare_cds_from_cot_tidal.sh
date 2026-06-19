@@ -24,6 +24,9 @@ COT_SCORED=${COT_SCORED:-$OUT_DIR/cot_scored_${RUN_NAME}.jsonl}
 SCORED_EXAMPLES=${SCORED_EXAMPLES:-$OUT_DIR/examples_${RUN_NAME}.jsonl}
 FILTERED_COT=${FILTERED_COT:-$OUT_DIR/filtered_high_quality_cot_${RUN_NAME}.jsonl}
 REJECTED_COT=${REJECTED_COT:-$OUT_DIR/rejected_cot_${RUN_NAME}.jsonl}
+FINAL_FILTERED_COT=${FINAL_FILTERED_COT:-$OUT_DIR/filtered_high_quality_cot_${RUN_NAME}.final_sft.jsonl}
+COT_SCORE_PLOT=${COT_SCORE_PLOT:-$OUT_DIR/cot_gain_distribution_${RUN_NAME}.svg}
+COT_SCORE_SUMMARY=${COT_SCORE_SUMMARY:-$OUT_DIR/cot_gain_distribution_${RUN_NAME}.json}
 SFT_DATASET=${SFT_DATASET:-$OUT_DIR/sft_${RUN_NAME}.jsonl}
 GRPO_DATASET=${GRPO_DATASET:-$OUT_DIR/grpo_${RUN_NAME}.jsonl}
 
@@ -47,6 +50,9 @@ GRPO_BASELINE_EMBEDDING_DEVICE=${GRPO_BASELINE_EMBEDDING_DEVICE:-cuda:0}
 
 MIN_RUBRIC=${MIN_RUBRIC:-0.5}
 MIN_GAIN=${MIN_GAIN:-0.0}
+FINAL_MIN_GAIN=${FINAL_MIN_GAIN:-0.0}
+COT_SCORE_FIELD=${COT_SCORE_FIELD:-cot_gain}
+COT_SCORE_BINS=${COT_SCORE_BINS:-40}
 TOP_K=${TOP_K:-1}
 FALLBACK_WHEN_EMPTY=${FALLBACK_WHEN_EMPTY:-1}
 GRPO_EXCLUDE_SFT=${GRPO_EXCLUDE_SFT:-1}
@@ -55,6 +61,9 @@ RUN_MERGE=${RUN_MERGE:-1}
 RUN_GAIN=${RUN_GAIN:-1}
 RUN_SELECT=${RUN_SELECT:-1}
 RUN_DATASETS=${RUN_DATASETS:-1}
+CLEAN_INTERMEDIATE=${CLEAN_INTERMEDIATE:-0}
+CLEAN_GAIN_BASELINE_CACHE=${CLEAN_GAIN_BASELINE_CACHE:-0}
+CLEAN_REJECTED_COT=${CLEAN_REJECTED_COT:-0}
 
 require_file() {
   local label="$1"
@@ -116,6 +125,9 @@ echo "GAIN_PARALLEL_DEVICES=$GAIN_PARALLEL_DEVICES"
 echo "GAIN_NUM_SHARDS=$GAIN_NUM_SHARDS"
 echo "GAIN_ROW_BATCH_SIZE=$GAIN_ROW_BATCH_SIZE"
 echo "GAIN_BASELINE_CACHE=$GAIN_BASELINE_CACHE"
+echo "FINAL_FILTERED_COT=$FINAL_FILTERED_COT"
+echo "COT_SCORE_PLOT=$COT_SCORE_PLOT"
+echo "FINAL_MIN_GAIN=$FINAL_MIN_GAIN"
 
 if [[ "$RUN_MERGE" == "1" ]]; then
   "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
@@ -269,8 +281,19 @@ fi
 if [[ "$RUN_DATASETS" == "1" ]]; then
   require_file "filtered CoT" "$FILTERED_COT"
   require_file "scored examples" "$SCORED_EXAMPLES"
-  "$PYTHON_BIN" scripts/make_sft_dataset.py \
+  "$PYTHON_BIN" scripts/finalize_cot_selection.py \
     --input "$FILTERED_COT" \
+    --output "$FINAL_FILTERED_COT" \
+    --plot-output "$COT_SCORE_PLOT" \
+    --summary-output "$COT_SCORE_SUMMARY" \
+    --score-field "$COT_SCORE_FIELD" \
+    --gain-field cot_gain \
+    --min-gain "$FINAL_MIN_GAIN" \
+    --bins "$COT_SCORE_BINS"
+
+  require_file "final SFT CoT" "$FINAL_FILTERED_COT"
+  "$PYTHON_BIN" scripts/make_sft_dataset.py \
+    --input "$FINAL_FILTERED_COT" \
     --output "$SFT_DATASET"
 
   grpo_exclude_args=()
@@ -290,11 +313,30 @@ else
   echo "Skipping dataset build: $SFT_DATASET / $GRPO_DATASET"
 fi
 
+if [[ "$CLEAN_INTERMEDIATE" == "1" ]]; then
+  gain_part_dir=${GAIN_PART_DIR:-$COT_SCORED.parts}
+  if [[ -d "$gain_part_dir" ]]; then
+    rm -rf "$gain_part_dir"
+    echo "Removed gain shard parts: $gain_part_dir"
+  fi
+  if [[ "$CLEAN_GAIN_BASELINE_CACHE" == "1" && -f "$GAIN_BASELINE_CACHE" ]]; then
+    rm -f "$GAIN_BASELINE_CACHE"
+    echo "Removed gain baseline cache: $GAIN_BASELINE_CACHE"
+  fi
+  if [[ "$CLEAN_REJECTED_COT" == "1" && -f "$REJECTED_COT" ]]; then
+    rm -f "$REJECTED_COT"
+    echo "Removed rejected CoT file: $REJECTED_COT"
+  fi
+fi
+
 echo "Rebuilt CoT artifacts:"
 echo "  judged:   $COT_JUDGED"
 echo "  scored:   $COT_SCORED"
 echo "  filtered: $FILTERED_COT"
+echo "  final:    $FINAL_FILTERED_COT"
 echo "  rejected: $REJECTED_COT"
 echo "  examples: $SCORED_EXAMPLES"
+echo "  plot:     $COT_SCORE_PLOT"
+echo "  summary:  $COT_SCORE_SUMMARY"
 echo "  sft:      $SFT_DATASET"
 echo "  grpo:     $GRPO_DATASET"
