@@ -21,6 +21,8 @@ GRAD_ACCUM=${GRAD_ACCUM:-4}
 MAX_LENGTH=${MAX_LENGTH:-2048}
 MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-384}
 LEARNING_RATE=${LEARNING_RATE:-1e-5}
+SAVE_STEPS=${SAVE_STEPS:-$MAX_STEPS}
+SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-2}
 FORMAT_WEIGHT=${FORMAT_WEIGHT:-0.2}
 QUALITY_WEIGHT=${QUALITY_WEIGHT:-0.3}
 GAIN_WEIGHT=${GAIN_WEIGHT:-1.0}
@@ -165,6 +167,8 @@ echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
 echo "  MAX_STEPS=$MAX_STEPS"
+echo "  SAVE_STEPS=$SAVE_STEPS"
+echo "  SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
 echo "  NUM_GENERATIONS=$NUM_GENERATIONS"
 echo "  GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-auto}"
 echo "  CONFIG_ENV_FILE=$CONFIG_ENV_FILE"
@@ -231,8 +235,8 @@ swift rlhf \
   --torch_dtype bfloat16 \
   --gradient_checkpointing true \
   --save_only_model true \
-  --save_steps "$MAX_STEPS" \
-  --save_total_limit 2 \
+  --save_steps "$SAVE_STEPS" \
+  --save_total_limit "$SAVE_TOTAL_LIMIT" \
   --logging_steps 1 \
   --log_completions true \
   --report_to none \
