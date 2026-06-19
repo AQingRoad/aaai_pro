@@ -14,6 +14,22 @@ from rubric_cot_pipeline.rubric import extract_blocks
 
 
 INNER_TAG_RE = re.compile(r"</?(?:analysis|recommendation|think|thinking|thoughts|answer)>", re.IGNORECASE)
+DIAGNOSTIC_FIELDS = (
+    "gain_mode",
+    "embedder_mode",
+    "baseline_sim",
+    "cot_sim",
+    "sim_gain",
+    "baseline_rank",
+    "cot_rank",
+    "baseline_ndcg",
+    "cot_ndcg",
+    "ndcg_k",
+    "masked_history_items",
+    "masked_pad_item",
+    "selection_rank",
+    "fallback_selected",
+)
 
 
 def ensure_tagged_assistant(cot: str, fallback_answer: str = "") -> str:
@@ -41,6 +57,7 @@ def main() -> None:
     for row in read_jsonl(args.input, limit=args.max_examples):
         _, answer, _ = extract_blocks(row.get("cot", ""))
         assistant = ensure_tagged_assistant(row.get("cot", ""), answer or row.get("source_answer", ""))
+        diagnostics = {key: row.get(key) for key in DIAGNOSTIC_FIELDS if key in row}
         rows.append(
             {
                 "user_id": row["user_id"],
@@ -49,6 +66,7 @@ def main() -> None:
                 "rubric_total": row.get("rubric_total"),
                 "cot_gain": row.get("cot_gain"),
                 "selection_score": row.get("selection_score"),
+                **diagnostics,
                 "messages": [
                     {"role": "system", "content": COT_SYSTEM},
                     {"role": "user", "content": build_user_prompt(row["user_history"], row.get("category", ""))},
