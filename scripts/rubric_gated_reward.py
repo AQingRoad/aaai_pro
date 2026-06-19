@@ -40,8 +40,58 @@ from rubric_cot_pipeline.rubric import extract_blocks, hashed_cosine, rule_score
 _QWEN3_EMBEDDER: Qwen3TextEmbedder | None = None
 _RUBRIC_API_CLIENT = None
 _RUBRIC_SCORE_CACHE: dict[tuple[str, str, str, str], float] = {}
+_RUBRIC_SOURCE_CACHE: dict[tuple[str, str, str, str], str] = {}
+_RUBRIC_SOURCE_COUNTS = {
+    "api_success": 0,
+    "fallback_rules": 0,
+    "cache_api_success": 0,
+    "cache_fallback_rules": 0,
+}
+_RUBRIC_SOURCE_LOG_COUNT = 0
 _NDCG_ITEM_CACHE = None
 _BASELINE_NDCG_CACHE: dict[tuple[str, int, tuple[int, ...], int, str], tuple[float, int, float]] = {}
+
+
+def _log_rubric_source(source: str, provider: str, model: str, score: float, raw: str = "") -> None:
+    global _RUBRIC_SOURCE_LOG_COUNT
+    if source in _RUBRIC_SOURCE_COUNTS:
+        _RUBRIC_SOURCE_COUNTS[source] += 1
+    _RUBRIC_SOURCE_LOG_COUNT += 1
+
+    log_path = os.getenv("RUBRIC_REWARD_SOURCE_LOG", "").strip()
+    if log_path:
+        try:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            with Path(log_path).open("a", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "source": source,
+                            "provider": provider,
+                            "model": model,
+                            "score": score,
+                            "rank": os.getenv("RANK", ""),
+                            "local_rank": os.getenv("LOCAL_RANK", ""),
+                            "api_error": raw[:500] if raw else "",
+                            "counts": dict(_RUBRIC_SOURCE_COUNTS),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        except Exception as exc:
+            print(f"[rubric_reward_source_log_error] {type(exc).__name__}: {exc}", flush=True)
+
+    log_every = int(os.getenv("RUBRIC_REWARD_SOURCE_LOG_EVERY", "20"))
+    if log_every > 0 and _RUBRIC_SOURCE_LOG_COUNT % log_every == 0:
+        print(
+            "[rubric_reward_source] "
+            f"api_success={_RUBRIC_SOURCE_COUNTS['api_success']} "
+            f"fallback_rules={_RUBRIC_SOURCE_COUNTS['fallback_rules']} "
+            f"cache_api_success={_RUBRIC_SOURCE_COUNTS['cache_api_success']} "
+            f"cache_fallback_rules={_RUBRIC_SOURCE_COUNTS['cache_fallback_rules']}",
+            flush=True,
+        )
 
 
 def _as_list(value: Any, n: int) -> list[str]:
@@ -304,18 +354,26 @@ def _score_with_api(user_history: str, completion: str, target_item: str = "") -
     model = os.getenv("RUBRIC_REWARD_API_MODEL") or os.getenv("RUBRIC_JUDGE_API_MODEL", "")
     cache_key = (provider, model, user_history, completion, target_item)
     if cache_key in _RUBRIC_SCORE_CACHE:
-        return _RUBRIC_SCORE_CACHE[cache_key]
+        score = _RUBRIC_SCORE_CACHE[cache_key]
+        source = _RUBRIC_SOURCE_CACHE.get(cache_key, "api_success")
+        cache_source = "cache_fallback_rules" if source == "fallback_rules" else "cache_api_success"
+        _log_rubric_source(cache_source, provider, model, score)
+        return score
 
     result = _get_api_client().score(user_history, completion, target_item)
     if result.score is not None:
         score = float(result.score["score_norm"])
         _RUBRIC_SCORE_CACHE[cache_key] = score
+        _RUBRIC_SOURCE_CACHE[cache_key] = "api_success"
+        _log_rubric_source("api_success", provider, model, score)
         return score
 
     fallback = os.getenv("RUBRIC_REWARD_API_FALLBACK", "rules").strip().lower()
     if fallback in {"rules", "rule", "local"}:
         score = _score_with_rules(user_history, completion, target_item)
         _RUBRIC_SCORE_CACHE[cache_key] = score
+        _RUBRIC_SOURCE_CACHE[cache_key] = "fallback_rules"
+        _log_rubric_source("fallback_rules", provider, model, score, result.raw)
         return score
     raise RuntimeError(f"Rubric API scorer failed and fallback is disabled: {result.raw}")
 
