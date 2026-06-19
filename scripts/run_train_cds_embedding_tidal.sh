@@ -16,10 +16,10 @@ CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 EMBEDDER_BATCH_SIZE=${EMBEDDER_BATCH_SIZE:-128}
 EMBEDDER_GRAD_ACCUM=${EMBEDDER_GRAD_ACCUM:-1}
 EMBEDDER_MAX_LENGTH=${EMBEDDER_MAX_LENGTH:-2048}
-EMBEDDER_EPOCHS=${EMBEDDER_EPOCHS:-1}
+EMBEDDER_EPOCHS=${EMBEDDER_EPOCHS:-3}
 EMBEDDER_MAX_STEPS=${EMBEDDER_MAX_STEPS:--1}
-EMBEDDER_LR=${EMBEDDER_LR:-1e-5}
-EMBEDDER_SAVE_STEPS=${EMBEDDER_SAVE_STEPS:-0}
+EMBEDDER_LR=${EMBEDDER_LR:-6e-6}
+EMBEDDER_SAVE_STEPS=${EMBEDDER_SAVE_STEPS:-auto}
 EMBEDDER_TORCH_DTYPE=${EMBEDDER_TORCH_DTYPE:-bfloat16}
 SEED=${SEED:-42}
 
@@ -41,6 +41,16 @@ require_path "project root" "$ROOT"
 require_path "python" "$PYTHON_BIN"
 require_path "base embedding model" "$BASE_EMBEDDING_MODEL"
 require_path "phase0 embedder dataset" "$EMBEDDER_DATASET"
+
+if [[ "$EMBEDDER_SAVE_STEPS" == "auto" ]]; then
+  row_count=$(wc -l < "$EMBEDDER_DATASET" | tr -d ' ')
+  full_batches=$((row_count / EMBEDDER_BATCH_SIZE))
+  if ((full_batches < 1)); then
+    echo "Need at least one full batch: rows=$row_count batch_size=$EMBEDDER_BATCH_SIZE" >&2
+    exit 1
+  fi
+  EMBEDDER_SAVE_STEPS=$(((full_batches + EMBEDDER_GRAD_ACCUM - 1) / EMBEDDER_GRAD_ACCUM))
+fi
 
 mkdir -p "$EMBEDDER_OUT"
 cd "$ROOT"
