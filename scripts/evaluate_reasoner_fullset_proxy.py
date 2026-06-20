@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torch
 from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from rubric_cot_pipeline.embeddings import (
     DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION,
@@ -162,21 +162,28 @@ def load_reasoner(model_path: str, adapter_path: str, torch_dtype: str, model_de
     tokenizer.padding_side = "left"
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
+    config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    for attr in ("base_model_tp_plan", "base_model_pp_plan", "base_model_ep_plan"):
+        if hasattr(config, attr):
+            setattr(config, attr, None)
     kwargs: dict[str, Any] = {
+        "config": config,
         "trust_remote_code": True,
         "torch_dtype": resolve_dtype(torch_dtype),
         "tp_plan": None,
         "tp_size": None,
-        "distributed_config": None,
     }
     if model_device == "auto":
         kwargs["device_map"] = "auto"
     else:
         kwargs["device_map"] = {"": model_device}
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        **kwargs,
-    )
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_path, **kwargs)
+    except TypeError as exc:
+        if "unexpected keyword argument" not in str(exc):
+            raise
+        retry_kwargs = {key: value for key, value in kwargs.items() if key not in {"tp_plan", "tp_size"}}
+        model = AutoModelForCausalLM.from_pretrained(model_path, **retry_kwargs)
     if adapter_path:
         model = PeftModel.from_pretrained(model, adapter_path)
     model.eval()
