@@ -130,7 +130,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--save-steps", type=int, default=0)
-    parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off"], default="auto")
+    parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
     args = parser.parse_args()
 
     distributed, rank, local_rank, world_size, device = init_distributed()
@@ -172,11 +172,23 @@ def main() -> None:
         torch_dtype=resolve_torch_dtype(args.torch_dtype),
     ).to(device)
     model.train()
-    use_gradient_checkpointing = args.gradient_checkpointing == "on" or (
+    use_non_reentrant_checkpointing = args.gradient_checkpointing == "non_reentrant"
+    use_gradient_checkpointing = use_non_reentrant_checkpointing or args.gradient_checkpointing == "on" or (
         args.gradient_checkpointing == "auto" and not distributed
     )
     if use_gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
+        if hasattr(model.config, "use_cache"):
+            model.config.use_cache = False
+        if use_non_reentrant_checkpointing:
+            try:
+                model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+            except TypeError as exc:
+                raise RuntimeError(
+                    "gradient_checkpointing=non_reentrant requires a transformers version whose "
+                    "gradient_checkpointing_enable accepts gradient_checkpointing_kwargs."
+                ) from exc
+        else:
+            model.gradient_checkpointing_enable()
     elif hasattr(model, "gradient_checkpointing_disable"):
         model.gradient_checkpointing_disable()
     if distributed:
@@ -210,6 +222,8 @@ def main() -> None:
             "global_batch_size": args.batch_size * world_size * max(1, args.grad_accum),
             "steps_per_epoch_per_rank": steps_per_epoch,
             "gradient_checkpointing_enabled": use_gradient_checkpointing,
+            "gradient_checkpointing_mode": args.gradient_checkpointing,
+            "gradient_checkpointing_use_reentrant": False if use_non_reentrant_checkpointing else None,
         }
         args_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     if distributed:
