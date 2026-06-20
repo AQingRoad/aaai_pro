@@ -41,7 +41,7 @@ INCLUDE_COT=${INCLUDE_COT:-1}
 MAX_COT_CHARS=${MAX_COT_CHARS:-1200}
 MAX_ITEM_CHARS=${MAX_ITEM_CHARS:-1400}
 
-BASE_EMBEDDING_MODEL=${BASE_EMBEDDING_MODEL:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_tidal/checkpoint-249}
+BASE_EMBEDDING_MODEL=${BASE_EMBEDDING_MODEL:-/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3_embedding/0.6B}
 EMBEDDER_OUT=${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_cot_${RUN_NAME}}
 EMBEDDER_BATCH_SIZE=${EMBEDDER_BATCH_SIZE:-128}
 EMBEDDER_GRAD_ACCUM=${EMBEDDER_GRAD_ACCUM:-1}
