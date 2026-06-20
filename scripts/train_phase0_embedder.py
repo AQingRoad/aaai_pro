@@ -115,6 +115,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--save-steps", type=int, default=0)
+    parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off"], default="auto")
     args = parser.parse_args()
 
     distributed, rank, local_rank, world_size, device = init_distributed()
@@ -156,8 +157,13 @@ def main() -> None:
         torch_dtype=resolve_torch_dtype(args.torch_dtype),
     ).to(device)
     model.train()
-    if hasattr(model, "gradient_checkpointing_enable"):
+    use_gradient_checkpointing = args.gradient_checkpointing == "on" or (
+        args.gradient_checkpointing == "auto" and not distributed
+    )
+    if use_gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
+    elif hasattr(model, "gradient_checkpointing_disable"):
+        model.gradient_checkpointing_disable()
     if distributed:
         model = DDP(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
 
@@ -188,6 +194,7 @@ def main() -> None:
             "per_device_batch_size": args.batch_size,
             "global_batch_size": args.batch_size * world_size * max(1, args.grad_accum),
             "steps_per_epoch_per_rank": steps_per_epoch,
+            "gradient_checkpointing_enabled": use_gradient_checkpointing,
         }
         args_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     if distributed:
