@@ -10,7 +10,7 @@ PYTHON_BIN=${PYTHON_BIN:-$VENV/bin/python}
 
 CATEGORY=${CATEGORY:-CDs_and_Vinyl}
 SPLIT=${SPLIT:-test}
-DATA_ROOT=${DATA_ROOT:-$ROOT/data}
+DATA_ROOT=${DATA_ROOT:-$ROOT/data/rrec_amazon}
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
 RUN_NAME=${RUN_NAME:-grpo_reasoner_multigpu}
 

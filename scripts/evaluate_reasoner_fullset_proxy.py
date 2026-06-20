@@ -186,7 +186,18 @@ def main() -> None:
         raise ValueError("--shard-index must be in [0, num_shards)")
 
     ks = [int(x.strip()) for x in args.ks.split(",") if x.strip()]
-    dataset_dir = Path(args.data_root) / f"{args.category}_0_2022-10-2023-10"
+    data_root = Path(args.data_root)
+    dataset_name = f"{args.category}_0_2022-10-2023-10"
+    dataset_dir = data_root / dataset_name
+    fallback_dataset_dir = data_root / "rrec_amazon" / dataset_name
+    if not dataset_dir.exists() and fallback_dataset_dir.exists():
+        dataset_dir = fallback_dataset_dir
+    if not dataset_dir.exists():
+        raise FileNotFoundError(
+            f"Directory {dataset_dir} not found. "
+            f"Set --data-root to the parent directory of {dataset_name}, "
+            f"for example: /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/data/rrec_amazon"
+        )
     ds = load_from_disk(str(dataset_dir))
     item_map = build_item_map(ds["item_info"])
 
