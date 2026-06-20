@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+import torch.distributed.nn.functional as dist_nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -82,6 +83,27 @@ def encode_texts(model, tokenizer, texts: list[str], max_length: int):
     return F.normalize(embeddings.float(), p=2, dim=1)
 
 
+def all_gather_same_shape(tensor: torch.Tensor, rank: int, world_size: int) -> torch.Tensor:
+    local_rows = torch.tensor([tensor.shape[0]], device=tensor.device, dtype=torch.long)
+    row_counts = [torch.zeros_like(local_rows) for _ in range(world_size)]
+    dist.all_gather(row_counts, local_rows)
+    counts = [int(count.item()) for count in row_counts]
+    if len(set(counts)) != 1:
+        raise RuntimeError(
+            "cross-gpu negatives require the same number of documents per rank. "
+            f"Got row counts by rank: {counts}"
+        )
+
+    try:
+        gathered = dist_nn.all_gather(tensor.contiguous())
+        return torch.cat(list(gathered), dim=0)
+    except (AttributeError, TypeError):
+        gathered_tensors = [torch.zeros_like(tensor) for _ in range(world_size)]
+        dist.all_gather(gathered_tensors, tensor.contiguous())
+        gathered_tensors[rank] = tensor
+        return torch.cat(gathered_tensors, dim=0)
+
+
 def init_distributed() -> tuple[bool, int, int, int, torch.device]:
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     rank = int(os.environ.get("RANK", "0"))
@@ -131,6 +153,7 @@ def main() -> None:
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--save-steps", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
+    parser.add_argument("--cross-gpu-negatives", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
     distributed, rank, local_rank, world_size, device = init_distributed()
@@ -193,6 +216,7 @@ def main() -> None:
         model.gradient_checkpointing_disable()
     if distributed:
         model = DDP(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
+    use_cross_gpu_negatives = bool(args.cross_gpu_negatives and distributed)
 
     no_decay = ["bias", "LayerNorm.weight", "layer_norm.weight", "norm.weight"]
     grouped = [
@@ -224,6 +248,7 @@ def main() -> None:
             "gradient_checkpointing_enabled": use_gradient_checkpointing,
             "gradient_checkpointing_mode": args.gradient_checkpointing,
             "gradient_checkpointing_use_reentrant": False if use_non_reentrant_checkpointing else None,
+            "cross_gpu_negatives": use_cross_gpu_negatives,
         }
         args_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     if distributed:
@@ -241,8 +266,14 @@ def main() -> None:
 
             query_emb = encode_texts(model, tokenizer, query_texts, args.max_length)
             doc_emb = encode_texts(model, tokenizer, doc_texts + explicit_negative_texts, args.max_length)
+            local_doc_count = doc_emb.shape[0]
+            if use_cross_gpu_negatives:
+                doc_emb = all_gather_same_shape(doc_emb, rank=rank, world_size=world_size)
             logits = query_emb @ doc_emb.T / args.temperature
-            labels = torch.arange(logits.shape[0], device=logits.device)
+            if use_cross_gpu_negatives:
+                labels = rank * local_doc_count + torch.arange(len(doc_texts), device=logits.device)
+            else:
+                labels = torch.arange(len(doc_texts), device=logits.device)
             loss = F.cross_entropy(logits, labels)
             (loss / args.grad_accum).backward()
 
@@ -268,6 +299,8 @@ def main() -> None:
                             "lr": scheduler.get_last_lr()[0],
                             "world_size": world_size,
                             "global_batch_size": args.batch_size * world_size * max(1, args.grad_accum),
+                            "cross_gpu_negatives": use_cross_gpu_negatives,
+                            "candidate_docs": int(doc_emb.shape[0]),
                             "explicit_negatives": len(explicit_negative_texts),
                         }
                     ),
