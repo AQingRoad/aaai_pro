@@ -14,7 +14,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torch
-from datasets import load_from_disk
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -23,11 +22,80 @@ from rubric_cot_pipeline.embeddings import (
     Qwen3TextEmbedder,
     append_recommendation_reasoning,
 )
+from rubric_cot_pipeline.io import read_jsonl
 from rubric_cot_pipeline.prompts import COT_SYSTEM, build_user_prompt
-from scripts.prepare_rrec_amazon_examples import build_item_map, build_item_text, history_text
 
 
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*")
+
+
+def compact(text: Any, max_chars: int) -> str:
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    return text[: max_chars - 15].rstrip() + " [TRUNCATED]"
+
+
+def as_text_list(value: Any, limit: int = 8) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, (list, tuple)):
+        out = []
+        for item in value:
+            text = compact(item, 500)
+            if text:
+                out.append(text)
+            if len(out) >= limit:
+                break
+        return out
+    return [compact(value, 500)]
+
+
+def build_item_text(item: dict[str, Any] | None, title: str, max_chars: int) -> str:
+    if not item:
+        return compact(title, max_chars)
+
+    parts: list[str] = []
+    for key in ("title", "main_category", "store"):
+        value = compact(item.get(key), 300)
+        if value:
+            parts.append(value)
+    categories = " > ".join(as_text_list(item.get("categories"), limit=6))
+    if categories:
+        parts.append(f"Categories: {categories}")
+    features = "; ".join(as_text_list(item.get("features"), limit=8))
+    if features:
+        parts.append(f"Features: {features}")
+    description = " ".join(as_text_list(item.get("description"), limit=2))
+    if description:
+        parts.append(f"Description: {description}")
+    if not parts:
+        parts.append(title)
+    return compact(" ".join(parts), max_chars)
+
+
+def category_label(category: str) -> str:
+    return category.replace("_", " ").replace("And", "and")
+
+
+def history_text(category: str, titles: list[str], ratings: list[float], max_history_items: int) -> str:
+    if max_history_items > 0:
+        titles = titles[-max_history_items:]
+        ratings = ratings[-max_history_items:]
+
+    entries = []
+    for title, rating in zip(titles, ratings):
+        title = compact(title, 240)
+        if title:
+            entries.append(f"{title} ({float(rating):g} stars)")
+
+    history = "; ".join(entries)
+    return (
+        f"This user's Amazon {category_label(category)} interaction history over time is listed below. "
+        f"{history}."
+    )
 
 
 def counts(text: str) -> Counter[str]:
@@ -150,7 +218,9 @@ def generate_cots(model, tokenizer, user_histories: list[str], category: str, ar
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-root", default="/root/autodl-tmp/rec/RRec_official/data")
+    parser.add_argument("--examples", default="")
+    parser.add_argument("--item-info", default="")
+    parser.add_argument("--data-root", default="")
     parser.add_argument("--category", required=True)
     parser.add_argument("--split", default="test", choices=["train", "valid", "test"])
     parser.add_argument("--model", default="/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B")
@@ -186,20 +256,16 @@ def main() -> None:
         raise ValueError("--shard-index must be in [0, num_shards)")
 
     ks = [int(x.strip()) for x in args.ks.split(",") if x.strip()]
-    data_root = Path(args.data_root)
-    dataset_name = f"{args.category}_0_2022-10-2023-10"
-    dataset_dir = data_root / dataset_name
-    fallback_dataset_dir = data_root / "rrec_amazon" / dataset_name
-    if not dataset_dir.exists() and fallback_dataset_dir.exists():
-        dataset_dir = fallback_dataset_dir
-    if not dataset_dir.exists():
-        raise FileNotFoundError(
-            f"Directory {dataset_dir} not found. "
-            f"Set --data-root to the parent directory of {dataset_name}, "
-            f"for example: /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/data/rrec_amazon"
-        )
-    ds = load_from_disk(str(dataset_dir))
-    item_map = build_item_map(ds["item_info"])
+    examples_path = Path(args.examples) if args.examples else Path("github_artifacts") / args.category / "rrec_eval" / f"{args.split}.jsonl"
+    item_info_path = Path(args.item_info) if args.item_info else Path("github_artifacts") / args.category / "rrec_eval" / "item_info.jsonl"
+    if not examples_path.exists():
+        raise FileNotFoundError(f"Examples JSONL not found: {examples_path}")
+    if not item_info_path.exists():
+        raise FileNotFoundError(f"Item info JSONL not found: {item_info_path}")
+    all_rows = list(read_jsonl(examples_path))
+    if not all_rows:
+        raise ValueError(f"No examples loaded from {examples_path}")
+    item_map = {int(row["item_id"]): row for row in read_jsonl(item_info_path)}
 
     item_ids: list[int] = []
     item_id_to_index: dict[int, int] = {}
@@ -231,7 +297,6 @@ def main() -> None:
         item_embs = embedder.encode_documents(item_texts)
 
     model, tokenizer = load_reasoner(args.model, args.adapter, args.torch_dtype)
-    all_rows = ds[args.split]
     selected_indices = list(range(len(all_rows)))
     if args.max_examples > 0:
         selected_indices = selected_indices[: min(args.max_examples, len(selected_indices))]
@@ -240,7 +305,7 @@ def main() -> None:
         for limited_pos, row_index in enumerate(selected_indices)
         if limited_pos % args.num_shards == args.shard_index
     ]
-    rows = all_rows.select(selected_indices)
+    rows = [all_rows[row_index] for row_index in selected_indices]
 
     metric_keys = [f"{prefix}_{metric}@{k}" for prefix in ("baseline", "reasoner") for metric in ("HR", "NDCG") for k in ks]
     totals = {key: 0.0 for key in metric_keys}
@@ -327,6 +392,8 @@ def main() -> None:
     result = {
         "category": args.category,
         "split": args.split,
+        "examples": str(examples_path),
+        "item_info": str(item_info_path),
         "adapter": args.adapter,
         "adapter_name": args.adapter_name or (Path(args.adapter).parent.parent.name if args.adapter else "base"),
         "evaluated": len(pred_rows),

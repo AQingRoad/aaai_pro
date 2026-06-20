@@ -10,7 +10,9 @@ PYTHON_BIN=${PYTHON_BIN:-$VENV/bin/python}
 
 CATEGORY=${CATEGORY:-CDs_and_Vinyl}
 SPLIT=${SPLIT:-test}
-DATA_ROOT=${DATA_ROOT:-$ROOT/data/rrec_amazon}
+RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
+EVAL_EXAMPLES=${EVAL_EXAMPLES:-$RREC_EVAL_DIR/${SPLIT}.jsonl}
+ITEM_INFO=${ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
 RUN_NAME=${RUN_NAME:-grpo_reasoner_multigpu}
 
@@ -63,6 +65,8 @@ require_path "project root" "$ROOT"
 require_path "python" "$PYTHON_BIN"
 require_path "reasoner model/checkpoint" "$MODEL"
 require_path "Qwen3 embedding model" "$QWEN3_EMBEDDING_MODEL"
+require_path "eval examples JSONL" "$EVAL_EXAMPLES"
+require_path "item info JSONL" "$ITEM_INFO"
 
 IFS=',' read -r -a DEVICE_LIST <<< "$DEVICES"
 if [[ "${#DEVICE_LIST[@]}" -eq 0 ]]; then
@@ -91,7 +95,8 @@ echo "ROOT=$ROOT"
 echo "MODEL=$MODEL"
 echo "ADAPTER=${ADAPTER:-none}"
 echo "QWEN3_EMBEDDING_MODEL=$QWEN3_EMBEDDING_MODEL"
-echo "DATA_ROOT=$DATA_ROOT"
+echo "EVAL_EXAMPLES=$EVAL_EXAMPLES"
+echo "ITEM_INFO=$ITEM_INFO"
 echo "SPLIT=$SPLIT"
 echo "DEVICES=$DEVICES"
 echo "NUM_SHARDS=$NUM_SHARDS"
@@ -112,7 +117,8 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
     CUDA_VISIBLE_DEVICES="$device" \
     QWEN3_EMBEDDING_DEVICE=cuda:0 \
     "$PYTHON_BIN" scripts/evaluate_reasoner_fullset_proxy.py \
-      --data-root "$DATA_ROOT" \
+      --examples "$EVAL_EXAMPLES" \
+      --item-info "$ITEM_INFO" \
       --category "$CATEGORY" \
       --split "$SPLIT" \
       --model "$MODEL" \
