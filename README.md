@@ -1,5 +1,11 @@
 # Rubric-Gated CoT Recommendation Pipeline
 
+Repository layout and script classification are documented in
+[`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) and
+[`scripts/README.md`](scripts/README.md). Keep existing script paths stable
+unless compatibility wrappers are added, because server commands call these
+entrypoints directly.
+
 This project implements the pipeline described in `method.md`:
 
 1. Prepare recommendation examples with held-out positive target items.
