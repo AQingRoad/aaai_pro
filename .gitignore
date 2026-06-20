@@ -9,13 +9,13 @@ env/
 .tmp*/
 .codeflicker/
 
-data/
-outputs/
-output/
-checkpoints/
-logs/
-prepared/
-external/
+/data/
+/outputs/
+/output/
+/checkpoints/
+/logs/
+/prepared/
+/external/
 
 *.safetensors
 *.bin
