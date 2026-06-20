@@ -36,6 +36,7 @@ GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-4}
 TEMPERATURE=${TEMPERATURE:-0.0}
 TOP_P=${TOP_P:-0.9}
 TORCH_DTYPE=${TORCH_DTYPE:-bfloat16}
+MODEL_DEVICE=${MODEL_DEVICE:-cuda:0}
 KS=${KS:-5,10,20,100}
 
 SHARD_DIR=${SHARD_DIR:-$OUT_DIR/${RUN_NAME}_${SPLIT}_shards}
@@ -107,6 +108,7 @@ echo "NUM_SHARDS=$NUM_SHARDS"
 echo "GENERATION_BATCH_SIZE=$GENERATION_BATCH_SIZE"
 echo "MAX_EXAMPLES=$MAX_EXAMPLES"
 echo "MAX_NEW_TOKENS=$MAX_NEW_TOKENS"
+echo "MODEL_DEVICE=$MODEL_DEVICE"
 echo "EVAL_OUT=$EVAL_OUT"
 echo "PRED_OUT=$PRED_OUT"
 
@@ -136,6 +138,7 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
       --temperature "$TEMPERATURE" \
       --top-p "$TOP_P" \
       --torch-dtype "$TORCH_DTYPE" \
+      --model-device "$MODEL_DEVICE" \
       --scorer "$SCORER" \
       --embedding-model "$QWEN3_EMBEDDING_MODEL" \
       --embedding-max-length "$EMBEDDING_MAX_LENGTH" \

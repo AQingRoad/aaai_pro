@@ -157,16 +157,25 @@ def resolve_dtype(name: str):
     raise ValueError(f"Unsupported dtype: {name}")
 
 
-def load_reasoner(model_path: str, adapter_path: str, torch_dtype: str):
+def load_reasoner(model_path: str, adapter_path: str, torch_dtype: str, model_device: str):
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
     tokenizer.padding_side = "left"
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
+    kwargs: dict[str, Any] = {
+        "trust_remote_code": True,
+        "torch_dtype": resolve_dtype(torch_dtype),
+        "tp_plan": None,
+        "tp_size": None,
+        "distributed_config": None,
+    }
+    if model_device == "auto":
+        kwargs["device_map"] = "auto"
+    else:
+        kwargs["device_map"] = {"": model_device}
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        trust_remote_code=True,
-        torch_dtype=resolve_dtype(torch_dtype),
-        device_map="auto",
+        **kwargs,
     )
     if adapter_path:
         model = PeftModel.from_pretrained(model, adapter_path)
@@ -234,6 +243,7 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--torch-dtype", default="bfloat16")
+    parser.add_argument("--model-device", default=os.getenv("REASONER_MODEL_DEVICE", "cuda:0"))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="lexical")
     parser.add_argument("--embedding-model", default="/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B")
@@ -296,7 +306,7 @@ def main() -> None:
         )
         item_embs = embedder.encode_documents(item_texts)
 
-    model, tokenizer = load_reasoner(args.model, args.adapter, args.torch_dtype)
+    model, tokenizer = load_reasoner(args.model, args.adapter, args.torch_dtype, args.model_device)
     selected_indices = list(range(len(all_rows)))
     if args.max_examples > 0:
         selected_indices = selected_indices[: min(args.max_examples, len(selected_indices))]
@@ -400,6 +410,7 @@ def main() -> None:
         "num_shards": args.num_shards,
         "shard_index": args.shard_index,
         "generation_batch_size": args.generation_batch_size,
+        "model_device": args.model_device,
         "num_items": len(item_ids),
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
