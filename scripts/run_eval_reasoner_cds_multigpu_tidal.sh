@@ -58,7 +58,11 @@ require_path() {
 
 if [[ -z "$MODEL" ]]; then
   require_path "GRPO output dir" "$GRPO_OUT"
-  MODEL=$(latest_checkpoint "$GRPO_OUT")
+  if [[ "$(basename "$GRPO_OUT")" == checkpoint-* ]]; then
+    MODEL="$GRPO_OUT"
+  else
+    MODEL=$(latest_checkpoint "$GRPO_OUT")
+  fi
 fi
 
 require_path "project root" "$ROOT"
