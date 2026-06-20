@@ -60,11 +60,14 @@ def rank_target(query: str, item_ids: list[int], item_vecs: list[Counter[str]], 
 
 def rank_target_embedding(query: str, item_ids: list[int], item_embs: torch.Tensor, target_id: int, embedder: Qwen3TextEmbedder) -> int:
     query_emb = embedder.encode_queries([query])[0]
-    scores = torch.mv(item_embs, query_emb)
-    order = torch.argsort(scores, descending=True)
     target_index = item_ids.index(target_id)
-    matches = (order == target_index).nonzero(as_tuple=False)
-    return int(matches[0].item()) + 1 if len(matches) else len(item_ids) + 1
+    return rank_target_embedding_from_emb(query_emb, item_embs, target_index)
+
+
+def rank_target_embedding_from_emb(query_emb: torch.Tensor, item_embs: torch.Tensor, target_index: int) -> int:
+    scores = torch.mv(item_embs, query_emb)
+    target_score = scores[target_index]
+    return int((scores > target_score).sum().item()) + 1
 
 
 def update_metrics(totals: dict[str, float], prefix: str, rank: int, ks: list[int]) -> None:
@@ -88,6 +91,7 @@ def resolve_dtype(name: str):
 
 def load_reasoner(model_path: str, adapter_path: str, torch_dtype: str):
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=True)
+    tokenizer.padding_side = "left"
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
@@ -108,12 +112,26 @@ def first_device(model) -> torch.device:
 
 @torch.no_grad()
 def generate_cot(model, tokenizer, user_history: str, category: str, args) -> str:
+    return generate_cots(model, tokenizer, [user_history], category, args)[0]
+
+
+@torch.no_grad()
+def generate_cots(model, tokenizer, user_histories: list[str], category: str, args) -> list[str]:
     messages = [
-        {"role": "system", "content": COT_SYSTEM},
-        {"role": "user", "content": build_user_prompt(user_history, category)},
+        [
+            {"role": "system", "content": COT_SYSTEM},
+            {"role": "user", "content": build_user_prompt(user_history, category)},
+        ]
+        for user_history in user_histories
     ]
-    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=args.max_prompt_tokens)
+    prompts = [tokenizer.apply_chat_template(row, tokenize=False, add_generation_prompt=True) for row in messages]
+    inputs = tokenizer(
+        prompts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=args.max_prompt_tokens,
+    )
     device = first_device(model)
     inputs = {k: v.to(device) for k, v in inputs.items()}
     gen_kwargs: dict[str, Any] = {
@@ -126,8 +144,8 @@ def generate_cot(model, tokenizer, user_history: str, category: str, args) -> st
         gen_kwargs["temperature"] = args.temperature
         gen_kwargs["top_p"] = args.top_p
     output_ids = model.generate(**inputs, **gen_kwargs)
-    generated = output_ids[0][inputs["input_ids"].shape[-1] :]
-    return tokenizer.decode(generated, skip_special_tokens=True).strip()
+    generated = output_ids[:, inputs["input_ids"].shape[-1] :]
+    return [text.strip() for text in tokenizer.batch_decode(generated, skip_special_tokens=True)]
 
 
 def main() -> None:
@@ -142,6 +160,7 @@ def main() -> None:
     parser.add_argument("--max-history-items", type=int, default=20)
     parser.add_argument("--max-prompt-tokens", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument("--generation-batch-size", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--torch-dtype", default="bfloat16")
@@ -156,7 +175,15 @@ def main() -> None:
     parser.add_argument("--embedding-device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
     parser.add_argument("--output", default="")
     parser.add_argument("--predictions-output", default="")
+    parser.add_argument("--num-shards", type=int, default=1)
+    parser.add_argument("--shard-index", type=int, default=0)
     args = parser.parse_args()
+    if args.generation_batch_size < 1:
+        raise ValueError("--generation-batch-size must be >= 1")
+    if args.num_shards < 1:
+        raise ValueError("--num-shards must be >= 1")
+    if args.shard_index < 0 or args.shard_index >= args.num_shards:
+        raise ValueError("--shard-index must be in [0, num_shards)")
 
     ks = [int(x.strip()) for x in args.ks.split(",") if x.strip()]
     dataset_dir = Path(args.data_root) / f"{args.category}_0_2022-10-2023-10"
@@ -164,11 +191,13 @@ def main() -> None:
     item_map = build_item_map(ds["item_info"])
 
     item_ids: list[int] = []
+    item_id_to_index: dict[int, int] = {}
     item_texts: list[str] = []
     item_vecs: list[Counter[str]] = []
     item_norms: list[float] = []
     for item_id, item in sorted(item_map.items()):
         item_text = build_item_text(item, str(item.get("title", "")), max_chars=1200)
+        item_id_to_index[item_id] = len(item_ids)
         item_ids.append(item_id)
         item_texts.append(item_text)
         if args.scorer == "lexical":
@@ -191,46 +220,97 @@ def main() -> None:
         item_embs = embedder.encode_documents(item_texts)
 
     model, tokenizer = load_reasoner(args.model, args.adapter, args.torch_dtype)
-    rows = ds[args.split]
+    all_rows = ds[args.split]
+    selected_indices = list(range(len(all_rows)))
     if args.max_examples > 0:
-        rows = rows.select(range(min(args.max_examples, len(rows))))
+        selected_indices = selected_indices[: min(args.max_examples, len(selected_indices))]
+    selected_indices = [
+        row_index
+        for limited_pos, row_index in enumerate(selected_indices)
+        if limited_pos % args.num_shards == args.shard_index
+    ]
+    rows = all_rows.select(selected_indices)
 
     metric_keys = [f"{prefix}_{metric}@{k}" for prefix in ("baseline", "reasoner") for metric in ("HR", "NDCG") for k in ks]
     totals = {key: 0.0 for key in metric_keys}
     pred_rows: list[dict[str, Any]] = []
 
-    for idx, row in enumerate(rows, start=1):
-        user_history = history_text(
-            args.category,
-            [str(x) for x in row.get("history_item_title", [])],
-            [float(x) for x in row.get("history_rating", [])],
-            args.max_history_items,
-        )
-        target_id = int(row["item_id"])
-        cot = generate_cot(model, tokenizer, user_history, args.category, args)
-        reasoner_query = append_recommendation_reasoning(user_history, cot)
+    for batch_start in range(0, len(rows), args.generation_batch_size):
+        batch_end = min(batch_start + args.generation_batch_size, len(rows))
+        batch_rows = [rows[i] for i in range(batch_start, batch_end)]
+        batch_indices = selected_indices[batch_start:batch_end]
+        user_histories = [
+            history_text(
+                args.category,
+                [str(x) for x in row.get("history_item_title", [])],
+                [float(x) for x in row.get("history_rating", [])],
+                args.max_history_items,
+            )
+            for row in batch_rows
+        ]
+        target_ids = [int(row["item_id"]) for row in batch_rows]
+        cots = generate_cots(model, tokenizer, user_histories, args.category, args)
+        reasoner_queries = [
+            append_recommendation_reasoning(user_history, cot)
+            for user_history, cot in zip(user_histories, cots)
+        ]
+
         if args.scorer == "lexical":
-            baseline_rank = rank_target(user_history, item_ids, item_vecs, item_norms, target_id)
-            reasoner_rank = rank_target(reasoner_query, item_ids, item_vecs, item_norms, target_id)
+            baseline_ranks = [
+                rank_target(user_history, item_ids, item_vecs, item_norms, target_id)
+                for user_history, target_id in zip(user_histories, target_ids)
+            ]
+            reasoner_ranks = [
+                rank_target(reasoner_query, item_ids, item_vecs, item_norms, target_id)
+                for reasoner_query, target_id in zip(reasoner_queries, target_ids)
+            ]
         else:
-            baseline_rank = rank_target_embedding(user_history, item_ids, item_embs, target_id, embedder)  # type: ignore[arg-type]
-            reasoner_rank = rank_target_embedding(reasoner_query, item_ids, item_embs, target_id, embedder)  # type: ignore[arg-type]
-        update_metrics(totals, "baseline", baseline_rank, ks)
-        update_metrics(totals, "reasoner", reasoner_rank, ks)
-        pred_rows.append(
-            {
-                "category": args.category,
-                "split": args.split,
-                "index": idx,
-                "user_id": row.get("user_id"),
-                "target_item_id": target_id,
-                "target_item_title": row.get("item_title", ""),
-                "baseline_rank": baseline_rank,
-                "reasoner_rank": reasoner_rank,
-                "cot": cot,
-            }
+            baseline_query_embs = embedder.encode_queries(user_histories)  # type: ignore[union-attr]
+            reasoner_query_embs = embedder.encode_queries(reasoner_queries)  # type: ignore[union-attr]
+            baseline_ranks = []
+            reasoner_ranks = []
+            for row_pos, target_id in enumerate(target_ids):
+                target_index = item_id_to_index.get(target_id)
+                if target_index is None:
+                    baseline_ranks.append(len(item_ids) + 1)
+                    reasoner_ranks.append(len(item_ids) + 1)
+                else:
+                    baseline_ranks.append(
+                        rank_target_embedding_from_emb(baseline_query_embs[row_pos], item_embs, target_index)  # type: ignore[arg-type]
+                    )
+                    reasoner_ranks.append(
+                        rank_target_embedding_from_emb(reasoner_query_embs[row_pos], item_embs, target_index)  # type: ignore[arg-type]
+                    )
+
+        for row_pos, row in enumerate(batch_rows):
+            local_index = batch_start + row_pos + 1
+            global_index = batch_indices[row_pos] + 1
+            baseline_rank = baseline_ranks[row_pos]
+            reasoner_rank = reasoner_ranks[row_pos]
+            update_metrics(totals, "baseline", baseline_rank, ks)
+            update_metrics(totals, "reasoner", reasoner_rank, ks)
+            pred_rows.append(
+                {
+                    "category": args.category,
+                    "split": args.split,
+                    "index": local_index,
+                    "global_index": global_index,
+                    "shard_index": args.shard_index,
+                    "num_shards": args.num_shards,
+                    "user_id": row.get("user_id"),
+                    "target_item_id": target_ids[row_pos],
+                    "target_item_title": row.get("item_title", ""),
+                    "baseline_rank": baseline_rank,
+                    "reasoner_rank": reasoner_rank,
+                    "cot": cots[row_pos],
+                }
+            )
+        print(
+            f"evaluated {batch_end}/{len(rows)} "
+            f"shard={args.shard_index}/{args.num_shards} "
+            f"batch_size={len(batch_rows)}",
+            flush=True,
         )
-        print(f"evaluated {idx}/{len(rows)} baseline_rank={baseline_rank} reasoner_rank={reasoner_rank}", flush=True)
 
     n = max(1, len(pred_rows))
     result = {
@@ -239,6 +319,9 @@ def main() -> None:
         "adapter": args.adapter,
         "adapter_name": args.adapter_name or (Path(args.adapter).parent.parent.name if args.adapter else "base"),
         "evaluated": len(pred_rows),
+        "num_shards": args.num_shards,
+        "shard_index": args.shard_index,
+        "generation_batch_size": args.generation_batch_size,
         "num_items": len(item_ids),
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
