@@ -28,10 +28,24 @@ from rubric_cot_pipeline.embeddings import (
 from rubric_cot_pipeline.io import read_jsonl
 
 
+def as_text_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
 class PairDataset(Dataset):
     def __init__(self, path: str, limit: int = 0):
         self.rows = [
-            {"query": str(row.get("query") or ""), "positive": str(row.get("positive") or "")}
+            {
+                "query": str(row.get("query") or ""),
+                "positive": str(row.get("positive") or ""),
+                "negatives": as_text_list(row.get("negatives") or row.get("negative")),
+            }
             for row in read_jsonl(path, limit=limit)
             if row.get("query") and row.get("positive")
         ]
@@ -49,6 +63,7 @@ def collate(rows: list[dict[str, str]]) -> dict[str, list[str]]:
     return {
         "queries": [row["query"] for row in rows],
         "positives": [row["positive"] for row in rows],
+        "negatives": [row["negatives"] for row in rows],
     }
 
 
@@ -208,9 +223,10 @@ def main() -> None:
         for batch_idx, batch in enumerate(loader, start=1):
             query_texts = [format_qwen3_query(text, args.query_instruction) for text in batch["queries"]]
             doc_texts = batch["positives"]
+            explicit_negative_texts = [text for row_negatives in batch["negatives"] for text in row_negatives]
 
             query_emb = encode_texts(model, tokenizer, query_texts, args.max_length)
-            doc_emb = encode_texts(model, tokenizer, doc_texts, args.max_length)
+            doc_emb = encode_texts(model, tokenizer, doc_texts + explicit_negative_texts, args.max_length)
             logits = query_emb @ doc_emb.T / args.temperature
             labels = torch.arange(logits.shape[0], device=logits.device)
             loss = F.cross_entropy(logits, labels)
@@ -238,6 +254,7 @@ def main() -> None:
                             "lr": scheduler.get_last_lr()[0],
                             "world_size": world_size,
                             "global_batch_size": args.batch_size * world_size * max(1, args.grad_accum),
+                            "explicit_negatives": len(explicit_negative_texts),
                         }
                     ),
                     flush=True,

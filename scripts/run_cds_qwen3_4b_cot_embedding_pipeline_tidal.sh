@@ -40,6 +40,9 @@ INCLUDE_HISTORY=${INCLUDE_HISTORY:-1}
 INCLUDE_COT=${INCLUDE_COT:-1}
 MAX_COT_CHARS=${MAX_COT_CHARS:-1200}
 MAX_ITEM_CHARS=${MAX_ITEM_CHARS:-1400}
+NEGATIVE_SAMPLING=${NEGATIVE_SAMPLING:-none}
+NUM_NEGATIVES=${NUM_NEGATIVES:-0}
+NEGATIVE_SEED=${NEGATIVE_SEED:-20260620}
 
 BASE_EMBEDDING_MODEL=${BASE_EMBEDDING_MODEL:-/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3_embedding/0.6B}
 EMBEDDER_OUT=${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_cot_${RUN_NAME}}
@@ -142,6 +145,8 @@ echo "GENERATION_BATCH_SIZE=$GENERATION_BATCH_SIZE"
 echo "MAX_NEW_TOKENS=$MAX_NEW_TOKENS"
 echo "TEMPERATURE=$TEMPERATURE"
 echo "COT_EMBEDDER_DATASET=$COT_EMBEDDER_DATASET"
+echo "NEGATIVE_SAMPLING=$NEGATIVE_SAMPLING"
+echo "NUM_NEGATIVES=$NUM_NEGATIVES"
 echo "BASE_EMBEDDING_MODEL=$BASE_EMBEDDING_MODEL"
 echo "EMBEDDER_OUT=$EMBEDDER_OUT"
 echo "EMBEDDER_CUDA_VISIBLE_DEVICES=$EMBEDDER_CUDA_VISIBLE_DEVICES"
@@ -212,6 +217,13 @@ if [[ "$RUN_BUILD_DATASET" == "1" ]]; then
   else
     build_args+=(--no-include-cot)
   fi
+  if [[ "$NEGATIVE_SAMPLING" != "none" && "$NUM_NEGATIVES" -gt 0 && -s "$COT_EMBEDDER_DATASET" ]]; then
+    if ! grep -m 1 -q '"negatives"' "$COT_EMBEDDER_DATASET"; then
+      echo "Existing dataset has no explicit negatives; rebuilding: $COT_EMBEDDER_DATASET"
+      FORCE_REBUILD_DATASET=1
+    fi
+  fi
+
   if [[ "$FORCE_REBUILD_DATASET" == "1" || ! -s "$COT_EMBEDDER_DATASET" ]]; then
     "$PYTHON_BIN" scripts/make_cot_embedder_dataset.py \
       --candidate-lists "$COT_OUTPUT" \
@@ -220,6 +232,9 @@ if [[ "$RUN_BUILD_DATASET" == "1" ]]; then
       --cot-text-mode "$COT_TEXT_MODE" \
       --max-cot-chars "$MAX_COT_CHARS" \
       --max-item-chars "$MAX_ITEM_CHARS" \
+      --negative-sampling "$NEGATIVE_SAMPLING" \
+      --num-negatives "$NUM_NEGATIVES" \
+      --negative-seed "$NEGATIVE_SEED" \
       "${build_args[@]}"
   else
     echo "Using existing CoT embedder dataset: $COT_EMBEDDER_DATASET"

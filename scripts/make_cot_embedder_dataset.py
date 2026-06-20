@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import random
 import re
 import sys
 from pathlib import Path
@@ -73,6 +75,67 @@ def load_item_map(path: str) -> dict[int, dict[str, Any]]:
     return item_map
 
 
+def as_int_set(value: Any) -> set[int]:
+    if value is None:
+        return set()
+    if isinstance(value, (list, tuple, set)):
+        out = set()
+        for item in value:
+            try:
+                out.add(int(item))
+            except Exception:
+                continue
+        return out
+    try:
+        return {int(value)}
+    except Exception:
+        return set()
+
+
+def stable_rng(seed: int, *parts: Any) -> random.Random:
+    text = "::".join(str(part) for part in (seed, *parts))
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return random.Random(int(digest[:16], 16))
+
+
+def sample_unseen_negative_items(
+    row: dict[str, Any],
+    item_ids: list[int],
+    item_map: dict[int, dict[str, Any]],
+    num_negatives: int,
+    max_item_chars: int,
+    seed: int,
+) -> list[dict[str, Any]]:
+    if num_negatives <= 0 or not item_ids:
+        return []
+
+    excluded = as_int_set(row.get("history_item_ids") or row.get("history_item_id"))
+    excluded.update(as_int_set(row.get("target_item_id", row.get("item_id"))))
+    excluded.add(0)
+    candidates = [item_id for item_id in item_ids if item_id not in excluded]
+    if not candidates:
+        return []
+
+    rng = stable_rng(seed, row_key(row), row.get("user_id"), row.get("interaction_id"))
+    if len(candidates) <= num_negatives:
+        sampled_ids = candidates
+    else:
+        sampled_ids = rng.sample(candidates, num_negatives)
+
+    negatives = []
+    for item_id in sampled_ids:
+        item = item_map.get(item_id, {})
+        title = str(item.get("title") or "")
+        negatives.append(
+            {
+                "item_id": item_id,
+                "title": title,
+                "text": build_item_text(item, title, max_item_chars),
+            }
+        )
+    return negatives
+
+
 def candidate_text(candidate: dict[str, Any], mode: str) -> str:
     think = str(candidate.get("think") or "").strip()
     answer = str(candidate.get("answer") or "").strip()
@@ -130,16 +193,22 @@ def main() -> None:
     parser.add_argument("--max-item-chars", type=int, default=1400)
     parser.add_argument("--include-history", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--include-cot", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--negative-sampling", choices=["none", "random_unseen"], default="none")
+    parser.add_argument("--num-negatives", type=int, default=0)
+    parser.add_argument("--negative-seed", type=int, default=20260620)
     args = parser.parse_args()
 
     item_map = load_item_map(args.item_info)
+    item_ids = sorted(item_id for item_id in item_map if item_id > 0)
     rows = []
     stats = {
         "source_rows": 0,
         "history_pairs": 0,
         "cot_pairs": 0,
+        "negative_pairs": 0,
         "skipped_no_positive": 0,
         "skipped_no_cot": 0,
+        "skipped_no_negative": 0,
     }
 
     for row in read_jsonl(args.candidate_lists, limit=args.max_examples):
@@ -149,6 +218,18 @@ def main() -> None:
         if not history or not positive:
             stats["skipped_no_positive"] += 1
             continue
+        negatives = []
+        if args.negative_sampling == "random_unseen":
+            negatives = sample_unseen_negative_items(
+                row,
+                item_ids,
+                item_map,
+                args.num_negatives,
+                args.max_item_chars,
+                args.negative_seed,
+            )
+            if args.num_negatives > 0 and not negatives:
+                stats["skipped_no_negative"] += 1
 
         base_meta = {
             "source_example_id": row_key(row),
@@ -159,8 +240,19 @@ def main() -> None:
             "target_item_id": row.get("target_item_id", row.get("item_id")),
             "target_item_title": row.get("target_item_title", row.get("item_title", "")),
             "target_rating": row.get("target_rating", row.get("rating")),
+            "history_item_ids": sorted(as_int_set(row.get("history_item_ids") or row.get("history_item_id"))),
             "history_item_count": row.get("history_item_count"),
         }
+        if negatives:
+            base_meta.update(
+                {
+                    "negative": negatives[0]["text"],
+                    "negatives": [item["text"] for item in negatives],
+                    "negative_item_ids": [item["item_id"] for item in negatives],
+                    "negative_item_titles": [item["title"] for item in negatives],
+                }
+            )
+            stats["negative_pairs"] += 1
 
         if args.include_history:
             rows.append(
