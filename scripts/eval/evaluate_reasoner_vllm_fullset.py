@@ -36,6 +36,34 @@ def parse_csv_ints(text: str) -> list[int]:
     return [int(x.strip()) for x in text.split(",") if x.strip()]
 
 
+def patch_transformers_tokenizer_compat() -> None:
+    """Patch older transformers tokenizers for newer vLLM tokenizer caching."""
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+    if hasattr(PreTrainedTokenizerBase, "all_special_tokens_extended"):
+        return
+
+    @property
+    def all_special_tokens_extended(self):  # type: ignore[no-untyped-def]
+        token_map = getattr(self, "special_tokens_map_extended", None)
+        if token_map is None:
+            token_map = getattr(self, "special_tokens_map", {})
+        tokens = []
+        seen = set()
+        for value in token_map.values():
+            values = value if isinstance(value, (list, tuple)) else [value]
+            for token in values:
+                if token is None:
+                    continue
+                key = str(token)
+                if key not in seen:
+                    seen.add(key)
+                    tokens.append(token)
+        return tokens
+
+    PreTrainedTokenizerBase.all_special_tokens_extended = all_special_tokens_extended
+
+
 def truncate_prompt(tokenizer, prompt: str, max_prompt_tokens: int) -> str:
     if max_prompt_tokens <= 0:
         return prompt
@@ -86,6 +114,8 @@ def cleanup_vllm(llm: Any) -> None:
 
 
 def generate_with_vllm(args, user_histories: list[str]) -> list[str]:
+    patch_transformers_tokenizer_compat()
+
     from vllm import LLM, SamplingParams
 
     tokenizer_path = args.tokenizer or args.model
