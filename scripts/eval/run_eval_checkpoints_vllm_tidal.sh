@@ -32,6 +32,8 @@ DEVICES=${DEVICES:-0,1,2,3,4,5,6,7}
 TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE:-auto}
 MAX_EXAMPLES=${MAX_EXAMPLES:-0}
 MAX_HISTORY_ITEMS=${MAX_HISTORY_ITEMS:-20}
+HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
+HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
 MAX_PROMPT_TOKENS=${MAX_PROMPT_TOKENS:-2048}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-2048}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-64}
@@ -140,6 +142,8 @@ scorer=$SCORER
 devices=$DEVICES
 tensor_parallel_size=$TENSOR_PARALLEL_SIZE
 max_examples=$MAX_EXAMPLES
+history_metadata_mode=$HISTORY_METADATA_MODE
+history_max_item_chars=$HISTORY_MAX_ITEM_CHARS
 max_new_tokens=$MAX_NEW_TOKENS
 generation_batch_size=$GENERATION_BATCH_SIZE
 ks=$KS
@@ -186,6 +190,8 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
     --run-name "$rel" \
     --max-examples "$MAX_EXAMPLES" \
     --max-history-items "$MAX_HISTORY_ITEMS" \
+    --history-metadata-mode "$HISTORY_METADATA_MODE" \
+    --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
     --max-prompt-tokens "$MAX_PROMPT_TOKENS" \
     --max-new-tokens "$MAX_NEW_TOKENS" \
     --generation-batch-size "$GENERATION_BATCH_SIZE" \

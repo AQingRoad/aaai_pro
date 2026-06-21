@@ -39,7 +39,9 @@ fi
 CATEGORY=${CATEGORY:-CDs_and_Vinyl}
 RUN_NAME=${RUN_NAME:-full_pipeline}
 SPLIT=${SPLIT:-train}
-SEED=${SEED:-20260619}
+SEED=${SEED:-42}
+HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
+HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
 
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
@@ -345,6 +347,8 @@ if stage_enabled "$RUN_PREPARE_EXAMPLES" "$EXAMPLES_FILE"; then
     --output "$EXAMPLES_FILE" \
     --max-examples "$MAX_EXAMPLES" \
     --max-history-items "$MAX_HISTORY_ITEMS" \
+    --history-metadata-mode "$HISTORY_METADATA_MODE" \
+    --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
     --min-history "$MIN_HISTORY" \
     --min-rating "$MIN_RATING" \
     --max-target-chars "$MAX_TARGET_CHARS" \
@@ -364,6 +368,8 @@ if stage_enabled "$RUN_EMBEDDER_DATA" "$EMBEDDER_DATASET"; then
     --output "$EMBEDDER_DATASET" \
     --max-examples-per-category "$EMBEDDER_MAX_EXAMPLES_PER_CATEGORY" \
     --max-history-items "$MAX_HISTORY_ITEMS" \
+    --history-metadata-mode "$HISTORY_METADATA_MODE" \
+    --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
     --min-history "$MIN_HISTORY" \
     --min-rating "$MIN_RATING" \
     --max-target-chars "$MAX_TARGET_CHARS" \

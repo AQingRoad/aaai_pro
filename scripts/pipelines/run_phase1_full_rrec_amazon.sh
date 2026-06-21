@@ -33,6 +33,8 @@ COT_API_TIMEOUT=${COT_API_TIMEOUT:-120}
 COT_API_MAX_RETRIES=${COT_API_MAX_RETRIES:-2}
 COT_API_MIN_INTERVAL=${COT_API_MIN_INTERVAL:-0}
 MAX_HISTORY_ITEMS=${MAX_HISTORY_ITEMS:-20}
+HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
+HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
 
 source "$VENV/bin/activate"
 cd "$ROOT"
@@ -64,6 +66,8 @@ python scripts/prepare_rrec_amazon_examples.py \
   --split "$SPLIT" \
   --max-examples "$MAX_EXAMPLES" \
   --max-history-items "$MAX_HISTORY_ITEMS" \
+  --history-metadata-mode "$HISTORY_METADATA_MODE" \
+  --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
   --shuffle \
   --output "$EXAMPLES_FILE"
 

@@ -20,11 +20,10 @@ from rubric_cot_pipeline.embeddings import (
     append_recommendation_reasoning,
 )
 from rubric_cot_pipeline.io import read_jsonl
+from rubric_cot_pipeline.item_metadata import build_item_text, history_text
 from rubric_cot_pipeline.prompts import COT_SYSTEM, build_user_prompt
 from scripts.eval.evaluate_reasoner_fullset_proxy import (
-    build_item_text,
     counts,
-    history_text,
     norm,
     rank_target,
     rank_target_embedding_from_emb,
@@ -173,6 +172,12 @@ def main() -> None:
     parser.add_argument("--run-name", default="")
     parser.add_argument("--max-examples", type=int, default=0)
     parser.add_argument("--max-history-items", type=int, default=20)
+    parser.add_argument(
+        "--history-metadata-mode",
+        choices=["none", "compact"],
+        default=os.getenv("HISTORY_METADATA_MODE", "none"),
+    )
+    parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
     parser.add_argument("--max-prompt-tokens", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=2048)
     parser.add_argument("--generation-batch-size", type=int, default=32)
@@ -239,6 +244,10 @@ def main() -> None:
             [str(x) for x in row.get("history_item_title", [])],
             [float(x) for x in row.get("history_rating", [])],
             args.max_history_items,
+            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+            item_map=item_map,
+            metadata_mode=args.history_metadata_mode,
+            max_item_chars=args.history_max_item_chars,
         )
         for row in all_rows
     ]
@@ -330,6 +339,8 @@ def main() -> None:
         "metrics": metrics,
         "scorer": args.scorer,
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
+        "history_metadata_mode": args.history_metadata_mode,
+        "history_max_item_chars": args.history_max_item_chars,
         "vllm": {
             "tensor_parallel_size": args.tensor_parallel_size,
             "dtype": args.vllm_dtype,

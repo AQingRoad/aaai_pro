@@ -62,7 +62,7 @@ def main() -> None:
     parser.add_argument("--min-history", type=int, default=5)
     parser.add_argument("--min-target-rating", type=int, default=4)
     parser.add_argument("--allow-low-target", action="store_true")
-    parser.add_argument("--seed", type=int, default=20260614)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     root = Path(args.source_root)

@@ -195,7 +195,7 @@ def main() -> None:
     parser.add_argument("--include-cot", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--negative-sampling", choices=["none", "random_unseen"], default="none")
     parser.add_argument("--num-negatives", type=int, default=0)
-    parser.add_argument("--negative-seed", type=int, default=20260620)
+    parser.add_argument("--negative-seed", type=int, default=42)
     args = parser.parse_args()
 
     item_map = load_item_map(args.item_info)

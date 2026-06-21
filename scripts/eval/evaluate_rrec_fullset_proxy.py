@@ -17,7 +17,7 @@ import torch
 from datasets import load_from_disk
 
 from rubric_cot_pipeline.embeddings import DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION, Qwen3TextEmbedder
-from scripts.prepare_rrec_amazon_examples import build_item_map, build_item_text, history_text
+from rubric_cot_pipeline.item_metadata import build_item_map, build_item_text, history_text
 
 
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*")
@@ -78,6 +78,12 @@ def main() -> None:
     parser.add_argument("--split", default="test", choices=["train", "valid", "test"])
     parser.add_argument("--max-examples", type=int, default=100)
     parser.add_argument("--max-history-items", type=int, default=20)
+    parser.add_argument(
+        "--history-metadata-mode",
+        choices=["none", "compact"],
+        default=os.getenv("HISTORY_METADATA_MODE", "none"),
+    )
+    parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="lexical")
     parser.add_argument("--embedding-model", default="/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B")
@@ -134,6 +140,10 @@ def main() -> None:
             [str(x) for x in row.get("history_item_title", [])],
             [float(x) for x in row.get("history_rating", [])],
             args.max_history_items,
+            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+            item_map=item_map,
+            metadata_mode=args.history_metadata_mode,
+            max_item_chars=args.history_max_item_chars,
         )
         target_id = int(row["item_id"])
         if args.scorer == "lexical":
@@ -157,6 +167,8 @@ def main() -> None:
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
+        "history_metadata_mode": args.history_metadata_mode,
+        "history_max_item_chars": args.history_max_item_chars,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.output:

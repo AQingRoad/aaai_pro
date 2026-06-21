@@ -13,6 +13,11 @@ scripts/data/make_phase0_embedder_dataset.py       构建 history->target embedd
 scripts/data/make_cot_embedder_dataset.py          构建 history/CoT->target embedding 训练对。
 ```
 
+默认历史输入仍使用旧版 `title + rating`。需要在历史条目中加入
+`item_info.jsonl` 里的 artist/store、category、description、details 等信息时，
+在命令前设置 `HISTORY_METADATA_MODE=compact`；可用
+`HISTORY_MAX_ITEM_CHARS=320` 调整每个历史 item 的 metadata 长度。
+
 ## CoT 生成和 Rubric
 
 ```text

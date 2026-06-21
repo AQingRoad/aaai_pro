@@ -17,6 +17,8 @@ CANDIDATE_LISTS=${CANDIDATE_LISTS:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepsee
 RUBRIC_SCORES=${RUBRIC_SCORES:-$COT_ARTIFACT_DIR/cot_candidate_lists_deepseek_v4_pro_low.rubric_deepseek_v4_pro.jsonl}
 RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
 GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
+HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
+HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
 RREC_DATA_ROOT=${RREC_DATA_ROOT:-$ROOT/data}
 PHASE0_TRAIN_DATASET=${PHASE0_TRAIN_DATASET:-$ROOT/github_artifacts/CDs_and_Vinyl/phase0/phase0_embedder_rrec_amazon_cds_and_vinyl_train.jsonl}
 
@@ -106,7 +108,9 @@ prepare_grpo_input() {
       --split train \
       --output "$GRPO_INPUT" \
       --max-examples 0 \
-      --max-history-items 20
+      --max-history-items 20 \
+      --history-metadata-mode "$HISTORY_METADATA_MODE" \
+      --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS"
     return
   fi
 

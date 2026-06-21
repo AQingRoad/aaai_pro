@@ -17,6 +17,8 @@ import torch
 
 from rubric_cot_pipeline.embeddings import DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION, Qwen3TextEmbedder
 from rubric_cot_pipeline.io import read_jsonl
+from rubric_cot_pipeline.item_metadata import build_item_text as metadata_build_item_text
+from rubric_cot_pipeline.item_metadata import history_text as metadata_history_text
 
 
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*")
@@ -158,6 +160,12 @@ def main() -> None:
     parser.add_argument("--split", default="test")
     parser.add_argument("--max-examples", type=int, default=0)
     parser.add_argument("--max-history-items", type=int, default=20)
+    parser.add_argument(
+        "--history-metadata-mode",
+        choices=["none", "compact"],
+        default=os.getenv("HISTORY_METADATA_MODE", "none"),
+    )
+    parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="qwen3_embedding")
     parser.add_argument("--embedding-model", default="")
@@ -183,7 +191,7 @@ def main() -> None:
     item_vecs: list[Counter[str]] = []
     item_norms: list[float] = []
     for item_id, item in sorted(item_map.items()):
-        text = build_item_text(item, str(item.get("title", "")), max_chars=1200)
+        text = metadata_build_item_text(item, str(item.get("title", "")), max_chars=1200)
         item_ids.append(item_id)
         item_texts.append(text)
         if args.scorer == "lexical":
@@ -210,11 +218,15 @@ def main() -> None:
     totals = {f"HR@{k}": 0.0 for k in ks} | {f"NDCG@{k}": 0.0 for k in ks}
     ranks: list[int] = []
     for row in examples:
-        prompt = history_text(
+        prompt = metadata_history_text(
             args.category,
             [str(x) for x in row.get("history_item_title", [])],
             [float(x) for x in row.get("history_rating", [])],
             args.max_history_items,
+            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+            item_map=item_map,
+            metadata_mode=args.history_metadata_mode,
+            max_item_chars=args.history_max_item_chars,
         )
         target_id = int(row["item_id"])
         if args.scorer == "lexical":
@@ -240,6 +252,8 @@ def main() -> None:
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
+        "history_metadata_mode": args.history_metadata_mode,
+        "history_max_item_chars": args.history_max_item_chars,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.output:
