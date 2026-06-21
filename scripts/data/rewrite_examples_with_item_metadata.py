@@ -48,7 +48,7 @@ def rewrite_row(
         ratings = ratings[-len(titles) :] if titles else []
 
     out = dict(row)
-    out["user_history"] = history_text(
+    rewritten_history = history_text(
         row.get("category") or args.category,
         titles,
         ratings,
@@ -59,6 +59,8 @@ def rewrite_row(
         max_item_chars=args.history_max_item_chars,
         summary_map=summary_map,
     )
+    out["user_history"] = rewritten_history
+    out["query"] = rewritten_history
     out["history_metadata_mode"] = args.history_metadata_mode
     out["history_max_item_chars"] = args.history_max_item_chars
     if args.item_summary:
