@@ -28,6 +28,25 @@
 GRPO 在线 reward 由 `rubric_format`、`rubric_quality`、`rubric_gated_gain`
 三个 reward 组成。
 
+## 当前关键结论
+
+- `item_info.jsonl` 是全局 item 表，train / valid / test 共用。CDs 当前有
+  `12001` 行，其中 `item_id=0` 是 padding，真实商品为 `12000` 个。
+- `valid.jsonl` 和 `test.jsonl` 只保存评测交互；完整 title、description、
+  details、categories 等字段都通过 `item_id` 到 `item_info.jsonl` 中查询。
+- CDs 原始 item 中约有 `1290` 个真实商品的 `description` 为空。生成
+  `description_summary` 时这些 item 可以为空，后续 CoT prompt 仍会拼接
+  title、rating、store、categories、selected details。
+- 当前 CoT prompt 的历史 item metadata 默认使用 `summary` 模式：拼接
+  `title + rating + store/categories/summary/details`，不直接拼原始长 description。
+- `main_category` 当前不会单独进入 CoT 历史 prompt；它会进入 item/positive
+  embedding 文本。CoT prompt 外层只包含数据集级别 `Category: CDs and vinyl`。
+- vLLM 离线接口 `LLM.generate()` 读取的是 `output.outputs[0].text`；
+  OpenAI-compatible chat server 才有 `message.content` 字段。
+- Qwen/QwQ thinking 模型可能在输出前生成 reasoning。summary 阶段会只保存
+  `<answer>...</answer>` 中的内容；若只有 thinking，没有 final answer，该行会在
+  resume 时重新生成，避免把 thinking 存进 `description_summary`。
+
 ## 目录约定
 
 ```text
@@ -61,6 +80,99 @@ cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
 conda activate swift
 git pull
 ```
+
+## Item Summary 与带 Metadata 的 CoT 生成
+
+当需要让 CoT 生成看到更丰富的历史信息时，先用本地 Qwen/QwQ-vLLM 为
+`item_info.jsonl` 生成 description summary，再把 summary 与
+store/categories/details 拼入 `user_history`。
+
+### 只生成 item summary
+
+如果 summary 已经生成，可以跳过本步骤。CDs 全量 summary 的目标行数通常是
+`12000`，因为 `item_id=0` 是 padding item。
+
+```bash
+cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+conda activate swift
+git pull
+
+ROOT=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro \
+VENV=/root/miniconda3/envs/swift \
+MODEL=/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/QwQ_3_32B \
+DEVICES=0,1,2,3,4,5,6,7 \
+TENSOR_PARALLEL_SIZE=8 \
+GENERATION_BATCH_SIZE=16 \
+VLLM_MAX_NUM_SEQS=16 \
+MAX_EXAMPLES=0 \
+MAX_PROMPT_TOKENS=4096 \
+MAX_NEW_TOKENS=2048 \
+VLLM_MAX_MODEL_LEN=8192 \
+SUMMARY_MAX_WORDS=60 \
+TEMPERATURE=0.0 \
+TOP_P=0.9 \
+SAVE_EVERY=100 \
+bash scripts/inference/run_summarize_cds_item_descriptions_vllm_tidal.sh
+```
+
+输出：
+
+```text
+github_artifacts/CDs_and_Vinyl/rrec_eval/item_metadata_summary_qwen3_32b_desc60.jsonl
+```
+
+进度：
+
+```bash
+watch -n 10 'wc -l /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/github_artifacts/CDs_and_Vinyl/rrec_eval/item_metadata_summary_qwen3_32b_desc60.jsonl'
+```
+
+### 用 summary 生成带 metadata 的 one-CoT
+
+该命令跳过 summary，先构建带 metadata 的 train examples，再用本地 QwQ/Qwen
+生成 one-CoT。
+
+```bash
+cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+conda activate swift
+git pull
+
+RUN_SUMMARY=0 \
+RUN_BUILD_META_EXAMPLES=1 \
+RUN_GENERATE_COT=1 \
+ITEM_METADATA_SUMMARY=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/github_artifacts/CDs_and_Vinyl/rrec_eval/item_metadata_summary_qwen3_32b_desc60.jsonl \
+COT_MODEL=/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/QwQ_3_32B \
+DEVICES=0,1,2,3,4,5,6,7 \
+TENSOR_PARALLEL_SIZE=8 \
+GENERATION_BATCH_SIZE=32 \
+VLLM_MAX_NUM_SEQS=32 \
+MAX_EXAMPLES=0 \
+MAX_HISTORY_ITEMS=20 \
+HISTORY_METADATA_MODE=summary \
+HISTORY_MAX_ITEM_CHARS=0 \
+MAX_PROMPT_TOKENS=0 \
+MAX_NEW_TOKENS=2048 \
+VLLM_MAX_MODEL_LEN=8192 \
+TEMPERATURE=0.2 \
+TOP_P=0.9 \
+SAVE_EVERY=100 \
+bash scripts/pipelines/run_cds_meta_cot_generation_vllm_tidal.sh
+```
+
+输出：
+
+```text
+data/rrec_amazon/CDs_and_Vinyl/examples_qwen3_32b_meta_desc60.jsonl
+outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_one_lists_qwen3_32b_meta_desc60.jsonl
+```
+
+参数含义：
+
+- `MAX_EXAMPLES=0` 表示全量；设为 `50` 时只跑前 50 条做 smoke test。
+- `MAX_HISTORY_ITEMS=20` 表示每个用户取最近 20 个历史 item；设为 `0` 时不限制。
+- `HISTORY_MAX_ITEM_CHARS=0` 表示每个历史 item 的 metadata 不按字符截断。
+- `MAX_PROMPT_TOKENS=0` 表示不按 token 截断最终 prompt。
+- `VLLM_MAX_MODEL_LEN` 必须覆盖 `prompt tokens + MAX_NEW_TOKENS`。
 
 ## 构建 DeepSeek one-CoT 的 SFT / GRPO 数据
 
@@ -151,6 +263,33 @@ bash scripts/run_sft_qwen3_4b.sh
 GRPO 数据应与 SFT 数据按 prompt 去重。前置脚本已经使用
 `--exclude-prompts-from "$SFT"` 构建 GRPO。
 
+当前在线 reward 主要包含三部分：
+
+```text
+rubric_format:      是否满足 <think>...</think><answer>...</answer> 结构
+rubric_quality:     rubric 打分归一化结果
+rubric_gated_gain:  rubric 门控后的推荐增益
+```
+
+默认推荐增益：
+
+```text
+gain = NDCG@100(history + cot) - NDCG@100(history)
+```
+
+门控逻辑：
+
+```text
+if R_rubric >= threshold and R_gain > 0:
+    reward = R_rubric * R_gain
+else:
+    reward = penalty
+```
+
+`R_gain` 由 embedding 模型计算全量 item ranking 后得到。`rank(q, v+)` 表示
+target item 在全量候选中的排名，排名由 `cos(embed(q), embed(item))` 的降序决定。
+`q` 可以是纯历史，也可以是历史加 CoT。
+
 示例命令：
 
 ```bash
@@ -197,7 +336,9 @@ bash scripts/run_grpo_qwen3_4b.sh
 
 ## Embedding 训练
 
-基础 history->target embedding 训练：
+### 基础 history->target embedding
+
+基础版本使用已提交的 phase0 训练对，query 主要来自旧版 history 文本。
 
 ```bash
 cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
@@ -220,6 +361,61 @@ bash scripts/run_train_cds_embedding_tidal.sh
 
 CoT-aware embedding 数据由 `scripts/make_cot_embedder_dataset.py` 构建，再用
 `scripts/run_train_cds_cot_embedding_tidal.sh` 训练。
+
+### Metadata-rich embedding
+
+该版本从已有 `examples.jsonl`、`item_info.jsonl` 和 item summary sidecar 构建
+更丰富的 `query -> positive` 训练对：
+
+- query: 历史 item 的 `title/rating + store + categories + summary + details`
+- positive: 目标 item 的 `title + main_category + store + categories + summary + details`
+
+先构建训练数据：
+
+```bash
+cd /mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+conda activate swift
+git pull
+
+ROOT=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro
+
+python scripts/data/make_phase0_embedder_dataset_from_examples.py \
+  --examples $ROOT/data/rrec_amazon/CDs_and_Vinyl/examples.jsonl \
+  --output $ROOT/outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_meta_summary_desc60.jsonl \
+  --item-info $ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl \
+  --item-summary $ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval/item_metadata_summary_qwen3_32b_desc60.jsonl \
+  --category CDs_and_Vinyl \
+  --max-examples 0 \
+  --max-history-items 20 \
+  --history-metadata-mode summary \
+  --history-max-item-chars 0 \
+  --max-target-chars 1800
+```
+
+再训练 embedding。下面命令使用 8 卡，per-GPU batch 为 32，全局 batch 为 256，
+并启用 cross-GPU all-gather negatives：
+
+```bash
+ROOT=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro \
+VENV=/root/miniconda3/envs/swift \
+BASE_EMBEDDING_MODEL=/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3_embedding/0.6B \
+EMBEDDER_DATASET=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_meta_summary_desc60.jsonl \
+EMBEDDER_OUT=/mnt/tidal-sh01/usr/xiayu6/xiayu/aaai_pro/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_meta_summary_desc60_global_bsz256_xgpu \
+EMBEDDER_CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+EMBEDDER_NPROC_PER_NODE=8 \
+EMBEDDER_BATCH_SIZE=32 \
+EMBEDDER_GRAD_ACCUM=1 \
+EMBEDDER_MAX_LENGTH=4096 \
+EMBEDDER_EPOCHS=3 \
+EMBEDDER_LR=6e-6 \
+EMBEDDER_SAVE_STEPS=auto \
+EMBEDDER_CROSS_GPU_NEGATIVES=1 \
+EMBEDDER_GRADIENT_CHECKPOINTING=non_reentrant \
+bash scripts/run_train_cds_embedding_tidal.sh
+```
+
+`EMBEDDER_SAVE_STEPS=auto` 会按当前数据量和全局 batch 估算，通常接近每个 epoch
+保存一次。`EMBEDDER_MAX_LENGTH=4096` 用来容纳带 metadata 的 query/positive。
 
 ## vLLM 批量评测所有 checkpoint
 
@@ -288,6 +484,24 @@ baseline 使用不加 CoT 的 `user_history` query。
 
 ## 常见检查
 
+关键参数：
+
+```text
+MAX_EXAMPLES=0           全量；正数表示只处理前 N 条
+RUN_SUMMARY=0            跳过 item summary 阶段
+RUN_BUILD_META_EXAMPLES  是否重建带 metadata 的 examples
+RUN_GENERATE_COT         是否生成 CoT
+MAX_HISTORY_ITEMS=0      不限制历史 item 数；20 表示最近 20 个
+HISTORY_MAX_ITEM_CHARS=0 不限制每个历史 item 的 metadata 字符数
+MAX_PROMPT_TOKENS=0      不限制最终 prompt token 数
+VLLM_MAX_MODEL_LEN       vLLM 允许的最大上下文长度
+VLLM_MAX_NUM_SEQS        vLLM 最大并发序列数，应不小于 generation batch
+```
+
+带 metadata 后 prompt 可能明显变长。如果 `MAX_PROMPT_TOKENS=0`，需要让
+`VLLM_MAX_MODEL_LEN >= prompt tokens + MAX_NEW_TOKENS`。显存不足时优先降低
+`GENERATION_BATCH_SIZE` 和 `VLLM_MAX_NUM_SEQS`。
+
 确认 SFT 是否全量训练：
 
 ```text
@@ -316,3 +530,19 @@ python -m torch.distributed.run \
 ```text
 NCCL OK, reduced: 36.0
 ```
+
+常见问题：
+
+- `Missing summary model`：当 `RUN_SUMMARY=0` 时，脚本只应检查
+  `ITEM_METADATA_SUMMARY`。如果仍报该错误，先 `git pull` 到包含
+  `2f89a21` 之后的版本。
+- `description_summary` 为空：多数来自原始 `description` 为空。后续 CoT
+  仍会使用 title、store、categories、details。
+- vLLM worker 报 `NCCL error: unhandled cuda error`：保留脚本默认的
+  `NCCL_NET=Socket`、`NCCL_IB_DISABLE=1`、`NCCL_P2P_DISABLE=1`、
+  `NCCL_NVLS_ENABLE=0`、`VLLM_DISABLE_CUSTOM_ALL_REDUCE=1`。
+- Qwen/QwQ summary 出现 thinking：summary 脚本只保存 `<answer>` 内容；
+  已污染的旧行会在 resume 时被重新生成。
+- vLLM tokenizer 报 `all_special_tokens_extended`：脚本里已经补了 tokenizer
+  兼容 patch，先确认服务器代码已 `git pull`。
+- `tp8` 表示一个模型实例用 8 卡 tensor parallel；这与 8 个独立模型实例不同。
