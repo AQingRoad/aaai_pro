@@ -108,7 +108,9 @@ if [[ "$RUN_SUMMARY" == "1" || "$RUN_SUMMARY" == "true" ]]; then
 else
   require_file "item metadata summary" "$ITEM_METADATA_SUMMARY"
 fi
-require_path "CoT model" "$COT_MODEL"
+if [[ "$RUN_GENERATE_COT" == "1" || "$RUN_GENERATE_COT" == "true" ]]; then
+  require_path "CoT model" "$COT_MODEL"
+fi
 
 if [[ "$TENSOR_PARALLEL_SIZE" == "auto" ]]; then
   TENSOR_PARALLEL_SIZE=$(count_devices "$DEVICES")
