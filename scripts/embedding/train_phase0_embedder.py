@@ -133,6 +133,11 @@ def save_checkpoint(model, tokenizer, path: Path, rank: int) -> None:
     tokenizer.save_pretrained(path)
 
 
+def maybe_barrier(distributed: bool, enabled: bool) -> None:
+    if distributed and enabled:
+        dist.barrier()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B")
@@ -154,6 +159,7 @@ def main() -> None:
     parser.add_argument("--save-steps", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
     parser.add_argument("--cross-gpu-negatives", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--sync-barriers", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--preview-cases", type=int, default=2)
     args = parser.parse_args()
 
@@ -165,8 +171,7 @@ def main() -> None:
         torch.cuda.manual_seed_all(args.seed + rank)
     if is_main_process(rank):
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    if distributed:
-        dist.barrier()
+    maybe_barrier(distributed, args.sync_barriers)
 
     dataset = PairDataset(args.dataset, limit=args.max_rows)
     if is_main_process(rank):
@@ -269,8 +274,7 @@ def main() -> None:
             "cross_gpu_negatives": use_cross_gpu_negatives,
         }
         args_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-    if distributed:
-        dist.barrier()
+    maybe_barrier(distributed, args.sync_barriers)
 
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
@@ -328,16 +332,14 @@ def main() -> None:
             if args.save_steps > 0 and global_step % args.save_steps == 0:
                 ckpt_dir = Path(args.output_dir) / f"checkpoint-{global_step}"
                 save_checkpoint(model, tokenizer, ckpt_dir, rank)
-                if distributed:
-                    dist.barrier()
+                maybe_barrier(distributed, args.sync_barriers)
 
             if global_step >= total_steps:
                 break
 
     final_dir = Path(args.output_dir) / f"checkpoint-{global_step}"
     save_checkpoint(model, tokenizer, final_dir, rank)
-    if distributed:
-        dist.barrier()
+    maybe_barrier(distributed, args.sync_barriers)
     if is_main_process(rank):
         print(
             json.dumps(
