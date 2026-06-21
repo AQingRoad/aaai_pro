@@ -35,6 +35,7 @@ COT_API_MIN_INTERVAL=${COT_API_MIN_INTERVAL:-0}
 MAX_HISTORY_ITEMS=${MAX_HISTORY_ITEMS:-20}
 HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
 HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
+ITEM_METADATA_SUMMARY=${ITEM_METADATA_SUMMARY:-}
 
 source "$VENV/bin/activate"
 cd "$ROOT"
@@ -68,6 +69,7 @@ python scripts/prepare_rrec_amazon_examples.py \
   --max-history-items "$MAX_HISTORY_ITEMS" \
   --history-metadata-mode "$HISTORY_METADATA_MODE" \
   --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
+  --item-summary "$ITEM_METADATA_SUMMARY" \
   --shuffle \
   --output "$EXAMPLES_FILE"
 

@@ -42,6 +42,7 @@ SPLIT=${SPLIT:-train}
 SEED=${SEED:-42}
 HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
 HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
+ITEM_METADATA_SUMMARY=${ITEM_METADATA_SUMMARY:-}
 
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
@@ -349,6 +350,7 @@ if stage_enabled "$RUN_PREPARE_EXAMPLES" "$EXAMPLES_FILE"; then
     --max-history-items "$MAX_HISTORY_ITEMS" \
     --history-metadata-mode "$HISTORY_METADATA_MODE" \
     --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
+    --item-summary "$ITEM_METADATA_SUMMARY" \
     --min-history "$MIN_HISTORY" \
     --min-rating "$MIN_RATING" \
     --max-target-chars "$MAX_TARGET_CHARS" \
@@ -370,6 +372,7 @@ if stage_enabled "$RUN_EMBEDDER_DATA" "$EMBEDDER_DATASET"; then
     --max-history-items "$MAX_HISTORY_ITEMS" \
     --history-metadata-mode "$HISTORY_METADATA_MODE" \
     --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
+    --item-summary "$ITEM_METADATA_SUMMARY" \
     --min-history "$MIN_HISTORY" \
     --min-rating "$MIN_RATING" \
     --max-target-chars "$MAX_TARGET_CHARS" \

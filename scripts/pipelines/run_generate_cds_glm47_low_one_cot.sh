@@ -45,6 +45,7 @@ MAX_PROMPT_TOKENS=${MAX_PROMPT_TOKENS:-2048}
 MAX_HISTORY_ITEMS=${MAX_HISTORY_ITEMS:-20}
 HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
 HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
+ITEM_METADATA_SUMMARY=${ITEM_METADATA_SUMMARY:-}
 TOP_P=${TOP_P:-0.9}
 TEMPERATURES=${TEMPERATURES:-0.6}
 AGGREGATE_EVERY=${AGGREGATE_EVERY:-100}
@@ -107,7 +108,8 @@ if [[ ! -s "$EXAMPLES_FILE" ]]; then
       --max-examples 0 \
       --max-history-items "$MAX_HISTORY_ITEMS" \
       --history-metadata-mode "$HISTORY_METADATA_MODE" \
-      --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS"
+      --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
+      --item-summary "$ITEM_METADATA_SUMMARY"
   else
     require_file "phase0 train dataset" "$PHASE0_DATASET"
     echo "Converting phase0 train dataset -> $EXAMPLES_FILE"

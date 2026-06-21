@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from datasets import load_from_disk
 
-from rubric_cot_pipeline.item_metadata import build_item_map, build_item_text, compact, history_text
+from rubric_cot_pipeline.item_metadata import build_item_map, build_item_summary_map, build_item_text, compact, history_text
+from rubric_cot_pipeline.io import read_jsonl
 from rubric_cot_pipeline.io import write_jsonl
 
 
@@ -37,10 +38,11 @@ def main() -> None:
     parser.add_argument("--max-target-chars", type=int, default=1400)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact"],
+        choices=["none", "compact", "summary"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
+    parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
     args = parser.parse_args()
 
     dataset_dir = Path(args.dataset_dir) if args.dataset_dir else Path(args.data_root) / f"{args.category}_0_2022-10-2023-10"
@@ -50,6 +52,7 @@ def main() -> None:
     output = args.output or f"data/rrec_amazon/{args.category}/examples.jsonl"
     ds = load_from_disk(str(dataset_dir))
     item_map = build_item_map(ds["item_info"])
+    summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
 
     rows = []
     skipped = 0
@@ -100,6 +103,7 @@ def main() -> None:
                         item_map=item_map,
                         metadata_mode=args.history_metadata_mode,
                         max_item_chars=args.history_max_item_chars,
+                        summary_map=summary_map,
                     ),
                 }
             )
@@ -114,6 +118,7 @@ def main() -> None:
         "skipped": skipped,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "item_summary": args.item_summary,
     }
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 

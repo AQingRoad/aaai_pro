@@ -17,6 +17,7 @@ import torch
 
 from rubric_cot_pipeline.embeddings import DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION, Qwen3TextEmbedder
 from rubric_cot_pipeline.io import read_jsonl
+from rubric_cot_pipeline.item_metadata import build_item_summary_map
 from rubric_cot_pipeline.item_metadata import build_item_text as metadata_build_item_text
 from rubric_cot_pipeline.item_metadata import history_text as metadata_history_text
 
@@ -162,10 +163,11 @@ def main() -> None:
     parser.add_argument("--max-history-items", type=int, default=20)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact"],
+        choices=["none", "compact", "summary"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
+    parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="qwen3_embedding")
     parser.add_argument("--embedding-model", default="")
@@ -185,6 +187,7 @@ def main() -> None:
 
     item_rows = list(read_jsonl(args.item_info))
     item_map = {int(row["item_id"]): row for row in item_rows}
+    summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
 
     item_ids: list[int] = []
     item_texts: list[str] = []
@@ -227,6 +230,7 @@ def main() -> None:
             item_map=item_map,
             metadata_mode=args.history_metadata_mode,
             max_item_chars=args.history_max_item_chars,
+            summary_map=summary_map,
         )
         target_id = int(row["item_id"])
         if args.scorer == "lexical":
@@ -254,6 +258,7 @@ def main() -> None:
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "item_summary": args.item_summary,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.output:

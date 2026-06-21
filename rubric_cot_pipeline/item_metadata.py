@@ -10,11 +10,16 @@ DETAIL_KEYS = (
     "Artist",
     "Composer",
     "Label",
-    "Manufacturer",
     "Original Release Date",
-    "Run time",
-    "Number of discs",
+    "Genre",
+    "Style",
+    "Media Format",
     "Format",
+    "Run time",
+    "Runtime",
+    "Number of discs",
+    "Number Of Discs",
+    "Language",
 )
 
 
@@ -67,6 +72,16 @@ def build_item_map(item_info: Iterable[Mapping[str, Any]]) -> dict[int, dict[str
     return item_map
 
 
+def build_item_summary_map(rows: Iterable[Mapping[str, Any]]) -> dict[int, str]:
+    summary_map: dict[int, str] = {}
+    for row in rows:
+        item_id = row.get("item_id")
+        summary = compact(row.get("description_summary") or row.get("summary"), 0)
+        if item_id is not None and summary:
+            summary_map[int(item_id)] = summary
+    return summary_map
+
+
 def build_item_text(item: Mapping[str, Any] | None, title: str, max_chars: int) -> str:
     if not item:
         return compact(title, max_chars)
@@ -90,6 +105,50 @@ def build_item_text(item: Mapping[str, Any] | None, title: str, max_chars: int) 
     return compact(" ".join(parts), max_chars)
 
 
+def selected_details(item: Mapping[str, Any]) -> dict[str, str]:
+    details = parse_details(item.get("details"))
+    out: dict[str, str] = {}
+
+    for key in ("Artist", "Composer"):
+        value = compact(details.get(key), 180)
+        if value:
+            out[key] = value
+
+    label = compact(details.get("Label"), 180) or compact(details.get("Manufacturer"), 180)
+    if label:
+        out["Label"] = label
+
+    for key in ("Original Release Date", "Genre", "Style"):
+        value = compact(details.get(key), 180)
+        if value:
+            out[key] = value
+
+    store = compact(item.get("store"), 300).lower()
+    if "format:" not in store:
+        fmt = compact(details.get("Media Format"), 180) or compact(details.get("Format"), 180)
+        if fmt:
+            out["Format"] = fmt
+
+    run_time = compact(details.get("Run time"), 180) or compact(details.get("Runtime"), 180)
+    if run_time:
+        out["Run time"] = run_time
+
+    discs = compact(details.get("Number of discs"), 60) or compact(details.get("Number Of Discs"), 60)
+    if discs:
+        out["Number of discs"] = discs
+
+    language = compact(details.get("Language"), 120)
+    if language:
+        out["Language"] = language
+
+    return out
+
+
+def format_selected_details(item: Mapping[str, Any]) -> str:
+    detail_map = selected_details(item)
+    return "; ".join(f"{key}={value}" for key, value in detail_map.items() if value)
+
+
 def _item_stats(item: Mapping[str, Any]) -> str:
     avg = item.get("average_rating")
     count = item.get("rating_number")
@@ -103,7 +162,12 @@ def _item_stats(item: Mapping[str, Any]) -> str:
     return ", ".join(pieces)
 
 
-def build_history_item_metadata(item: Mapping[str, Any] | None, max_chars: int) -> str:
+def build_history_item_metadata(
+    item: Mapping[str, Any] | None,
+    max_chars: int,
+    metadata_mode: str = "compact",
+    description_summary: str = "",
+) -> str:
     if not item:
         return ""
 
@@ -116,26 +180,27 @@ def build_history_item_metadata(item: Mapping[str, Any] | None, max_chars: int) 
     if categories:
         parts.append(f"Categories: {categories}")
 
-    features = "; ".join(as_text_list(item.get("features"), limit=3))
-    if features:
-        parts.append(f"Features: {features}")
+    if metadata_mode == "summary":
+        summary = compact(description_summary, max_chars=0)
+        if summary:
+            parts.append(f"Summary: {summary}")
+    else:
+        features = "; ".join(as_text_list(item.get("features"), limit=3))
+        if features:
+            parts.append(f"Features: {features}")
 
-    description = " ".join(as_text_list(item.get("description"), limit=1))
-    if description:
-        parts.append(f"Description: {description}")
+        description = " ".join(as_text_list(item.get("description"), limit=1))
+        if description:
+            parts.append(f"Description: {description}")
 
-    details = parse_details(item.get("details"))
-    detail_parts = []
-    for key in DETAIL_KEYS:
-        value = compact(details.get(key), 120)
-        if value:
-            detail_parts.append(f"{key}={value}")
-    if detail_parts:
-        parts.append("Details: " + "; ".join(detail_parts[:5]))
+    details = format_selected_details(item)
+    if details:
+        parts.append("Details: " + details)
 
-    stats = _item_stats(item)
-    if stats:
-        parts.append(f"Catalog stats: {stats}")
+    if metadata_mode != "summary":
+        stats = _item_stats(item)
+        if stats:
+            parts.append(f"Catalog stats: {stats}")
 
     return compact("; ".join(parts), max_chars)
 
@@ -149,6 +214,7 @@ def history_text(
     item_map: Mapping[int, Mapping[str, Any]] | None = None,
     metadata_mode: str = "none",
     max_item_chars: int = 320,
+    summary_map: Mapping[int, str] | None = None,
 ) -> str:
     if max_history_items > 0:
         titles = titles[-max_history_items:]
@@ -176,7 +242,13 @@ def history_text(
             continue
         entry = f"{pos}. {title} ({float(rating):g} stars)"
         if metadata_mode != "none" and item_ids is not None and item_map is not None and pos - 1 < len(item_ids):
-            metadata = build_history_item_metadata(item_map.get(int(item_ids[pos - 1])), max_item_chars)
+            item_id = int(item_ids[pos - 1])
+            metadata = build_history_item_metadata(
+                item_map.get(item_id),
+                max_item_chars,
+                metadata_mode=metadata_mode,
+                description_summary=(summary_map or {}).get(item_id, ""),
+            )
             if metadata:
                 entry = f"{entry}; {metadata}"
         entries.append(entry)

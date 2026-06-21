@@ -19,6 +19,7 @@ RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
 GAIN_ITEM_INFO=${GAIN_ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
 HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
 HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
+ITEM_METADATA_SUMMARY=${ITEM_METADATA_SUMMARY:-}
 RREC_DATA_ROOT=${RREC_DATA_ROOT:-$ROOT/data}
 PHASE0_TRAIN_DATASET=${PHASE0_TRAIN_DATASET:-$ROOT/github_artifacts/CDs_and_Vinyl/phase0/phase0_embedder_rrec_amazon_cds_and_vinyl_train.jsonl}
 
@@ -110,7 +111,8 @@ prepare_grpo_input() {
       --max-examples 0 \
       --max-history-items 20 \
       --history-metadata-mode "$HISTORY_METADATA_MODE" \
-      --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS"
+      --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
+      --item-summary "$ITEM_METADATA_SUMMARY"
     return
   fi
 

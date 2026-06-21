@@ -17,7 +17,8 @@ import torch
 from datasets import load_from_disk
 
 from rubric_cot_pipeline.embeddings import DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION, Qwen3TextEmbedder
-from rubric_cot_pipeline.item_metadata import build_item_map, build_item_text, history_text
+from rubric_cot_pipeline.item_metadata import build_item_map, build_item_summary_map, build_item_text, history_text
+from rubric_cot_pipeline.io import read_jsonl
 
 
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*")
@@ -80,10 +81,11 @@ def main() -> None:
     parser.add_argument("--max-history-items", type=int, default=20)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact"],
+        choices=["none", "compact", "summary"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
+    parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="lexical")
     parser.add_argument("--embedding-model", default="/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B")
@@ -100,6 +102,7 @@ def main() -> None:
     dataset_dir = Path(args.dataset_dir) if args.dataset_dir else Path(args.data_root) / f"{args.category}_0_2022-10-2023-10"
     ds = load_from_disk(str(dataset_dir))
     item_map = build_item_map(ds["item_info"])
+    summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
 
     item_ids: list[int] = []
     item_texts: list[str] = []
@@ -144,6 +147,7 @@ def main() -> None:
             item_map=item_map,
             metadata_mode=args.history_metadata_mode,
             max_item_chars=args.history_max_item_chars,
+            summary_map=summary_map,
         )
         target_id = int(row["item_id"])
         if args.scorer == "lexical":
@@ -169,6 +173,7 @@ def main() -> None:
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "item_summary": args.item_summary,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.output:

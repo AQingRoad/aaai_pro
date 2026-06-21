@@ -20,7 +20,7 @@ from rubric_cot_pipeline.embeddings import (
     append_recommendation_reasoning,
 )
 from rubric_cot_pipeline.io import read_jsonl
-from rubric_cot_pipeline.item_metadata import build_item_text, history_text
+from rubric_cot_pipeline.item_metadata import build_item_summary_map, build_item_text, history_text
 from rubric_cot_pipeline.prompts import COT_SYSTEM, build_user_prompt
 from scripts.eval.evaluate_reasoner_fullset_proxy import (
     counts,
@@ -174,10 +174,11 @@ def main() -> None:
     parser.add_argument("--max-history-items", type=int, default=20)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact"],
+        choices=["none", "compact", "summary"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
+    parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
     parser.add_argument("--max-prompt-tokens", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=2048)
     parser.add_argument("--generation-batch-size", type=int, default=32)
@@ -223,6 +224,7 @@ def main() -> None:
         raise ValueError(f"No examples loaded from {examples_path}")
 
     item_map = {int(row["item_id"]): row for row in read_jsonl(item_info_path)}
+    summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
     item_ids: list[int] = []
     item_id_to_index: dict[int, int] = {}
     item_texts: list[str] = []
@@ -248,6 +250,7 @@ def main() -> None:
             item_map=item_map,
             metadata_mode=args.history_metadata_mode,
             max_item_chars=args.history_max_item_chars,
+            summary_map=summary_map,
         )
         for row in all_rows
     ]
@@ -341,6 +344,7 @@ def main() -> None:
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "item_summary": args.item_summary,
         "vllm": {
             "tensor_parallel_size": args.tensor_parallel_size,
             "dtype": args.vllm_dtype,

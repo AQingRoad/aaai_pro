@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from datasets import load_from_disk
 
-from rubric_cot_pipeline.item_metadata import build_item_map, build_item_text, history_text
+from rubric_cot_pipeline.item_metadata import build_item_map, build_item_summary_map, build_item_text, history_text
+from rubric_cot_pipeline.io import read_jsonl
 from rubric_cot_pipeline.io import write_jsonl
 
 
@@ -26,6 +27,7 @@ def iter_rows(args):
 
         ds = load_from_disk(str(dataset_dir))
         item_map = build_item_map(ds["item_info"])
+        summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
         split_ds = ds[args.split]
         if args.shuffle:
             split_ds = split_ds.shuffle(seed=args.seed)
@@ -54,6 +56,7 @@ def iter_rows(args):
                 item_map=item_map,
                 metadata_mode=args.history_metadata_mode,
                 max_item_chars=args.history_max_item_chars,
+                summary_map=summary_map,
             )
             interaction_id = int(row.get("interaction_id", written))
 
@@ -92,10 +95,11 @@ def main() -> None:
     parser.add_argument("--max-target-chars", type=int, default=1400)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact"],
+        choices=["none", "compact", "summary"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
+    parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
     args = parser.parse_args()
 
     count = write_jsonl(args.output, iter_rows(args))
