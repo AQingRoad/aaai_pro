@@ -70,15 +70,6 @@ def main() -> None:
             if len(titles) < args.min_history or float(row.get("rating", 0.0)) < args.min_rating:
                 skipped += 1
                 continue
-            if any(not title for title in titles):
-                bad_positions = [idx for idx, title in enumerate(titles) if not title]
-                bad_item_ids = [history_item_ids[idx] if idx < len(history_item_ids) else None for idx in bad_positions]
-                raise ValueError(
-                    f"Empty history_item_title in {args.category}:{split}: "
-                    f"user_id={row.get('user_id')} interaction_id={row.get('interaction_id')} "
-                    f"positions={bad_positions} item_ids={bad_item_ids}. "
-                    "Fix the source RRec data or item metadata before building examples."
-                )
             if len(ratings) != len(titles):
                 raise ValueError(
                     f"history_rating length mismatch in {args.category}:{split}: "

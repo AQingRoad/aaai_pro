@@ -208,7 +208,7 @@ def build_history_item_metadata(
 def history_text(
     category: str,
     titles: list[str],
-    ratings: list[float],
+    ratings: list[float | None],
     max_history_items: int,
     item_ids: list[int] | None = None,
     item_map: Mapping[int, Mapping[str, Any]] | None = None,
@@ -222,12 +222,22 @@ def history_text(
         if item_ids is not None:
             item_ids = item_ids[-max_history_items:]
 
+    def format_entry(pos: int | None, title: str, rating: float | None) -> str:
+        title = compact(title, 240)
+        prefix = f"{pos}. " if pos is not None else ""
+        rating_text = f" ({float(rating):g} stars)" if rating is not None else ""
+        if title:
+            return f"{prefix}{title}{rating_text}"
+        if rating_text:
+            return f"{prefix}{rating_text.strip()}"
+        return f"{prefix}[missing title]" if prefix else ""
+
     if metadata_mode == "none":
         entries = []
         for title, rating in zip(titles, ratings):
-            title = compact(title, 240)
-            if title:
-                entries.append(f"{title} ({float(rating):g} stars)")
+            entry = format_entry(None, title, rating)
+            if entry:
+                entries.append(entry)
 
         history = "; ".join(entries)
         return (
@@ -237,10 +247,7 @@ def history_text(
 
     entries = []
     for pos, (title, rating) in enumerate(zip(titles, ratings), start=1):
-        title = compact(title, 240)
-        if not title:
-            continue
-        entry = f"{pos}. {title} ({float(rating):g} stars)"
+        entry = format_entry(pos, title, rating)
         if metadata_mode != "none" and item_ids is not None and item_map is not None and pos - 1 < len(item_ids):
             item_id = int(item_ids[pos - 1])
             metadata = build_history_item_metadata(

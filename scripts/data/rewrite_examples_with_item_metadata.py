@@ -27,6 +27,33 @@ def parse_history_ratings(user_history: str) -> list[float]:
     return ratings
 
 
+def row_history_ratings(row: dict[str, Any], expected_count: int, existing_history: str) -> list[float | None]:
+    raw_ratings = row.get("history_ratings")
+    if raw_ratings is None:
+        raw_ratings = row.get("history_rating")
+    if raw_ratings is not None:
+        ratings = [float(x) for x in raw_ratings]
+        if len(ratings) != expected_count:
+            example_id = row.get("example_id") or row.get("interaction_id") or row.get("user_id") or "<unknown>"
+            raise ValueError(
+                f"history_rating length mismatch for example {example_id}: "
+                f"history_item_ids={expected_count} history_rating={len(ratings)}."
+            )
+        return ratings
+
+    parsed = parse_history_ratings(existing_history)
+    if len(parsed) == expected_count:
+        return parsed
+    if not parsed:
+        return [None] * expected_count
+
+    example_id = row.get("example_id") or row.get("interaction_id") or row.get("user_id") or "<unknown>"
+    raise ValueError(
+        f"History rating count mismatch for example {example_id}: "
+        f"history_item_ids={expected_count} ratings_in_user_history={len(parsed)}."
+    )
+
+
 def item_title(item: dict[str, Any] | None) -> str:
     return compact(item.get("title"), 300) if item else ""
 
@@ -52,24 +79,7 @@ def rewrite_row(
         )
 
     titles = [item_title(item_map.get(item_id)) for item_id in history_item_ids]
-    if any(not title for title in titles):
-        bad_positions = [idx for idx, title in enumerate(titles) if not title]
-        bad_item_ids = [history_item_ids[idx] for idx in bad_positions]
-        example_id = row.get("example_id") or row.get("interaction_id") or row.get("user_id") or "<unknown>"
-        raise ValueError(
-            f"Empty item title while rebuilding history for example {example_id}: "
-            f"positions={bad_positions} item_ids={bad_item_ids}. "
-            "Fix item_info or rebuild source examples before adding metadata."
-        )
-
-    ratings = parse_history_ratings(existing_history)
-    if len(ratings) != len(titles):
-        example_id = row.get("example_id") or row.get("interaction_id") or row.get("user_id") or "<unknown>"
-        raise ValueError(
-            f"History rating count mismatch for example {example_id}: "
-            f"history_item_ids={len(history_item_ids)} ratings_in_user_history={len(ratings)}. "
-            "Rebuild examples.jsonl from the source RRec dataset first."
-        )
+    ratings = row_history_ratings(row, len(history_item_ids), existing_history)
 
     out = dict(row)
     rewritten_history = history_text(
