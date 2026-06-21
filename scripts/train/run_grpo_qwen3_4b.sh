@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 CONFIG_ENV_FILE=${CONFIG_ENV_FILE:-$ROOT/configs/glm_codeplan.env}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
-PYTHON_BIN=${PYTHON_BIN:-}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
 TEMPLATE=${TEMPLATE:-qwen3}
@@ -138,16 +137,6 @@ export QWEN3_EMBEDDING_MODEL="$QWEN3_EMBEDDING_MODEL"
 export QWEN3_EMBEDDING_BATCH_SIZE=${QWEN3_EMBEDDING_BATCH_SIZE:-4}
 export QWEN3_EMBEDDING_MAX_LENGTH=${QWEN3_EMBEDDING_MAX_LENGTH:-4096}
 
-resolve_python_bin() {
-  if [[ -n "$PYTHON_BIN" ]]; then
-    echo "$PYTHON_BIN"
-  elif [[ -n "${VENV:-}" && -x "$VENV/bin/python" ]]; then
-    echo "$VENV/bin/python"
-  else
-    command -v python3
-  fi
-}
-
 resolve_nproc() {
   if [[ "$NPROC_PER_NODE" == "auto" ]]; then
     if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -160,13 +149,14 @@ resolve_nproc() {
   fi
 }
 
-PYTHON_BIN="$(resolve_python_bin)"
 SWIFT_BIN="$(command -v swift)"
 NPROC="$(resolve_nproc)"
 if ((NPROC < 1)); then
   echo "NPROC_PER_NODE must be >= 1" >&2
   exit 1
 fi
+export NPROC_PER_NODE="$NPROC"
+export MASTER_PORT="$MASTER_PORT"
 
 TRAIN_ARGS=(--train_type "$TRAIN_TYPE")
 if [[ "$TRAIN_TYPE" == "lora" ]]; then
@@ -290,11 +280,4 @@ GRPO_ARGS=(
   --output_dir "$OUT"
 )
 
-if ((NPROC > 1)); then
-  "$PYTHON_BIN" -m torch.distributed.run \
-    --nproc_per_node "$NPROC" \
-    --master_port "$MASTER_PORT" \
-    "$SWIFT_BIN" "${GRPO_ARGS[@]}"
-else
-  "$SWIFT_BIN" "${GRPO_ARGS[@]}"
-fi
+"$SWIFT_BIN" "${GRPO_ARGS[@]}"
