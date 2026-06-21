@@ -11,6 +11,8 @@ scripts/data/prepare_rrec_amazon_examples.py       将 RRec/Amazon 样本转成 
 scripts/data/prepare_ml1m_examples.py              将 ML-1M 样本转成 pipeline JSONL。
 scripts/data/make_phase0_embedder_dataset.py       构建 history->target embedding 训练对。
 scripts/data/make_cot_embedder_dataset.py          构建 history/CoT->target embedding 训练对。
+scripts/data/rewrite_examples_with_item_metadata.py
+                                                    用 item_info 和 summary sidecar 重写 user_history。
 ```
 
 默认历史输入仍使用旧版 `title + rating`。需要在历史条目中加入
@@ -99,6 +101,8 @@ scripts/pipelines/run_phase1_full_ml1m.sh
 scripts/pipelines/run_smoke_test.sh
 scripts/pipelines/run_generate_cds_glm47_low_one_cot.sh
 scripts/pipelines/run_generate_musical_instruments_glm_codeplan.sh
+scripts/pipelines/run_cds_meta_cot_generation_vllm_tidal.sh
+                                                    summary -> metadata history -> local Qwen/vLLM one-CoT 生成。
 ```
 
 ## 工具

@@ -27,7 +27,7 @@ SHARD_INDEX=${SHARD_INDEX:-0}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-64}
 SUMMARY_MAX_WORDS=${SUMMARY_MAX_WORDS:-60}
 MAX_PROMPT_TOKENS=${MAX_PROMPT_TOKENS:-2048}
-MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-128}
+MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-2048}
 TEMPERATURE=${TEMPERATURE:-0.0}
 TOP_P=${TOP_P:-0.9}
 
@@ -51,6 +51,7 @@ NCCL_DEBUG=${NCCL_DEBUG:-WARN}
 TORCH_NCCL_ASYNC_ERROR_HANDLING=${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}
 SAVE_EVERY=${SAVE_EVERY:-200}
 SEED=${SEED:-42}
+RESUME=${RESUME:-1}
 
 require_path() {
   local label="$1"
@@ -131,6 +132,12 @@ executor_args=()
 if [[ -n "$VLLM_DISTRIBUTED_EXECUTOR_BACKEND" ]]; then
   executor_args+=(--distributed-executor-backend "$VLLM_DISTRIBUTED_EXECUTOR_BACKEND")
 fi
+resume_args=()
+if [[ "$RESUME" == "1" || "$RESUME" == "true" ]]; then
+  resume_args+=(--resume)
+else
+  resume_args+=(--no-resume)
+fi
 
 CUDA_VISIBLE_DEVICES="$DEVICES" \
 "$PYTHON_BIN" scripts/inference/vllm_batch_infer_jsonl.py \
@@ -157,5 +164,6 @@ CUDA_VISIBLE_DEVICES="$DEVICES" \
   "${eager_args[@]}" \
   "${custom_all_reduce_args[@]}" \
   "${executor_args[@]}" \
+  "${resume_args[@]}" \
   --save-every "$SAVE_EVERY" \
   --seed "$SEED"

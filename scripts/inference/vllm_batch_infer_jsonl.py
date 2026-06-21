@@ -96,6 +96,25 @@ def clean_generation(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def looks_like_reasoning_summary(text: str) -> bool:
+    cleaned = clean_generation(text).lower()
+    if not cleaned:
+        return False
+    if cleaned.startswith(("think ", "<think", "okay ", "we need ", "let's ", "let us ")):
+        return True
+    return "the user wants" in cleaned[:200] or "provided fields" in cleaned[:200]
+
+
+def clean_description_summary(raw: str, max_words: int) -> str:
+    """Keep model reasoning available internally, but store only final answer text."""
+    text = extract_answer(raw)
+    text = clean_generation(text)
+    text = re.sub(r"^(?:final answer|answer)\s*[:：]\s*", "", text, flags=re.IGNORECASE).strip()
+    if looks_like_reasoning_summary(text):
+        return ""
+    return truncate_words(text, max_words)
+
+
 def example_key(row: dict[str, Any], task: str) -> str:
     if task == "description_summary":
         try:
@@ -114,8 +133,10 @@ def load_existing(path: Path, task: str) -> dict[str, dict[str, Any]]:
         key = example_key(row, task)
         if not key:
             continue
-        if task == "description_summary" and not str(row.get("description_summary") or "").strip():
-            continue
+        if task == "description_summary":
+            summary = str(row.get("description_summary") or "").strip()
+            if not summary or looks_like_reasoning_summary(summary):
+                continue
         existing[key] = row
     return existing
 
@@ -159,7 +180,8 @@ def build_description_summary_messages(item: dict[str, Any], args: argparse.Name
         f"Write a factual summary of only the Description field in <= {args.summary_max_words} words.\n"
         "Use Title, Store/artist/format, Categories, and Details only to resolve references already present in Description.\n"
         "If Description is empty, return an empty string.\n"
-        "Return only the summary text, without JSON, bullets, quotes, or explanations.\n\n"
+        "You may reason internally, but put the final summary inside <answer>...</answer>.\n"
+        "Do not put reasoning, JSON, bullets, quotes, or explanations inside <answer>.\n\n"
         f"Title: {compact(item.get('title'), 300)}\n"
         f"Store/artist/format: {compact(item.get('store'), 300)}\n"
         f"Categories: {categories_text(item)}\n"
@@ -234,7 +256,15 @@ def build_prompts(tokenizer, rows: list[dict[str, Any]], args: argparse.Namespac
             messages = build_cot_messages(row, args)
         else:
             raise ValueError(f"Unsupported task: {args.task}")
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        try:
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=args.enable_thinking,
+            )
+        except TypeError:
+            prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         prompts.append(truncate_prompt(tokenizer, prompt, args.max_prompt_tokens))
     return prompts
 
@@ -317,7 +347,7 @@ def init_llm(args: argparse.Namespace):
 
 def output_row(src: dict[str, Any], raw: str, args: argparse.Namespace, elapsed: float) -> dict[str, Any]:
     if args.task == "description_summary":
-        summary = truncate_words(clean_generation(raw), args.summary_max_words)
+        summary = clean_description_summary(raw, args.summary_max_words)
         return {
             "item_id": int(src["item_id"]),
             "title": src.get("title", ""),
@@ -326,7 +356,9 @@ def output_row(src: dict[str, Any], raw: str, args: argparse.Namespace, elapsed:
             "summary_max_words": args.summary_max_words,
             "summary_model": args.model,
             "summary_task": args.task,
+            "summary_enable_thinking": args.enable_thinking,
             "source_description_chars": len(description_text(src)),
+            "generation_meta": {"raw_output_chars": len(raw or "")},
             "generation_timing": {"seconds": round(elapsed, 6)},
         }
 
@@ -369,6 +401,7 @@ def main() -> None:
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--summary-max-words", type=int, default=60)
     parser.add_argument("--cot-system", default="")
+    parser.add_argument("--enable-thinking", action=argparse.BooleanOptionalAction, default=env_flag("VLLM_ENABLE_THINKING", True))
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--vllm-dtype", default="bfloat16")
     parser.add_argument("--vllm-max-model-len", type=int, default=4096)
