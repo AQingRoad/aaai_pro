@@ -64,13 +64,28 @@ def main() -> None:
             split_ds = split_ds.select(range(min(args.max_examples, len(split_ds))))
 
         for row in split_ds:
-            titles = [str(x) for x in row.get("history_item_title", [])]
+            history_item_ids = [int(x) for x in row.get("history_item_id", [])]
+            titles = [compact(x, 300) for x in row.get("history_item_title", [])]
             ratings = [float(x) for x in row.get("history_rating", [])]
             if len(titles) < args.min_history or float(row.get("rating", 0.0)) < args.min_rating:
                 skipped += 1
                 continue
+            if any(not title for title in titles):
+                bad_positions = [idx for idx, title in enumerate(titles) if not title]
+                bad_item_ids = [history_item_ids[idx] if idx < len(history_item_ids) else None for idx in bad_positions]
+                raise ValueError(
+                    f"Empty history_item_title in {args.category}:{split}: "
+                    f"user_id={row.get('user_id')} interaction_id={row.get('interaction_id')} "
+                    f"positions={bad_positions} item_ids={bad_item_ids}. "
+                    "Fix the source RRec data or item metadata before building examples."
+                )
+            if len(ratings) != len(titles):
+                raise ValueError(
+                    f"history_rating length mismatch in {args.category}:{split}: "
+                    f"user_id={row.get('user_id')} interaction_id={row.get('interaction_id')} "
+                    f"titles={len(titles)} ratings={len(ratings)}."
+                )
 
-            history_item_ids = [int(x) for x in row.get("history_item_id", [])]
             item_id = int(row["item_id"])
             target_title = compact(row.get("item_title", ""), 300)
             item_text = build_item_text(item_map.get(item_id), target_title, args.max_target_chars)
