@@ -103,7 +103,11 @@ require_path "project root" "$ROOT"
 require_path "python" "$PYTHON_BIN"
 require_file "item_info" "$ITEM_INFO"
 require_file "train examples" "$TRAIN_EXAMPLES"
-require_path "summary model" "$SUMMARY_MODEL"
+if [[ "$RUN_SUMMARY" == "1" || "$RUN_SUMMARY" == "true" ]]; then
+  require_path "summary model" "$SUMMARY_MODEL"
+else
+  require_file "item metadata summary" "$ITEM_METADATA_SUMMARY"
+fi
 require_path "CoT model" "$COT_MODEL"
 
 if [[ "$TENSOR_PARALLEL_SIZE" == "auto" ]]; then
