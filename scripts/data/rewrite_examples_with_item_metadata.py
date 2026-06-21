@@ -37,7 +37,10 @@ def rewrite_row(
     summary_map: dict[int, str],
     args: argparse.Namespace,
 ) -> dict[str, Any]:
-    history_item_ids = [int(x) for x in row.get("history_item_ids", [])]
+    raw_history_item_ids = row.get("history_item_ids")
+    if raw_history_item_ids is None:
+        raw_history_item_ids = row.get("history_item_id", [])
+    history_item_ids = [int(x) for x in raw_history_item_ids]
     existing_history = str(row.get("user_history", ""))
     expected_history_count = int(row.get("history_item_count") or 0)
     if expected_history_count > 0 and not history_item_ids:
