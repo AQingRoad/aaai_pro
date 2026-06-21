@@ -4,8 +4,10 @@ set -euo pipefail
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 CONFIG_ENV_FILE=${CONFIG_ENV_FILE:-$ROOT/configs/glm_codeplan.env}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
+PYTHON_BIN=${PYTHON_BIN:-}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
+TEMPLATE=${TEMPLATE:-qwen3}
 QWEN3_EMBEDDING_MODEL=${QWEN3_EMBEDDING_MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B}
 ADAPTERS=${ADAPTERS:-}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/grpo.jsonl}
@@ -81,6 +83,8 @@ VLLM_SERVER_HOST=${VLLM_SERVER_HOST:-}
 VLLM_SERVER_PORT=${VLLM_SERVER_PORT:-8000}
 VLLM_SERVER_TIMEOUT=${VLLM_SERVER_TIMEOUT:-240}
 SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
+NPROC_PER_NODE=${NPROC_PER_NODE:-auto}
+MASTER_PORT=${MASTER_PORT:-29501}
 
 activate_swift_env() {
   if command -v swift >/dev/null 2>&1; then
@@ -134,6 +138,36 @@ export QWEN3_EMBEDDING_MODEL="$QWEN3_EMBEDDING_MODEL"
 export QWEN3_EMBEDDING_BATCH_SIZE=${QWEN3_EMBEDDING_BATCH_SIZE:-4}
 export QWEN3_EMBEDDING_MAX_LENGTH=${QWEN3_EMBEDDING_MAX_LENGTH:-4096}
 
+resolve_python_bin() {
+  if [[ -n "$PYTHON_BIN" ]]; then
+    echo "$PYTHON_BIN"
+  elif [[ -n "${VENV:-}" && -x "$VENV/bin/python" ]]; then
+    echo "$VENV/bin/python"
+  else
+    command -v python3
+  fi
+}
+
+resolve_nproc() {
+  if [[ "$NPROC_PER_NODE" == "auto" ]]; then
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+      echo 1
+      return
+    fi
+    awk -F',' '{print NF}' <<< "$CUDA_VISIBLE_DEVICES"
+  else
+    echo "$NPROC_PER_NODE"
+  fi
+}
+
+PYTHON_BIN="$(resolve_python_bin)"
+SWIFT_BIN="$(command -v swift)"
+NPROC="$(resolve_nproc)"
+if ((NPROC < 1)); then
+  echo "NPROC_PER_NODE must be >= 1" >&2
+  exit 1
+fi
+
 TRAIN_ARGS=(--train_type "$TRAIN_TYPE")
 if [[ "$TRAIN_TYPE" == "lora" ]]; then
   TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
@@ -163,10 +197,14 @@ if [[ -n "$MODEL_TYPE" ]]; then
   MODEL_TYPE_FLAG="$(resolve_model_type_flag)"
   MODEL_ARGS+=("$MODEL_TYPE_FLAG" "$MODEL_TYPE")
 fi
+if [[ -n "$TEMPLATE" ]]; then
+  MODEL_ARGS+=(--template "$TEMPLATE")
+fi
 
 echo "GRPO config:"
 echo "  MODEL=$MODEL"
 echo "  MODEL_TYPE=$MODEL_TYPE"
+echo "  TEMPLATE=$TEMPLATE"
 echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
@@ -183,6 +221,8 @@ echo "  RUBRIC_GAIN_MODE=$RUBRIC_GAIN_MODE"
 echo "  RUBRIC_NDCG_ITEM_INFO=$RUBRIC_NDCG_ITEM_INFO"
 echo "  RUBRIC_NDCG_K=$RUBRIC_NDCG_K"
 echo "  CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+echo "  NPROC=$NPROC"
+echo "  MASTER_PORT=$MASTER_PORT"
 
 VLLM_ARGS=()
 if [[ "$USE_VLLM" == "1" || "$USE_VLLM" == "true" ]]; then
@@ -219,7 +259,8 @@ if [[ -n "$GENERATION_BATCH_SIZE" ]]; then
   GENERATION_ARGS+=(--generation_batch_size "$GENERATION_BATCH_SIZE")
 fi
 
-swift rlhf \
+GRPO_ARGS=(
+  rlhf
   --rlhf_type grpo \
   "${MODEL_ARGS[@]}" \
   "${ADAPTER_ARGS[@]}" \
@@ -247,3 +288,13 @@ swift rlhf \
   --log_completions true \
   --report_to none \
   --output_dir "$OUT"
+)
+
+if ((NPROC > 1)); then
+  "$PYTHON_BIN" -m torch.distributed.run \
+    --nproc_per_node "$NPROC" \
+    --master_port "$MASTER_PORT" \
+    "$SWIFT_BIN" "${GRPO_ARGS[@]}"
+else
+  "$SWIFT_BIN" "${GRPO_ARGS[@]}"
+fi

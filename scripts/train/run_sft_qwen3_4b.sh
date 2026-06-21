@@ -3,8 +3,10 @@ set -euo pipefail
 
 ROOT=${ROOT:-/root/autodl-tmp/rec/aaai_pro}
 VENV=${VENV:-/root/autodl-tmp/rec/ms-swift-312-cu124-venv}
+PYTHON_BIN=${PYTHON_BIN:-}
 MODEL=${MODEL:-/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-4B}
 MODEL_TYPE=${MODEL_TYPE:-qwen3}
+TEMPLATE=${TEMPLATE:-qwen3}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/sft.jsonl}
 OUT=${OUT:-$ROOT/checkpoints/qwen3_4b_sft_rubric_cot}
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
@@ -19,6 +21,8 @@ LEARNING_RATE=${LEARNING_RATE:-1e-5}
 SAVE_STEPS=${SAVE_STEPS:-200}
 SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-2}
 SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
+NPROC_PER_NODE=${NPROC_PER_NODE:-auto}
+MASTER_PORT=${MASTER_PORT:-29500}
 
 activate_swift_env() {
   if command -v swift >/dev/null 2>&1; then
@@ -40,6 +44,36 @@ cd "$ROOT"
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 export MODELSCOPE_CACHE=${MODELSCOPE_CACHE:-/root/autodl-tmp/modelscope_cache}
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
+
+resolve_python_bin() {
+  if [[ -n "$PYTHON_BIN" ]]; then
+    echo "$PYTHON_BIN"
+  elif [[ -n "${VENV:-}" && -x "$VENV/bin/python" ]]; then
+    echo "$VENV/bin/python"
+  else
+    command -v python3
+  fi
+}
+
+resolve_nproc() {
+  if [[ "$NPROC_PER_NODE" == "auto" ]]; then
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+      echo 1
+      return
+    fi
+    awk -F',' '{print NF}' <<< "$CUDA_VISIBLE_DEVICES"
+  else
+    echo "$NPROC_PER_NODE"
+  fi
+}
+
+PYTHON_BIN="$(resolve_python_bin)"
+SWIFT_BIN="$(command -v swift)"
+NPROC="$(resolve_nproc)"
+if ((NPROC < 1)); then
+  echo "NPROC_PER_NODE must be >= 1" >&2
+  exit 1
+fi
 
 TRAIN_ARGS=(--train_type "$TRAIN_TYPE")
 if [[ "$TRAIN_TYPE" == "lora" ]]; then
@@ -71,15 +105,20 @@ MODEL_TYPE_FLAG="$(resolve_model_type_flag)"
 echo "SFT config:"
 echo "  MODEL=$MODEL"
 echo "  MODEL_TYPE=$MODEL_TYPE"
+echo "  TEMPLATE=$TEMPLATE"
 echo "  MODEL_TYPE_FLAG=$MODEL_TYPE_FLAG"
 echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
 echo "  CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+echo "  NPROC=$NPROC"
+echo "  MASTER_PORT=$MASTER_PORT"
 
-swift sft \
+SFT_ARGS=(
+  sft
   --model "$MODEL" \
   "$MODEL_TYPE_FLAG" "$MODEL_TYPE" \
+  --template "$TEMPLATE" \
   --dataset "$DATASET" \
   --per_device_train_batch_size "$BATCH_SIZE" \
   --gradient_accumulation_steps "$GRAD_ACCUM" \
@@ -97,3 +136,13 @@ swift sft \
   --logging_steps 10 \
   --report_to none \
   --output_dir "$OUT"
+)
+
+if ((NPROC > 1)); then
+  "$PYTHON_BIN" -m torch.distributed.run \
+    --nproc_per_node "$NPROC" \
+    --master_port "$MASTER_PORT" \
+    "$SWIFT_BIN" "${SFT_ARGS[@]}"
+else
+  "$SWIFT_BIN" "${SFT_ARGS[@]}"
+fi
