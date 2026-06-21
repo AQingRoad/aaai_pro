@@ -15,6 +15,7 @@ from rubric_cot_pipeline.item_metadata import build_item_map, build_item_summary
 
 
 RATING_RE = re.compile(r"\(([-+]?\d+(?:\.\d+)?)\s+stars?\)", re.IGNORECASE)
+HISTORY_ENTRY_RE = re.compile(r"(?:^|[.;]\s*)(?P<title>.+?)\s*\((?P<rating>[-+]?\d+(?:\.\d+)?)\s+stars?\)", re.IGNORECASE)
 
 
 def parse_history_ratings(user_history: str) -> list[float]:
@@ -27,6 +28,37 @@ def parse_history_ratings(user_history: str) -> list[float]:
     return ratings
 
 
+def normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", str(title or "")).strip().lower()
+
+
+def parse_history_entries(user_history: str) -> tuple[list[str], list[float]]:
+    titles: list[str] = []
+    ratings: list[float] = []
+    prefix = "This user's Amazon CDs and Vinyl interaction history over time is listed below."
+    text = str(user_history or "").replace(prefix, "").strip()
+    for match in HISTORY_ENTRY_RE.finditer(text):
+        title = re.sub(r"^\d+\.\s*", "", match.group("title")).strip(" ;.\n\t")
+        if not title:
+            continue
+        try:
+            rating = float(match.group("rating"))
+        except ValueError:
+            continue
+        titles.append(title)
+        ratings.append(rating)
+    return titles, ratings
+
+
+def build_title_to_item_ids(item_map: dict[int, dict[str, Any]]) -> dict[str, list[int]]:
+    title_to_ids: dict[str, list[int]] = {}
+    for item_id, item in item_map.items():
+        title = normalize_title(item.get("title") or "")
+        if title:
+            title_to_ids.setdefault(title, []).append(item_id)
+    return title_to_ids
+
+
 def item_title(item: dict[str, Any] | None, fallback: str = "") -> str:
     if not item:
         return fallback
@@ -36,16 +68,37 @@ def item_title(item: dict[str, Any] | None, fallback: str = "") -> str:
 def rewrite_row(
     row: dict[str, Any],
     item_map: dict[int, dict[str, Any]],
+    title_to_item_ids: dict[str, list[int]],
     summary_map: dict[int, str],
     args: argparse.Namespace,
 ) -> dict[str, Any]:
     history_item_ids = [int(x) for x in row.get("history_item_ids", [])]
-    titles = [item_title(item_map.get(item_id), fallback=f"item_{item_id}") for item_id in history_item_ids]
-    ratings = parse_history_ratings(str(row.get("user_history", "")))
+    existing_history = str(row.get("user_history", ""))
+    if history_item_ids:
+        titles = [item_title(item_map.get(item_id), fallback=f"item_{item_id}") for item_id in history_item_ids]
+        ratings = parse_history_ratings(existing_history)
+    else:
+        titles, ratings = parse_history_entries(existing_history)
+        history_item_ids = [
+            ids[0] if len(ids := title_to_item_ids.get(normalize_title(title), [])) == 1 else -1
+            for title in titles
+        ]
+
+    expected_history_count = int(row.get("history_item_count") or 0)
+    if expected_history_count > 0 and not titles:
+        example_id = row.get("example_id") or row.get("interaction_id") or row.get("user_id") or "<unknown>"
+        raise ValueError(
+            f"Cannot rebuild non-empty history for example {example_id}: "
+            "missing history_item_ids and no '(N stars)' entries in user_history. "
+            "Use the original examples.jsonl that still contains history_item_ids."
+        )
+
     if len(ratings) < len(titles):
         ratings = ratings + [args.default_history_rating] * (len(titles) - len(ratings))
     elif len(ratings) > len(titles):
         ratings = ratings[-len(titles) :] if titles else []
+
+    metadata_item_ids = [item_id if item_id >= 0 else None for item_id in history_item_ids]
 
     out = dict(row)
     rewritten_history = history_text(
@@ -53,7 +106,9 @@ def rewrite_row(
         titles,
         ratings,
         args.max_history_items,
-        item_ids=history_item_ids,
+        item_ids=[item_id for item_id in metadata_item_ids if item_id is not None]
+        if all(item_id is not None for item_id in metadata_item_ids)
+        else None,
         item_map=item_map,
         metadata_mode=args.history_metadata_mode,
         max_item_chars=args.history_max_item_chars,
@@ -87,10 +142,11 @@ def main() -> None:
     args = parser.parse_args()
 
     item_map = build_item_map(read_jsonl(args.item_info))
+    title_to_item_ids = build_title_to_item_ids(item_map)
     summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
     rows = []
     for row in read_jsonl(args.input, limit=args.max_examples):
-        rows.append(rewrite_row(row, item_map, summary_map, args))
+        rows.append(rewrite_row(row, item_map, title_to_item_ids, summary_map, args))
 
     count = write_jsonl(args.output, rows)
     stats = {
