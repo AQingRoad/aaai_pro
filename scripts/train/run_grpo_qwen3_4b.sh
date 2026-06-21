@@ -158,9 +158,12 @@ fi
 export NPROC_PER_NODE="$NPROC"
 export MASTER_PORT="$MASTER_PORT"
 
-TRAIN_ARGS=(--train_type "$TRAIN_TYPE")
-if [[ "$TRAIN_TYPE" == "lora" ]]; then
-  TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
+TRAIN_ARGS=()
+if [[ -n "$TRAIN_TYPE" && "$TRAIN_TYPE" != "full" ]]; then
+  TRAIN_ARGS+=(--train_type "$TRAIN_TYPE")
+  if [[ "$TRAIN_TYPE" == "lora" ]]; then
+    TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
+  fi
 fi
 
 ADAPTER_ARGS=()
