@@ -21,6 +21,31 @@ from rubric_cot_pipeline.prompts import ANSWER_TAG, COT_SYSTEM, REASONING_TAG, b
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*")
 
 
+def env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def set_vllm_distributed_env_defaults() -> None:
+    if not env_flag("VLLM_SAFE_NCCL_DEFAULTS", True):
+        return
+    defaults = {
+        "NCCL_NET": "Socket",
+        "NCCL_IB_DISABLE": "1",
+        "NCCL_P2P_DISABLE": "1",
+        "NCCL_NVLS_ENABLE": "0",
+        "NCCL_MNNVL_ENABLE": "0",
+        "NCCL_COLLNET_ENABLE": "0",
+        "NCCL_DEBUG": "WARN",
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+    }
+    for key, value in defaults.items():
+        os.environ.setdefault(key, value)
+
+
 def patch_transformers_tokenizer_compat() -> None:
     """Patch older transformers tokenizers for newer vLLM tokenizer caching."""
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -249,6 +274,7 @@ def cleanup_vllm(llm: Any) -> None:
 
 
 def init_llm(args: argparse.Namespace):
+    set_vllm_distributed_env_defaults()
     patch_transformers_tokenizer_compat()
     from vllm import LLM
     from transformers import AutoTokenizer
@@ -270,11 +296,23 @@ def init_llm(args: argparse.Namespace):
         "disable_log_stats": True,
         "seed": args.seed,
     }
+    if args.disable_custom_all_reduce:
+        kwargs["disable_custom_all_reduce"] = True
+    if args.distributed_executor_backend:
+        kwargs["distributed_executor_backend"] = args.distributed_executor_backend
     if args.enforce_eager:
         kwargs["enforce_eager"] = True
     if args.max_num_batched_tokens > 0:
         kwargs["max_num_batched_tokens"] = args.max_num_batched_tokens
-    return LLM(**kwargs), tokenizer
+
+    while True:
+        try:
+            return LLM(**kwargs), tokenizer
+        except TypeError as exc:
+            match = re.search(r"unexpected keyword argument '([^']+)'", str(exc))
+            if not match or match.group(1) not in kwargs:
+                raise
+            kwargs.pop(match.group(1), None)
 
 
 def output_row(src: dict[str, Any], raw: str, args: argparse.Namespace, elapsed: float) -> dict[str, Any]:
@@ -338,6 +376,8 @@ def main() -> None:
     parser.add_argument("--max-num-batched-tokens", type=int, default=0)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     parser.add_argument("--enforce-eager", action="store_true")
+    parser.add_argument("--disable-custom-all-reduce", action=argparse.BooleanOptionalAction, default=env_flag("VLLM_DISABLE_CUSTOM_ALL_REDUCE", True))
+    parser.add_argument("--distributed-executor-backend", default=os.getenv("VLLM_DISTRIBUTED_EXECUTOR_BACKEND", "mp"))
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--save-every", type=int, default=200)
     parser.add_argument("--seed", type=int, default=42)

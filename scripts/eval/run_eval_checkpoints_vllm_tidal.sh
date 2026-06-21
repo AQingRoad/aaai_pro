@@ -46,6 +46,18 @@ VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-$GENERATION_BATCH_SIZE}
 VLLM_MAX_NUM_BATCHED_TOKENS=${VLLM_MAX_NUM_BATCHED_TOKENS:-0}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
 VLLM_ENFORCE_EAGER=${VLLM_ENFORCE_EAGER:-0}
+VLLM_SAFE_NCCL_DEFAULTS=${VLLM_SAFE_NCCL_DEFAULTS:-1}
+VLLM_DISABLE_CUSTOM_ALL_REDUCE=${VLLM_DISABLE_CUSTOM_ALL_REDUCE:-1}
+VLLM_DISTRIBUTED_EXECUTOR_BACKEND=${VLLM_DISTRIBUTED_EXECUTOR_BACKEND:-mp}
+VLLM_WORKER_MULTIPROC_METHOD=${VLLM_WORKER_MULTIPROC_METHOD:-spawn}
+NCCL_NET=${NCCL_NET:-Socket}
+NCCL_IB_DISABLE=${NCCL_IB_DISABLE:-1}
+NCCL_P2P_DISABLE=${NCCL_P2P_DISABLE:-1}
+NCCL_NVLS_ENABLE=${NCCL_NVLS_ENABLE:-0}
+NCCL_MNNVL_ENABLE=${NCCL_MNNVL_ENABLE:-0}
+NCCL_COLLNET_ENABLE=${NCCL_COLLNET_ENABLE:-0}
+NCCL_DEBUG=${NCCL_DEBUG:-WARN}
+TORCH_NCCL_ASYNC_ERROR_HANDLING=${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}
 KS=${KS:-5,10,20}
 
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-}
@@ -119,6 +131,18 @@ cd "$ROOT"
 mkdir -p "$RESULT_ROOT/logs" "$RESULT_ROOT/predictions"
 export PATH="$VENV/bin:$PATH"
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
+export VLLM_SAFE_NCCL_DEFAULTS
+export VLLM_DISABLE_CUSTOM_ALL_REDUCE
+export VLLM_DISTRIBUTED_EXECUTOR_BACKEND
+export VLLM_WORKER_MULTIPROC_METHOD
+export NCCL_NET
+export NCCL_IB_DISABLE
+export NCCL_P2P_DISABLE
+export NCCL_NVLS_ENABLE
+export NCCL_MNNVL_ENABLE
+export NCCL_COLLNET_ENABLE
+export NCCL_DEBUG
+export TORCH_NCCL_ASYNC_ERROR_HANDLING
 
 mapfile -t CHECKPOINTS < <(find_checkpoints "$CHECKPOINT_ROOT")
 if [[ "${#CHECKPOINTS[@]}" -eq 0 ]]; then
@@ -148,11 +172,19 @@ history_max_item_chars=$HISTORY_MAX_ITEM_CHARS
 item_metadata_summary=$ITEM_METADATA_SUMMARY
 max_new_tokens=$MAX_NEW_TOKENS
 generation_batch_size=$GENERATION_BATCH_SIZE
+vllm_disable_custom_all_reduce=$VLLM_DISABLE_CUSTOM_ALL_REDUCE
+vllm_distributed_executor_backend=$VLLM_DISTRIBUTED_EXECUTOR_BACKEND
+nccl_net=$NCCL_NET
+nccl_ib_disable=$NCCL_IB_DISABLE
+nccl_p2p_disable=$NCCL_P2P_DISABLE
 ks=$KS
 EOF
 
 echo "RESULT_ROOT=$RESULT_ROOT"
 echo "Found ${#CHECKPOINTS[@]} checkpoint(s)"
+echo "VLLM_DISABLE_CUSTOM_ALL_REDUCE=$VLLM_DISABLE_CUSTOM_ALL_REDUCE"
+echo "VLLM_DISTRIBUTED_EXECUTOR_BACKEND=$VLLM_DISTRIBUTED_EXECUTOR_BACKEND"
+echo "NCCL_NET=$NCCL_NET NCCL_IB_DISABLE=$NCCL_IB_DISABLE NCCL_P2P_DISABLE=$NCCL_P2P_DISABLE"
 
 for checkpoint in "${CHECKPOINTS[@]}"; do
   require_path "checkpoint" "$checkpoint"
@@ -178,6 +210,16 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
   eager_args=()
   if [[ "$VLLM_ENFORCE_EAGER" == "1" || "$VLLM_ENFORCE_EAGER" == "true" ]]; then
     eager_args+=(--enforce-eager)
+  fi
+  custom_all_reduce_args=()
+  if [[ "$VLLM_DISABLE_CUSTOM_ALL_REDUCE" == "1" || "$VLLM_DISABLE_CUSTOM_ALL_REDUCE" == "true" ]]; then
+    custom_all_reduce_args+=(--disable-custom-all-reduce)
+  else
+    custom_all_reduce_args+=(--no-disable-custom-all-reduce)
+  fi
+  executor_args=()
+  if [[ -n "$VLLM_DISTRIBUTED_EXECUTOR_BACKEND" ]]; then
+    executor_args+=(--distributed-executor-backend "$VLLM_DISTRIBUTED_EXECUTOR_BACKEND")
   fi
 
   CUDA_VISIBLE_DEVICES="$DEVICES" \
@@ -207,6 +249,8 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
     --max-num-batched-tokens "$VLLM_MAX_NUM_BATCHED_TOKENS" \
     --gpu-memory-utilization "$VLLM_GPU_MEMORY_UTILIZATION" \
     "${eager_args[@]}" \
+    "${custom_all_reduce_args[@]}" \
+    "${executor_args[@]}" \
     --scorer "$SCORER" \
     --embedding-model "$QWEN3_EMBEDDING_MODEL" \
     --embedding-max-length "$EMBEDDING_MAX_LENGTH" \

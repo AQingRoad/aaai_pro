@@ -35,6 +35,31 @@ def parse_csv_ints(text: str) -> list[int]:
     return [int(x.strip()) for x in text.split(",") if x.strip()]
 
 
+def env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def set_vllm_distributed_env_defaults() -> None:
+    if not env_flag("VLLM_SAFE_NCCL_DEFAULTS", True):
+        return
+    defaults = {
+        "NCCL_NET": "Socket",
+        "NCCL_IB_DISABLE": "1",
+        "NCCL_P2P_DISABLE": "1",
+        "NCCL_NVLS_ENABLE": "0",
+        "NCCL_MNNVL_ENABLE": "0",
+        "NCCL_COLLNET_ENABLE": "0",
+        "NCCL_DEBUG": "WARN",
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+    }
+    for key, value in defaults.items():
+        os.environ.setdefault(key, value)
+
+
 def patch_transformers_tokenizer_compat() -> None:
     """Patch older transformers tokenizers for newer vLLM tokenizer caching."""
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -113,6 +138,7 @@ def cleanup_vllm(llm: Any) -> None:
 
 
 def generate_with_vllm(args, user_histories: list[str]) -> list[str]:
+    set_vllm_distributed_env_defaults()
     patch_transformers_tokenizer_compat()
 
     from vllm import LLM, SamplingParams
@@ -134,12 +160,26 @@ def generate_with_vllm(args, user_histories: list[str]) -> list[str]:
         "max_num_seqs": args.vllm_max_num_seqs,
         "disable_log_stats": True,
     }
+    if args.disable_custom_all_reduce:
+        llm_kwargs["disable_custom_all_reduce"] = True
+    if args.distributed_executor_backend:
+        llm_kwargs["distributed_executor_backend"] = args.distributed_executor_backend
     if args.enforce_eager:
         llm_kwargs["enforce_eager"] = True
     if args.max_num_batched_tokens > 0:
         llm_kwargs["max_num_batched_tokens"] = args.max_num_batched_tokens
 
-    llm = LLM(**llm_kwargs)
+    while True:
+        try:
+            llm = LLM(**llm_kwargs)
+            break
+        except TypeError as exc:
+            import re
+
+            match = re.search(r"unexpected keyword argument '([^']+)'", str(exc))
+            if not match or match.group(1) not in llm_kwargs:
+                raise
+            llm_kwargs.pop(match.group(1), None)
     sampling = SamplingParams(
         temperature=args.temperature,
         top_p=args.top_p,
@@ -192,6 +232,8 @@ def main() -> None:
     parser.add_argument("--max-num-batched-tokens", type=int, default=0)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     parser.add_argument("--enforce-eager", action="store_true")
+    parser.add_argument("--disable-custom-all-reduce", action=argparse.BooleanOptionalAction, default=env_flag("VLLM_DISABLE_CUSTOM_ALL_REDUCE", True))
+    parser.add_argument("--distributed-executor-backend", default=os.getenv("VLLM_DISTRIBUTED_EXECUTOR_BACKEND", "mp"))
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="qwen3_embedding")
     parser.add_argument("--embedding-model", required=True)
