@@ -15,6 +15,7 @@ MAX_STEPS=${MAX_STEPS:-20}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-}
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
+TUNER_TYPE=${TUNER_TYPE:-$TRAIN_TYPE}
 LORA_RANK=${LORA_RANK:-64}
 LORA_ALPHA=${LORA_ALPHA:-128}
 BATCH_SIZE=${BATCH_SIZE:-1}
@@ -82,6 +83,7 @@ VLLM_SERVER_HOST=${VLLM_SERVER_HOST:-}
 VLLM_SERVER_PORT=${VLLM_SERVER_PORT:-8000}
 VLLM_SERVER_TIMEOUT=${VLLM_SERVER_TIMEOUT:-240}
 SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
+SWIFT_TUNER_TYPE_FLAG=${SWIFT_TUNER_TYPE_FLAG:-}
 NPROC_PER_NODE=${NPROC_PER_NODE:-auto}
 MASTER_PORT=${MASTER_PORT:-29501}
 
@@ -158,11 +160,29 @@ fi
 export NPROC_PER_NODE="$NPROC"
 export MASTER_PORT="$MASTER_PORT"
 
-TRAIN_ARGS=()
-if [[ -n "$TRAIN_TYPE" && "$TRAIN_TYPE" != "full" ]]; then
-  TRAIN_ARGS+=(--train_type "$TRAIN_TYPE")
-  if [[ "$TRAIN_TYPE" == "lora" ]]; then
-    TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
+resolve_tuner_type_flag() {
+  if [[ -n "$SWIFT_TUNER_TYPE_FLAG" ]]; then
+    echo "$SWIFT_TUNER_TYPE_FLAG"
+    return
+  fi
+
+  local help_text
+  help_text="$(swift rlhf --help 2>&1 || true)"
+  if grep -q -- "--tuner_type" <<<"$help_text"; then
+    echo "--tuner_type"
+  elif grep -q -- "--tuner-type" <<<"$help_text"; then
+    echo "--tuner-type"
+  else
+    echo "--tuner_type"
+  fi
+}
+
+TUNER_TYPE_FLAG="$(resolve_tuner_type_flag)"
+TUNER_ARGS=()
+if [[ -n "$TUNER_TYPE" ]]; then
+  TUNER_ARGS+=("$TUNER_TYPE_FLAG" "$TUNER_TYPE")
+  if [[ "$TUNER_TYPE" == "lora" ]]; then
+    TUNER_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
   fi
 fi
 
@@ -201,6 +221,8 @@ echo "  TEMPLATE=$TEMPLATE"
 echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
+echo "  TUNER_TYPE=$TUNER_TYPE"
+echo "  TUNER_TYPE_FLAG=$TUNER_TYPE_FLAG"
 echo "  MAX_STEPS=$MAX_STEPS"
 echo "  SAVE_STEPS=$SAVE_STEPS"
 echo "  SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
@@ -271,7 +293,7 @@ GRPO_ARGS=(
   --learning_rate "$LEARNING_RATE" \
   --lr_scheduler_type cosine \
   --warmup_ratio 0.05 \
-  "${TRAIN_ARGS[@]}" \
+  "${TUNER_ARGS[@]}" \
   --torch_dtype bfloat16 \
   --gradient_checkpointing true \
   --save_only_model true \

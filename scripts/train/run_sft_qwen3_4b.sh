@@ -9,6 +9,7 @@ TEMPLATE=${TEMPLATE:-qwen3}
 DATASET=${DATASET:-$ROOT/outputs/ml1m/sft.jsonl}
 OUT=${OUT:-$ROOT/checkpoints/qwen3_4b_sft_rubric_cot}
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
+TUNER_TYPE=${TUNER_TYPE:-$TRAIN_TYPE}
 LORA_RANK=${LORA_RANK:-64}
 LORA_ALPHA=${LORA_ALPHA:-128}
 MAX_STEPS=${MAX_STEPS:--1}
@@ -20,6 +21,7 @@ LEARNING_RATE=${LEARNING_RATE:-1e-5}
 SAVE_STEPS=${SAVE_STEPS:-200}
 SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-2}
 SWIFT_MODEL_TYPE_FLAG=${SWIFT_MODEL_TYPE_FLAG:-}
+SWIFT_TUNER_TYPE_FLAG=${SWIFT_TUNER_TYPE_FLAG:-}
 NPROC_PER_NODE=${NPROC_PER_NODE:-auto}
 MASTER_PORT=${MASTER_PORT:-29500}
 
@@ -65,18 +67,27 @@ fi
 export NPROC_PER_NODE="$NPROC"
 export MASTER_PORT="$MASTER_PORT"
 
-TRAIN_ARGS=()
-if [[ -n "$TRAIN_TYPE" && "$TRAIN_TYPE" != "full" ]]; then
-  TRAIN_ARGS+=(--train_type "$TRAIN_TYPE")
-  if [[ "$TRAIN_TYPE" == "lora" ]]; then
-    TRAIN_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
-  fi
-fi
-
 STEP_ARGS=(--num_train_epochs "$NUM_TRAIN_EPOCHS")
 if [[ "$MAX_STEPS" != "-1" ]]; then
   STEP_ARGS=(--max_steps "$MAX_STEPS")
 fi
+
+resolve_tuner_type_flag() {
+  if [[ -n "$SWIFT_TUNER_TYPE_FLAG" ]]; then
+    echo "$SWIFT_TUNER_TYPE_FLAG"
+    return
+  fi
+
+  local help_text
+  help_text="$(swift sft --help 2>&1 || true)"
+  if grep -q -- "--tuner_type" <<<"$help_text"; then
+    echo "--tuner_type"
+  elif grep -q -- "--tuner-type" <<<"$help_text"; then
+    echo "--tuner-type"
+  else
+    echo "--tuner_type"
+  fi
+}
 
 resolve_model_type_flag() {
   if [[ -n "$SWIFT_MODEL_TYPE_FLAG" ]]; then
@@ -93,13 +104,24 @@ resolve_model_type_flag() {
   fi
 }
 
+TUNER_TYPE_FLAG="$(resolve_tuner_type_flag)"
 MODEL_TYPE_FLAG="$(resolve_model_type_flag)"
+
+TUNER_ARGS=()
+if [[ -n "$TUNER_TYPE" ]]; then
+  TUNER_ARGS+=("$TUNER_TYPE_FLAG" "$TUNER_TYPE")
+  if [[ "$TUNER_TYPE" == "lora" ]]; then
+    TUNER_ARGS+=(--lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA")
+  fi
+fi
 
 echo "SFT config:"
 echo "  MODEL=$MODEL"
 echo "  MODEL_TYPE=$MODEL_TYPE"
 echo "  TEMPLATE=$TEMPLATE"
 echo "  MODEL_TYPE_FLAG=$MODEL_TYPE_FLAG"
+echo "  TUNER_TYPE=$TUNER_TYPE"
+echo "  TUNER_TYPE_FLAG=$TUNER_TYPE_FLAG"
 echo "  DATASET=$DATASET"
 echo "  OUT=$OUT"
 echo "  TRAIN_TYPE=$TRAIN_TYPE"
@@ -120,7 +142,7 @@ SFT_ARGS=(
   --lr_scheduler_type cosine \
   --warmup_ratio 0.03 \
   "${STEP_ARGS[@]}" \
-  "${TRAIN_ARGS[@]}" \
+  "${TUNER_ARGS[@]}" \
   --torch_dtype bfloat16 \
   --gradient_checkpointing true \
   --save_only_model true \
