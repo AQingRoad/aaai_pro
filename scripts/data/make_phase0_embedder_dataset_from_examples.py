@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -19,6 +20,41 @@ from rubric_cot_pipeline.item_metadata import (
 )
 from rubric_cot_pipeline.io import read_jsonl, write_jsonl
 from scripts.data.rewrite_examples_with_item_metadata import parse_history_ratings
+
+
+WORD_RE = re.compile(r"\S+")
+
+
+def word_count(text: str) -> int:
+    return len(WORD_RE.findall(text or ""))
+
+
+def percentile(sorted_values: list[int], q: float) -> float:
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return float(sorted_values[0])
+    pos = (len(sorted_values) - 1) * q
+    lower = int(pos)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    weight = pos - lower
+    return float(sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight)
+
+
+def numeric_stats(values: list[int]) -> dict[str, float | int]:
+    if not values:
+        return {"count": 0}
+    sorted_values = sorted(values)
+    return {
+        "count": len(sorted_values),
+        "min": sorted_values[0],
+        "max": sorted_values[-1],
+        "mean": round(sum(sorted_values) / len(sorted_values), 2),
+        "p50": round(percentile(sorted_values, 0.50), 2),
+        "p90": round(percentile(sorted_values, 0.90), 2),
+        "p95": round(percentile(sorted_values, 0.95), 2),
+        "p99": round(percentile(sorted_values, 0.99), 2),
+    }
 
 
 def item_title(item: Mapping[str, Any] | None, fallback: str = "") -> str:
@@ -135,6 +171,7 @@ def main() -> None:
     skipped_short_history = 0
     used_existing_history_query = 0
     rebuilt_history_query = 0
+    query_word_counts: list[int] = []
     for row in read_jsonl(args.examples, limit=args.max_examples):
         history_item_ids = [int(x) for x in row.get("history_item_ids", [])]
         existing_user_history = str(row.get("user_history") or row.get("query") or "").strip()
@@ -195,6 +232,7 @@ def main() -> None:
             "item_summary_source": args.item_summary,
         }
         rows.append(out_row)
+        query_word_counts.append(word_count(query))
         if len(preview_rows) < args.preview_cases:
             preview_rows.append(out_row)
 
@@ -231,6 +269,7 @@ def main() -> None:
         "used_existing_history_query": used_existing_history_query,
         "rebuilt_history_query": rebuilt_history_query,
         "summary_items": len(summary_map),
+        "query_word_count_stats": numeric_stats(query_word_counts),
     }
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 
