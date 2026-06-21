@@ -1,74 +1,76 @@
-# Scripts Index
+# 脚本索引
 
-Implementation files live in grouped subdirectories. Root-level files such as
-`scripts/run_sft_qwen3_4b.sh` are symlinks kept for old commands and server
-notes. Prefer editing the grouped implementation path.
+真实实现文件放在分组子目录中。`scripts/run_sft_qwen3_4b.sh` 这类根目录
+文件是软链接，用来兼容旧命令和服务器记录。改代码时优先修改分组目录中的
+真实文件。
 
-## Data Preparation
+## 数据准备
 
 ```text
-scripts/data/prepare_rrec_amazon_examples.py       Convert RRec/Amazon rows to pipeline examples.
-scripts/data/prepare_ml1m_examples.py              Convert ML-1M rows to pipeline examples.
-scripts/data/make_phase0_embedder_dataset.py       Build base history->target embedding pairs.
-scripts/data/make_cot_embedder_dataset.py          Build history/COT->target embedding pairs.
+scripts/data/prepare_rrec_amazon_examples.py       将 RRec/Amazon 样本转成 pipeline JSONL。
+scripts/data/prepare_ml1m_examples.py              将 ML-1M 样本转成 pipeline JSONL。
+scripts/data/make_phase0_embedder_dataset.py       构建 history->target embedding 训练对。
+scripts/data/make_cot_embedder_dataset.py          构建 history/CoT->target embedding 训练对。
 ```
 
-## CoT Generation And Rubric
+## CoT 生成和 Rubric
 
 ```text
-scripts/cot/generate_cot_candidate_lists.py        API-based CoT candidate generation.
-scripts/cot/generate_cot_candidate_lists_local.py  Local model CoT generation.
-scripts/cot/generate_cot_candidates.py             Older flat CoT generator.
-scripts/cot/aggregate_cot_candidate_list_shards.py Merge generated shard JSONL files.
-scripts/cot/score_cot_candidate_lists.py           API/rule rubric score for candidate lists.
-scripts/cot/judge_cot_quality.py                   Score flat CoT quality JSONL files.
-scripts/cot/merge_candidate_list_rubric.py         Merge candidates and rubric scores.
+scripts/cot/generate_cot_candidate_lists.py        通过 API 生成 CoT 候选列表。
+scripts/cot/generate_cot_candidate_lists_local.py  通过本地模型生成 CoT 候选列表。
+scripts/cot/generate_cot_candidates.py             旧版 flat CoT 生成入口。
+scripts/cot/aggregate_cot_candidate_list_shards.py 合并多 shard 生成结果。
+scripts/cot/score_cot_candidate_lists.py           对候选列表做 API/rule rubric 打分。
+scripts/cot/judge_cot_quality.py                   对 flat CoT JSONL 做质量打分。
+scripts/cot/merge_candidate_list_rubric.py         合并候选 CoT 和 rubric 分数。
 ```
 
-## Gain, Selection, And Datasets
+## Gain、筛选和数据集
 
 ```text
-scripts/selection/compute_cot_gain.py              Compute sim/NDCG CoT gain.
-scripts/selection/select_filtered_cot.py           Select top candidate per example.
-scripts/selection/select_top_percent_cot.py        Select global top-percent CoT rows.
-scripts/selection/finalize_cot_selection.py        Plot/filter final selected CoT rows.
-scripts/datasets/make_sft_dataset.py               Convert selected CoT rows to SFT messages.
-scripts/datasets/make_grpo_dataset.py              Convert scored rows to GRPO prompts.
+scripts/selection/compute_cot_gain.py              计算 sim/NDCG CoT gain。
+scripts/selection/select_filtered_cot.py           每个样本选出一个高质量 CoT。
+scripts/selection/select_top_percent_cot.py        全局 top-percent CoT 筛选。
+scripts/selection/finalize_cot_selection.py        对筛选结果画分布图并做最终过滤。
+scripts/datasets/make_sft_dataset.py               将筛选 CoT 转成 SFT messages。
+scripts/datasets/make_grpo_dataset.py              将 scored rows 转成 GRPO prompts。
 ```
 
 ## Embedding
 
 ```text
-scripts/embedding/train_phase0_embedder.py              Qwen3 embedding contrastive training.
-scripts/embedding/run_train_cds_embedding_tidal.sh      Train CDs base embedding on Tidal.
-scripts/embedding/run_train_cds_cot_embedding_tidal.sh  Train CDs CoT-aware embedding on Tidal.
+scripts/embedding/train_phase0_embedder.py              Qwen3 embedding 对比学习训练。
+scripts/embedding/run_train_cds_embedding_tidal.sh      在 Tidal 上训练 CDs base embedding。
+scripts/embedding/run_train_cds_cot_embedding_tidal.sh  在 Tidal 上训练 CDs CoT-aware embedding。
 scripts/embedding/run_cds_qwen3_4b_cot_embedding_pipeline_tidal.sh
-                                                        Generate local CoT and train embedding.
-scripts/embedding/eval_cds_embedding_base_tidal.sh      Evaluate base embedding.
-scripts/embedding/eval_cds_embedding_trained_tidal.sh   Evaluate trained embedding.
+                                                        本地 Qwen3-4B 生成 CoT 后训练 embedding。
+scripts/embedding/eval_cds_embedding_base_tidal.sh      评测 base embedding。
+scripts/embedding/eval_cds_embedding_trained_tidal.sh   评测训练后的 embedding。
 ```
 
 ## SFT / GRPO
 
 ```text
-scripts/train/run_sft_qwen3_4b.sh       ms-swift SFT launcher.
-scripts/train/run_grpo_qwen3_4b.sh      ms-swift GRPO launcher.
-scripts/train/rubric_gated_reward.py    GRPO reward implementation.
+scripts/train/run_sft_qwen3_4b.sh       ms-swift SFT 启动脚本。
+scripts/train/run_grpo_qwen3_4b.sh      ms-swift GRPO 启动脚本。
+scripts/train/rubric_gated_reward.py    GRPO 在线 reward 实现。
 ```
 
-## Evaluation
+## 评测
 
 ```text
-scripts/eval/evaluate_rrec_jsonl_fullset.py        Full-candidate embedding ranking eval.
-scripts/eval/evaluate_rrec_fullset_proxy.py        RRec dataset proxy eval.
-scripts/eval/evaluate_reasoner_fullset_proxy.py    Reasoner generation + ranking eval.
+scripts/eval/evaluate_rrec_jsonl_fullset.py        全量候选 embedding ranking 评测。
+scripts/eval/evaluate_rrec_fullset_proxy.py        RRec 数据集 proxy 评测。
+scripts/eval/evaluate_reasoner_fullset_proxy.py    Transformers reasoner 生成 + ranking 评测。
+scripts/eval/evaluate_reasoner_vllm_fullset.py     vLLM reasoner 生成 + ranking 评测。
 scripts/eval/run_eval_reasoner_cds_multigpu_tidal.sh
-                                                    Multi-GPU reasoner eval wrapper.
-scripts/eval/aggregate_reasoner_eval_shards.py     Merge reasoner eval shards.
-scripts/eval/evaluate_proxy_retrieval.py           Lexical proxy retrieval eval.
+                                                    多 GPU 分片 reasoner 评测封装。
+scripts/eval/run_eval_checkpoints_vllm_tidal.sh    扫描并评测目录中的所有 checkpoint。
+scripts/eval/aggregate_reasoner_eval_shards.py     合并 reasoner 评测分片。
+scripts/eval/evaluate_proxy_retrieval.py           lexical proxy retrieval 评测。
 ```
 
-## Pipeline Wrappers
+## Pipeline 封装
 
 ```text
 scripts/pipelines/run_rrec_full_training_pipeline.sh
@@ -82,7 +84,7 @@ scripts/pipelines/run_generate_cds_glm47_low_one_cot.sh
 scripts/pipelines/run_generate_musical_instruments_glm_codeplan.sh
 ```
 
-## Utilities
+## 工具
 
 ```text
 scripts/utils/local_openai_proxy.py
@@ -90,5 +92,4 @@ scripts/utils/test_glm_codeplan_api.py
 scripts/utils/upload_cds_prepared_to_modelscope.sh
 ```
 
-See `docs/PROJECT_STRUCTURE.md` for data placement rules and compatibility
-policy.
+数据放置规则和兼容策略见 `docs/PROJECT_STRUCTURE.md`。

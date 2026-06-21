@@ -93,8 +93,10 @@ Evaluation
   scripts/eval/evaluate_rrec_jsonl_fullset.py
   scripts/eval/evaluate_rrec_fullset_proxy.py
   scripts/eval/evaluate_reasoner_fullset_proxy.py
+  scripts/eval/evaluate_reasoner_vllm_fullset.py
   scripts/eval/evaluate_proxy_retrieval.py
   scripts/eval/run_eval_reasoner_cds_multigpu_tidal.sh
+  scripts/eval/run_eval_checkpoints_vllm_tidal.sh
   scripts/eval/aggregate_reasoner_eval_shards.py
 
 End-to-end pipelines
