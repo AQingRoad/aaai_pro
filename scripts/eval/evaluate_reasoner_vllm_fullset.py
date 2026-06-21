@@ -156,7 +156,7 @@ def main() -> None:
     parser.add_argument("--max-num-batched-tokens", type=int, default=0)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     parser.add_argument("--enforce-eager", action="store_true")
-    parser.add_argument("--ks", default="5,10,20,100")
+    parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="qwen3_embedding")
     parser.add_argument("--embedding-model", required=True)
     parser.add_argument("--embedding-max-length", type=int, default=2048)

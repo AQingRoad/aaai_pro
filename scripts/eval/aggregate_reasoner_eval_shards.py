@@ -27,7 +27,7 @@ def row_key(row: dict[str, Any]) -> tuple[Any, ...]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--predictions", nargs="+", required=True)
-    parser.add_argument("--ks", default="5,10,20,100")
+    parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--output", required=True)
     parser.add_argument("--combined-predictions-output", default="")
     parser.add_argument("--category", default="")

@@ -254,7 +254,7 @@ MAX_NEW_TOKENS=2048 \
 VLLM_MAX_MODEL_LEN=4096 \
 VLLM_MAX_NUM_SEQS=64 \
 SCORER=qwen3_embedding \
-KS=5,10,20,100 \
+KS=5,10,20 \
 bash scripts/run_eval_checkpoints_vllm_tidal.sh
 ```
 
@@ -280,8 +280,8 @@ query = user_history + generated_cot
 得到 target item 的 rank，并汇总：
 
 ```text
-HR@5 / HR@10 / HR@20 / HR@100
-NDCG@5 / NDCG@10 / NDCG@20 / NDCG@100
+HR@5 / HR@10 / HR@20
+NDCG@5 / NDCG@10 / NDCG@20
 ```
 
 baseline 使用不加 CoT 的 `user_history` query。
