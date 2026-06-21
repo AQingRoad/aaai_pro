@@ -76,6 +76,7 @@ def main() -> None:
     parser.add_argument("--category", default="CDs_and_Vinyl")
     parser.add_argument("--max-examples", type=int, default=0)
     parser.add_argument("--max-history-items", type=int, default=20)
+    parser.add_argument("--min-history", type=int, default=1)
     parser.add_argument(
         "--history-metadata-mode",
         choices=["none", "compact", "summary"],
@@ -90,8 +91,12 @@ def main() -> None:
     summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
 
     rows = []
+    skipped_short_history = 0
     for row in read_jsonl(args.examples, limit=args.max_examples):
         history_item_ids = [int(x) for x in row.get("history_item_ids", [])]
+        if len(history_item_ids) < args.min_history:
+            skipped_short_history += 1
+            continue
         titles = [item_title(item_map.get(item_id), fallback=f"item_{item_id}") for item_id in history_item_ids]
         ratings = parse_history_ratings(str(row.get("user_history", "")))
         if len(ratings) < len(titles):
@@ -151,7 +156,9 @@ def main() -> None:
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
         "max_history_items": args.max_history_items,
+        "min_history": args.min_history,
         "written": count,
+        "skipped_short_history": skipped_short_history,
         "summary_items": len(summary_map),
     }
     print(json.dumps(stats, ensure_ascii=False, indent=2))
