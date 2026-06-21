@@ -10,6 +10,8 @@
 scripts/data/prepare_rrec_amazon_examples.py       将 RRec/Amazon 样本转成 pipeline JSONL。
 scripts/data/prepare_ml1m_examples.py              将 ML-1M 样本转成 pipeline JSONL。
 scripts/data/make_phase0_embedder_dataset.py       构建 history->target embedding 训练对。
+scripts/data/make_phase0_embedder_dataset_from_examples.py
+                                                    从已准备 examples JSONL 构建带 metadata 的 embedding 训练对。
 scripts/data/make_cot_embedder_dataset.py          构建 history/CoT->target embedding 训练对。
 scripts/data/rewrite_examples_with_item_metadata.py
                                                     用 item_info 和 summary sidecar 重写 user_history。
