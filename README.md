@@ -47,6 +47,37 @@ GRPO 在线 reward 由 `rubric_format`、`rubric_quality`、`rubric_gated_gain`
   `<answer>...</answer>` 中的内容；若只有 thinking，没有 final answer，该行会在
   resume 时重新生成，避免把 thinking 存进 `description_summary`。
 
+## 数据构造与 LLM I/O 记录规范
+
+后续凡是使用 LLM 生成数据的脚本，都需要记录每条样本的实际输入和原始输出。
+当前 vLLM JSONL 入口会在输出中写入：
+
+```text
+llm_input_prompt   实际送入 vLLM 的 prompt
+llm_output_raw     vLLM 原始输出
+```
+
+同时，脚本默认在日志中打印前 2 个 case，字段包含：
+
+```text
+preview_type
+case_index
+llm_input_prompt / training_input_query
+llm_output_raw / training_output_positive
+parsed_output
+```
+
+数据构建脚本需要在构建开始阶段打印前 2 个训练 case，明确：
+
+```text
+training_input_query
+training_output_positive
+```
+
+训练脚本需要在训练启动时打印前 2 个训练样本，明确模型训练的输入和目标输出。
+如果复用旧的生成结果，旧行不会自动补齐 `llm_input_prompt` 和 `llm_output_raw`；
+需要换新的输出文件，或设置 `RESUME=0` 重新生成。
+
 ## 目录约定
 
 ```text

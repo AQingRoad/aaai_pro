@@ -154,6 +154,7 @@ def main() -> None:
     parser.add_argument("--save-steps", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
     parser.add_argument("--cross-gpu-negatives", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--preview-cases", type=int, default=2)
     args = parser.parse_args()
 
     distributed, rank, local_rank, world_size, device = init_distributed()
@@ -168,6 +169,23 @@ def main() -> None:
         dist.barrier()
 
     dataset = PairDataset(args.dataset, limit=args.max_rows)
+    if is_main_process(rank):
+        for index in range(min(args.preview_cases, len(dataset))):
+            row = dataset[index]
+            print(
+                json.dumps(
+                    {
+                        "preview_type": "embedding_training_case",
+                        "case_index": index + 1,
+                        "training_input_query": row["query"],
+                        "training_output_positive": row["positive"],
+                        "explicit_negatives": row["negatives"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                flush=True,
+            )
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True, seed=args.seed, drop_last=True) if distributed else None
     loader = DataLoader(
         dataset,

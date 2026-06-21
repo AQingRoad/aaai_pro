@@ -345,12 +345,14 @@ def init_llm(args: argparse.Namespace):
             kwargs.pop(match.group(1), None)
 
 
-def output_row(src: dict[str, Any], raw: str, args: argparse.Namespace, elapsed: float) -> dict[str, Any]:
+def output_row(src: dict[str, Any], prompt: str, raw: str, args: argparse.Namespace, elapsed: float) -> dict[str, Any]:
     if args.task == "description_summary":
         summary = clean_description_summary(raw, args.summary_max_words)
         return {
             "item_id": int(src["item_id"]),
             "title": src.get("title", ""),
+            "llm_input_prompt": prompt,
+            "llm_output_raw": raw,
             "description_summary": summary,
             "summary_word_count": word_count(summary),
             "summary_max_words": args.summary_max_words,
@@ -381,7 +383,41 @@ def output_row(src: dict[str, Any], raw: str, args: argparse.Namespace, elapsed:
             "think_chars": len(think or ""),
         },
     }
-    return {**src, "example_id": key, "candidate_count": 1, "candidates": [candidate]}
+    return {
+        **src,
+        "example_id": key,
+        "candidate_count": 1,
+        "llm_input_prompt": prompt,
+        "llm_output_raw": raw,
+        "candidates": [candidate],
+    }
+
+
+def print_llm_preview(src: dict[str, Any], out: dict[str, Any], args: argparse.Namespace, index: int) -> None:
+    if args.task == "description_summary":
+        parsed_output = out.get("description_summary", "")
+    else:
+        candidate = (out.get("candidates") or [{}])[0]
+        parsed_output = {
+            "think": candidate.get("think", ""),
+            "answer": candidate.get("answer", ""),
+        }
+    print(
+        json.dumps(
+            {
+                "preview_type": "llm_generation_case",
+                "case_index": index,
+                "task": args.task,
+                "key": example_key(src, args.task),
+                "llm_input_prompt": out.get("llm_input_prompt", ""),
+                "llm_output_raw": out.get("llm_output_raw", ""),
+                "parsed_output": parsed_output,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -413,6 +449,7 @@ def main() -> None:
     parser.add_argument("--distributed-executor-backend", default=os.getenv("VLLM_DISTRIBUTED_EXECUTOR_BACKEND", "mp"))
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--save-every", type=int, default=200)
+    parser.add_argument("--preview-cases", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -450,6 +487,7 @@ def main() -> None:
     )
 
     completed = 0
+    preview_printed = 0
     try:
         for start in range(0, len(pending), args.generation_batch_size):
             batch = pending[start : start + args.generation_batch_size]
@@ -457,10 +495,14 @@ def main() -> None:
             t0 = time.perf_counter()
             outputs = llm.generate(prompts, sampling_params=sampling, use_tqdm=False)
             elapsed = (time.perf_counter() - t0) / max(1, len(batch))
-            for row, output in zip(batch, outputs):
+            for row, prompt, output in zip(batch, prompts, outputs):
                 raw = output.outputs[0].text if output.outputs else ""
-                generated[example_key(row, args.task)] = output_row(row, raw, args, elapsed)
+                out = output_row(row, prompt, raw, args, elapsed)
+                generated[example_key(row, args.task)] = out
                 completed += 1
+                if preview_printed < args.preview_cases:
+                    preview_printed += 1
+                    print_llm_preview(row, out, args, preview_printed)
             if completed % args.save_every == 0 or completed >= len(pending):
                 written = write_jsonl_ordered(output_path, rows, generated, args.task)
                 print(f"completed={completed}/{len(pending)} written={written}/{len(rows)}", flush=True)
