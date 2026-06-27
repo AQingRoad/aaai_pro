@@ -281,7 +281,7 @@ GRPO_ARGS=(
   "${ADAPTER_ARGS[@]}" \
   "${VLLM_ARGS[@]}" \
   --dataset "$DATASET" \
-  --external_plugins "$ROOT/scripts/rubric_gated_reward.py" \
+  --external_plugins "$ROOT/scripts/train/rubric_gated_reward.py" \
   --reward_funcs rubric_format rubric_quality rubric_gated_gain \
   --reward_weights "$FORMAT_WEIGHT" "$QUALITY_WEIGHT" "$GAIN_WEIGHT" \
   "${GENERATION_ARGS[@]}" \

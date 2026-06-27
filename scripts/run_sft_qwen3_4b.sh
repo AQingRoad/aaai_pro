@@ -1,1 +1,0 @@
-train/run_sft_qwen3_4b.sh

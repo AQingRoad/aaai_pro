@@ -1,1 +1,0 @@
-utils/upload_cds_prepared_to_modelscope.sh

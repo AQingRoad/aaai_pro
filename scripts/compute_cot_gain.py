@@ -1,1 +1,0 @@
-selection/compute_cot_gain.py

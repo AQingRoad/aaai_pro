@@ -1,8 +1,7 @@
 # 脚本索引
 
-真实实现文件放在分组子目录中。`scripts/run_sft_qwen3_4b.sh` 这类根目录
-文件是软链接，用来兼容旧命令和服务器记录。改代码时优先修改分组目录中的
-真实文件。
+脚本文件放在分组子目录中。命令和文档都直接使用分组路径，`scripts/`
+顶层只保留本索引文件。
 
 ## 数据准备
 
@@ -115,4 +114,4 @@ scripts/utils/test_glm_codeplan_api.py
 scripts/utils/upload_cds_prepared_to_modelscope.sh
 ```
 
-数据放置规则和兼容策略见 `docs/PROJECT_STRUCTURE.md`。
+数据放置规则和脚本分组策略见 `docs/PROJECT_STRUCTURE.md`。

@@ -1,1 +1,0 @@
-embedding/run_cds_qwen3_4b_cot_embedding_pipeline_tidal.sh

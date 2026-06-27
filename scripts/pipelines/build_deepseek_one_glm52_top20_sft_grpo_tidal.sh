@@ -102,7 +102,7 @@ echo "TOP_PERCENT=$TOP_PERCENT"
 echo "MIN_RUBRIC=$MIN_RUBRIC"
 echo "MIN_GAIN=$MIN_GAIN"
 
-"$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
+"$PYTHON_BIN" scripts/cot/merge_candidate_list_rubric.py \
   --candidate-lists "$COT" \
   --rubric-scores "$RUBRIC" \
   --output "$JUDGED"
@@ -120,7 +120,7 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
   shard_output="$SHARD_DIR/shard_${shard}.jsonl"
   shard_log="$SHARD_DIR/shard_${shard}.log"
   echo "Launching gain shard $shard/$NUM_SHARDS on GPU $gpu -> $shard_log"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" scripts/compute_cot_gain.py \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" scripts/selection/compute_cot_gain.py \
     --input "$JUDGED" \
     --output "$shard_output" \
     --embedder-mode qwen3_embedding \
@@ -164,7 +164,7 @@ if [[ "$judged_rows" != "$gain_rows" ]]; then
   exit 1
 fi
 
-"$PYTHON_BIN" scripts/select_top_percent_cot.py \
+"$PYTHON_BIN" scripts/selection/select_top_percent_cot.py \
   --input "$GAIN_OUT" \
   --output "$FILTERED" \
   --rejected-output "$REJECTED" \
@@ -174,11 +174,11 @@ fi
   --min-rubric "$MIN_RUBRIC" \
   --min-gain "$MIN_GAIN"
 
-"$PYTHON_BIN" scripts/make_sft_dataset.py \
+"$PYTHON_BIN" scripts/datasets/make_sft_dataset.py \
   --input "$FILTERED" \
   --output "$SFT"
 
-"$PYTHON_BIN" scripts/make_grpo_dataset.py \
+"$PYTHON_BIN" scripts/datasets/make_grpo_dataset.py \
   --input "$GAIN_OUT" \
   --output "$GRPO" \
   --exclude-prompts-from "$SFT"

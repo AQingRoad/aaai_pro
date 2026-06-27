@@ -128,7 +128,7 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
   (
     CUDA_VISIBLE_DEVICES="$device" \
     QWEN3_EMBEDDING_DEVICE=cuda:0 \
-    "$PYTHON_BIN" scripts/evaluate_reasoner_fullset_proxy.py \
+    "$PYTHON_BIN" scripts/eval/evaluate_reasoner_fullset_proxy.py \
       --examples "$EVAL_EXAMPLES" \
       --item-info "$ITEM_INFO" \
       --category "$CATEGORY" \
@@ -180,7 +180,7 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
   pred_files+=("$SHARD_DIR/pred_shard${shard}.jsonl")
 done
 
-"$PYTHON_BIN" scripts/aggregate_reasoner_eval_shards.py \
+"$PYTHON_BIN" scripts/eval/aggregate_reasoner_eval_shards.py \
   --predictions "${pred_files[@]}" \
   --ks "$KS" \
   --category "$CATEGORY" \

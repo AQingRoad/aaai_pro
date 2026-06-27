@@ -18,30 +18,30 @@ export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 
 mkdir -p data/ml1m outputs/ml1m
 
-python scripts/prepare_ml1m_examples.py \
+python scripts/data/prepare_ml1m_examples.py \
   --source-root "$SOURCE_ROOT" \
   --max-users "$MAX_USERS" \
   --output data/ml1m/examples.jsonl
 
-python scripts/generate_cot_candidates.py \
+python scripts/cot/generate_cot_candidates.py \
   --input data/ml1m/examples.jsonl \
   --output outputs/ml1m/cot_candidates.jsonl \
   --model "$MODEL" \
   --num-candidates "$NUM_CANDIDATES"
 
-python scripts/judge_cot_quality.py \
+python scripts/cot/judge_cot_quality.py \
   --input outputs/ml1m/cot_candidates.jsonl \
   --output outputs/ml1m/cot_judged.jsonl \
   --judge-mode rules
 
-python scripts/compute_cot_gain.py \
+python scripts/selection/compute_cot_gain.py \
   --input outputs/ml1m/cot_judged.jsonl \
   --output outputs/ml1m/cot_scored.jsonl \
   --embedder-mode "$GAIN_EMBEDDER_MODE" \
   --gain-mode sim \
   --model "$MODEL"
 
-python scripts/select_filtered_cot.py \
+python scripts/selection/select_filtered_cot.py \
   --input outputs/ml1m/cot_scored.jsonl \
   --output outputs/ml1m/filtered_high_quality_cot.jsonl \
   --rejected-output outputs/ml1m/rejected_cot.jsonl \
@@ -49,11 +49,11 @@ python scripts/select_filtered_cot.py \
   --min-rubric 0.5 \
   --min-gain 0.0
 
-python scripts/make_sft_dataset.py \
+python scripts/datasets/make_sft_dataset.py \
   --input outputs/ml1m/filtered_high_quality_cot.jsonl \
   --output outputs/ml1m/sft.jsonl
 
-python scripts/make_grpo_dataset.py \
+python scripts/datasets/make_grpo_dataset.py \
   --input data/ml1m/examples.jsonl \
   --output outputs/ml1m/grpo.jsonl \
   --precompute-lexical-baseline

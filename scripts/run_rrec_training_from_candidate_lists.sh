@@ -1,1 +1,0 @@
-pipelines/run_rrec_training_from_candidate_lists.sh

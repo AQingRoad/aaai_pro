@@ -1,1 +1,0 @@
-cot/aggregate_cot_candidate_list_shards.py

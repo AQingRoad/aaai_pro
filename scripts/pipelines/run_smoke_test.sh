@@ -15,13 +15,13 @@ export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 
 mkdir -p data/smoke outputs/smoke
 
-python scripts/prepare_ml1m_examples.py \
+python scripts/data/prepare_ml1m_examples.py \
   --source-root "$SOURCE_ROOT" \
   --max-users 3 \
   --max-history-items 20 \
   --output data/smoke/ml1m_examples.jsonl
 
-python scripts/generate_cot_candidates.py \
+python scripts/cot/generate_cot_candidates.py \
   --input data/smoke/ml1m_examples.jsonl \
   --output outputs/smoke/cot_candidates.jsonl \
   --model "$MODEL" \
@@ -29,29 +29,29 @@ python scripts/generate_cot_candidates.py \
   --num-candidates 1 \
   --max-new-tokens 128
 
-python scripts/judge_cot_quality.py \
+python scripts/cot/judge_cot_quality.py \
   --input outputs/smoke/cot_candidates.jsonl \
   --output outputs/smoke/cot_judged.jsonl \
   --judge-mode rules
 
-python scripts/compute_cot_gain.py \
+python scripts/selection/compute_cot_gain.py \
   --input outputs/smoke/cot_judged.jsonl \
   --output outputs/smoke/cot_scored.jsonl \
   --embedder-mode lexical \
   --gain-mode sim
 
-python scripts/select_filtered_cot.py \
+python scripts/selection/select_filtered_cot.py \
   --input outputs/smoke/cot_scored.jsonl \
   --output outputs/smoke/filtered_high_quality_cot.jsonl \
   --rejected-output outputs/smoke/rejected_cot.jsonl \
   --top-k 1 \
   --fallback-when-empty
 
-python scripts/make_sft_dataset.py \
+python scripts/datasets/make_sft_dataset.py \
   --input outputs/smoke/filtered_high_quality_cot.jsonl \
   --output outputs/smoke/sft.jsonl
 
-python scripts/make_grpo_dataset.py \
+python scripts/datasets/make_grpo_dataset.py \
   --input data/smoke/ml1m_examples.jsonl \
   --output outputs/smoke/grpo.jsonl \
   --max-examples 2 \
@@ -59,14 +59,14 @@ python scripts/make_grpo_dataset.py \
 
 python -m py_compile \
   rubric_cot_pipeline/*.py \
-  scripts/prepare_ml1m_examples.py \
-  scripts/generate_cot_candidates.py \
-  scripts/judge_cot_quality.py \
-  scripts/compute_cot_gain.py \
-  scripts/select_filtered_cot.py \
-  scripts/make_sft_dataset.py \
-  scripts/make_grpo_dataset.py \
-  scripts/rubric_gated_reward.py
+  scripts/data/prepare_ml1m_examples.py \
+  scripts/cot/generate_cot_candidates.py \
+  scripts/cot/judge_cot_quality.py \
+  scripts/selection/compute_cot_gain.py \
+  scripts/selection/select_filtered_cot.py \
+  scripts/datasets/make_sft_dataset.py \
+  scripts/datasets/make_grpo_dataset.py \
+  scripts/train/rubric_gated_reward.py
 
 echo "Smoke pipeline completed."
 echo "SFT data:  $ROOT/outputs/smoke/sft.jsonl"

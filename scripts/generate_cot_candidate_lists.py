@@ -1,1 +1,0 @@
-cot/generate_cot_candidate_lists.py

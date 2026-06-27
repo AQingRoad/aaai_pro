@@ -1,1 +1,0 @@
-pipelines/prepare_cds_from_cot_tidal.sh

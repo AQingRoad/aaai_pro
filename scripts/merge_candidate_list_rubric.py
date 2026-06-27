@@ -1,1 +1,0 @@
-cot/merge_candidate_list_rubric.py

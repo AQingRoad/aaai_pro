@@ -61,7 +61,7 @@ DATA_DIR="data/rrec_amazon/${CATEGORY}"
 EXAMPLES_FILE=${EXAMPLES_FILE:-"$DATA_DIR/phase1_examples.jsonl"}
 mkdir -p "$DATA_DIR" "$OUT_DIR"
 
-python scripts/prepare_rrec_amazon_examples.py \
+python scripts/data/prepare_rrec_amazon_examples.py \
   --data-root "$RREC_DATA_ROOT" \
   --category "$CATEGORY" \
   --split "$SPLIT" \
@@ -73,7 +73,7 @@ python scripts/prepare_rrec_amazon_examples.py \
   --shuffle \
   --output "$EXAMPLES_FILE"
 
-python scripts/generate_cot_candidates.py \
+python scripts/cot/generate_cot_candidates.py \
   --input "$EXAMPLES_FILE" \
   --output "$OUT_DIR/cot_candidates.jsonl" \
   --model "$MODEL" \
@@ -87,7 +87,7 @@ python scripts/generate_cot_candidates.py \
   --api-max-retries "$COT_API_MAX_RETRIES" \
   --api-min-interval "$COT_API_MIN_INTERVAL"
 
-python scripts/judge_cot_quality.py \
+python scripts/cot/judge_cot_quality.py \
   --input "$OUT_DIR/cot_candidates.jsonl" \
   --output "$OUT_DIR/cot_judged.jsonl" \
   --judge-mode "$JUDGE_MODE" \
@@ -100,7 +100,7 @@ python scripts/judge_cot_quality.py \
   --api-max-retries "$API_MAX_RETRIES" \
   --api-workers "$API_WORKERS"
 
-python scripts/compute_cot_gain.py \
+python scripts/selection/compute_cot_gain.py \
   --input "$OUT_DIR/cot_judged.jsonl" \
   --output "$OUT_DIR/cot_scored.jsonl" \
   --embedder-mode "$GAIN_EMBEDDER_MODE" \
@@ -110,7 +110,7 @@ python scripts/compute_cot_gain.py \
   --model "$MODEL" \
   --embedding-model "$QWEN3_EMBEDDING_MODEL"
 
-python scripts/select_filtered_cot.py \
+python scripts/selection/select_filtered_cot.py \
   --input "$OUT_DIR/cot_scored.jsonl" \
   --output "$OUT_DIR/filtered_high_quality_cot.jsonl" \
   --rejected-output "$OUT_DIR/rejected_cot.jsonl" \
@@ -119,11 +119,11 @@ python scripts/select_filtered_cot.py \
   --min-gain 0.0 \
   --fallback-when-empty
 
-python scripts/make_sft_dataset.py \
+python scripts/datasets/make_sft_dataset.py \
   --input "$OUT_DIR/filtered_high_quality_cot.jsonl" \
   --output "$OUT_DIR/sft.jsonl"
 
-python scripts/make_grpo_dataset.py \
+python scripts/datasets/make_grpo_dataset.py \
   --input "$EXAMPLES_FILE" \
   --output "$OUT_DIR/grpo.jsonl" \
   --baseline-mode "$GRPO_BASELINE_EMBEDDER_MODE" \

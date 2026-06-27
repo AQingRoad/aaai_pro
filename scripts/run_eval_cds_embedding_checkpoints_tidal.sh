@@ -1,1 +1,0 @@
-embedding/run_eval_cds_embedding_checkpoints_tidal.sh

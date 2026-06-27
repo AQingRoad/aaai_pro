@@ -1,1 +1,0 @@
-cot/judge_cot_quality.py

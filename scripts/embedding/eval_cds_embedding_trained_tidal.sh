@@ -68,7 +68,7 @@ echo "MAX_EXAMPLES=$MAX_EXAMPLES"
 echo "EVAL_OUT=$EVAL_OUT"
 echo "EMBEDDING_DEVICE=$EMBEDDING_DEVICE"
 
-"$PYTHON_BIN" scripts/evaluate_rrec_jsonl_fullset.py \
+"$PYTHON_BIN" scripts/eval/evaluate_rrec_jsonl_fullset.py \
   --examples "$EVAL_EXAMPLES" \
   --item-info "$ITEM_INFO" \
   --category "$CATEGORY" \

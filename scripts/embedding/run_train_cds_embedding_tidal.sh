@@ -184,7 +184,7 @@ if [[ "$RUN_HARD_NEGATIVES" == "1" || "$RUN_HARD_NEGATIVES" == "true" ]]; then
 fi
 
 train_args=(
-  scripts/train_phase0_embedder.py
+  scripts/embedding/train_phase0_embedder.py
   --model "$BASE_EMBEDDING_MODEL" \
   --dataset "$EMBEDDER_DATASET" \
   --output-dir "$EMBEDDER_OUT" \

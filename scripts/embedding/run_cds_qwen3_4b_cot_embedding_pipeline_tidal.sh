@@ -164,7 +164,7 @@ if [[ "$RUN_GENERATE" == "1" ]]; then
     (
       CUDA_VISIBLE_DEVICES="$device" \
       COT_MODEL_DEVICE="$MODEL_DEVICE" \
-      "$PYTHON_BIN" scripts/generate_cot_candidate_lists_local.py \
+      "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists_local.py \
         --input "$TRAIN_EXAMPLES" \
         --output "$shard_output" \
         --model "$LLM_MODEL" \
@@ -196,7 +196,7 @@ if [[ "$RUN_GENERATE" == "1" ]]; then
     exit 1
   fi
 
-  "$PYTHON_BIN" scripts/aggregate_cot_candidate_list_shards.py \
+  "$PYTHON_BIN" scripts/cot/aggregate_cot_candidate_list_shards.py \
     --input "$TRAIN_EXAMPLES" \
     --shards "${shard_files[@]}" \
     --output "$COT_OUTPUT" \
@@ -226,7 +226,7 @@ if [[ "$RUN_BUILD_DATASET" == "1" ]]; then
   fi
 
   if [[ "$FORCE_REBUILD_DATASET" == "1" || ! -s "$COT_EMBEDDER_DATASET" ]]; then
-    "$PYTHON_BIN" scripts/make_cot_embedder_dataset.py \
+    "$PYTHON_BIN" scripts/data/make_cot_embedder_dataset.py \
       --candidate-lists "$COT_OUTPUT" \
       --item-info "$ITEM_INFO" \
       --output "$COT_EMBEDDER_DATASET" \
@@ -270,7 +270,7 @@ if [[ "$RUN_TRAIN_EMBEDDER" == "1" ]]; then
   echo "EMBEDDER_CROSS_GPU_NEGATIVES=$EMBEDDER_CROSS_GPU_NEGATIVES"
 
   train_args=(
-    scripts/train_phase0_embedder.py
+    scripts/embedding/train_phase0_embedder.py
     --model "$BASE_EMBEDDING_MODEL" \
     --dataset "$COT_EMBEDDER_DATASET" \
     --output-dir "$EMBEDDER_OUT" \

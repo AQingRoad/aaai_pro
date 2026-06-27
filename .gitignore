@@ -16,6 +16,7 @@ env/
 /logs/
 /prepared/
 /external/
+/secrets/
 
 *.safetensors
 *.bin

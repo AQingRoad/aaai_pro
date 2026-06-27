@@ -1,1 +1,0 @@
-pipelines/run_generate_cds_glm47_low_one_cot.sh

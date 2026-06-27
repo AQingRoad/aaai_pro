@@ -87,7 +87,7 @@ if [[ "$RUN_PREPARE" == "1" ]]; then
   require_file "$RUBRIC_SCORES"
   mkdir -p "$OUT_DIR"
 
-  "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
+  "$PYTHON_BIN" scripts/cot/merge_candidate_list_rubric.py \
     --candidate-lists "$CANDIDATE_LISTS" \
     --rubric-scores "$RUBRIC_SCORES" \
     --output "$COT_JUDGED" \
@@ -96,7 +96,7 @@ if [[ "$RUN_PREPARE" == "1" ]]; then
   if [[ "$GAIN_MODE" == "ndcg" ]]; then
     require_file "$GAIN_ITEM_INFO"
   fi
-  "$PYTHON_BIN" scripts/compute_cot_gain.py \
+  "$PYTHON_BIN" scripts/selection/compute_cot_gain.py \
     --input "$COT_JUDGED" \
     --output "$COT_SCORED" \
     --embedder-mode "$GAIN_EMBEDDER_MODE" \
@@ -111,7 +111,7 @@ if [[ "$RUN_PREPARE" == "1" ]]; then
     SELECT_ARGS+=(--fallback-when-empty)
   fi
 
-  "$PYTHON_BIN" scripts/select_filtered_cot.py \
+  "$PYTHON_BIN" scripts/selection/select_filtered_cot.py \
     --input "$COT_SCORED" \
     --output "$FILTERED_COT" \
     --rejected-output "$REJECTED_COT" \
@@ -120,11 +120,11 @@ if [[ "$RUN_PREPARE" == "1" ]]; then
     --min-gain "$MIN_GAIN" \
     "${SELECT_ARGS[@]}"
 
-  "$PYTHON_BIN" scripts/make_sft_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_sft_dataset.py \
     --input "$FILTERED_COT" \
     --output "$SFT_DATASET"
 
-  "$PYTHON_BIN" scripts/make_grpo_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_grpo_dataset.py \
     --input "$SCORED_EXAMPLES" \
     --output "$GRPO_DATASET" \
     --baseline-mode "$GRPO_BASELINE_EMBEDDER_MODE" \
@@ -139,7 +139,7 @@ if [[ "$RUN_SFT" == "1" ]]; then
   MAX_STEPS="$SFT_MAX_STEPS" \
   NUM_TRAIN_EPOCHS="$SFT_NUM_TRAIN_EPOCHS" \
   SAVE_STEPS="$SFT_SAVE_STEPS" \
-  bash scripts/run_sft_qwen3_4b.sh
+  bash scripts/train/run_sft_qwen3_4b.sh
 fi
 
 if [[ "$RUN_GRPO" == "1" ]]; then
@@ -159,7 +159,7 @@ if [[ "$RUN_GRPO" == "1" ]]; then
   NUM_GENERATIONS="$GRPO_NUM_GENERATIONS" \
   QWEN3_EMBEDDING_MODEL="$QWEN3_EMBEDDING_MODEL" \
   RUBRIC_GAIN_EMBEDDER_MODE="${RUBRIC_GAIN_EMBEDDER_MODE:-$GAIN_EMBEDDER_MODE}" \
-  bash scripts/run_grpo_qwen3_4b.sh
+  bash scripts/train/run_grpo_qwen3_4b.sh
 fi
 
 echo "RRec training pipeline artifacts:"

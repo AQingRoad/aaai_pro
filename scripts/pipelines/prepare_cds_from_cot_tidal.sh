@@ -103,7 +103,7 @@ prepare_grpo_input() {
   local rrec_dataset_dir="$RREC_DATA_ROOT/${CATEGORY}_0_2022-10-2023-10"
   if [[ -d "$rrec_dataset_dir" ]]; then
     echo "Preparing full GRPO train examples from RRec dataset -> $GRPO_INPUT"
-    "$PYTHON_BIN" scripts/prepare_rrec_amazon_examples.py \
+    "$PYTHON_BIN" scripts/data/prepare_rrec_amazon_examples.py \
       --data-root "$RREC_DATA_ROOT" \
       --category "$CATEGORY" \
       --split train \
@@ -201,7 +201,7 @@ echo "GRPO_INPUT=$GRPO_INPUT"
 echo "GRPO_EXCLUDE_SFT=$GRPO_EXCLUDE_SFT"
 
 if [[ "$RUN_MERGE" == "1" ]]; then
-  "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
+  "$PYTHON_BIN" scripts/cot/merge_candidate_list_rubric.py \
     --candidate-lists "$CANDIDATE_LISTS" \
     --rubric-scores "$RUBRIC_SCORES" \
     --output "$COT_JUDGED" \
@@ -267,7 +267,7 @@ PY
       output_part="$gain_part_dir/scored-$(printf '%05d' "$shard_idx")-of-$(printf '%05d' "$gain_num_shards").jsonl"
       echo "Starting gain shard $shard_idx/$gain_num_shards on CUDA_VISIBLE_DEVICES=$device -> $output_part"
       CUDA_VISIBLE_DEVICES="$device" \
-      "$PYTHON_BIN" scripts/compute_cot_gain.py \
+      "$PYTHON_BIN" scripts/selection/compute_cot_gain.py \
         --input "$input_part" \
         --output "$output_part" \
         --embedder-mode "$GAIN_EMBEDDER_MODE" \
@@ -312,7 +312,7 @@ PY
     echo "Merged baseline cache -> $GAIN_BASELINE_CACHE"
   else
     CUDA_VISIBLE_DEVICES="$GAIN_CUDA_VISIBLE_DEVICES" \
-    "$PYTHON_BIN" scripts/compute_cot_gain.py \
+    "$PYTHON_BIN" scripts/selection/compute_cot_gain.py \
       --input "$COT_JUDGED" \
       --output "$COT_SCORED" \
       --embedder-mode "$GAIN_EMBEDDER_MODE" \
@@ -337,7 +337,7 @@ if [[ "$RUN_SELECT" == "1" ]]; then
   if [[ "$FALLBACK_WHEN_EMPTY" == "1" ]]; then
     select_args+=(--fallback-when-empty)
   fi
-  "$PYTHON_BIN" scripts/select_filtered_cot.py \
+  "$PYTHON_BIN" scripts/selection/select_filtered_cot.py \
     --input "$COT_SCORED" \
     --output "$FILTERED_COT" \
     --rejected-output "$REJECTED_COT" \
@@ -354,7 +354,7 @@ if [[ "$RUN_DATASETS" == "1" ]]; then
   prepare_grpo_input
   require_file "full GRPO train examples" "$GRPO_INPUT"
 
-  "$PYTHON_BIN" scripts/finalize_cot_selection.py \
+  "$PYTHON_BIN" scripts/selection/finalize_cot_selection.py \
     --input "$FILTERED_COT" \
     --output "$FINAL_FILTERED_COT" \
     --plot-output "$COT_SCORE_PLOT" \
@@ -365,7 +365,7 @@ if [[ "$RUN_DATASETS" == "1" ]]; then
     --bins "$COT_SCORE_BINS"
 
   require_file "final SFT CoT" "$FINAL_FILTERED_COT"
-  "$PYTHON_BIN" scripts/make_sft_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_sft_dataset.py \
     --input "$FINAL_FILTERED_COT" \
     --output "$SFT_DATASET"
 
@@ -373,7 +373,7 @@ if [[ "$RUN_DATASETS" == "1" ]]; then
   if [[ "$GRPO_EXCLUDE_SFT" == "1" ]]; then
     grpo_exclude_args+=(--exclude-prompts-from "$SFT_DATASET")
   fi
-  "$PYTHON_BIN" scripts/make_grpo_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_grpo_dataset.py \
     --input "$GRPO_INPUT" \
     --output "$GRPO_DATASET" \
     --baseline-mode "$GRPO_BASELINE_EMBEDDER_MODE" \

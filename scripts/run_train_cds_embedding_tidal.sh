@@ -1,1 +1,0 @@
-embedding/run_train_cds_embedding_tidal.sh

@@ -98,7 +98,7 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
   EMBEDDING_DEVICE="$EMBEDDING_DEVICE" \
   KS="$KS" \
   EVAL_OUT="$out" \
-  bash scripts/eval_cds_embedding_trained_tidal.sh
+  bash scripts/embedding/eval_cds_embedding_trained_tidal.sh
 done
 
 echo "Wrote metrics under: $EVAL_DIR"

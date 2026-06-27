@@ -1,1 +1,0 @@
-pipelines/run_smoke_test.sh

@@ -1,1 +1,0 @@
-cot/score_cot_candidate_lists.py

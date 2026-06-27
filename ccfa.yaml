@@ -1,0 +1,31 @@
+version: "0.4.0"
+project:
+  title: "What Makes Reasoning Useful for Recommendation?"
+  short_name: "rubric-gated-cot-rec"
+  root: "."
+target_venue:
+  name: "TODO_CONFIRM_VENUE"
+  year: "TODO"
+  mode: "review"
+stage:
+  current: "scaffolded"
+  gate: "structure_refactor"
+  updated_at: "2026-06-27"
+artifacts:
+  manuscript: "paper/manuscript/"
+  method_note: "paper/notes/method.md"
+  bibliography: "paper/references/references.bib"
+  figures: "paper/figures/"
+  tables: "paper/tables/"
+  experiments: "experiments/"
+  reviews: "paper/reviews/"
+  submission: "paper/submission/"
+claims: []
+experiments: []
+reviews: []
+revision_ledger:
+  path: "paper/reviews/revision-ledger.md"
+  status: "not_started"
+submission_checks:
+  path: "paper/submission/checks.md"
+  status: "not_started"

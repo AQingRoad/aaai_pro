@@ -1,1 +1,0 @@
-eval/evaluate_proxy_retrieval.py

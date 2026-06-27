@@ -224,7 +224,7 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
 
   CUDA_VISIBLE_DEVICES="$DEVICES" \
   QWEN3_EMBEDDING_DEVICE="$EMBEDDING_DEVICE" \
-  "$PYTHON_BIN" scripts/evaluate_reasoner_vllm_fullset.py \
+  "$PYTHON_BIN" scripts/eval/evaluate_reasoner_vllm_fullset.py \
     --examples "$EVAL_EXAMPLES" \
     --item-info "$ITEM_INFO" \
     --category "$CATEGORY" \

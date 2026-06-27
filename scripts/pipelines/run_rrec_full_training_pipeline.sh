@@ -4,13 +4,13 @@ set -euo pipefail
 # End-to-end RRec/Amazon training pipeline.
 #
 # Typical use on a new server:
-#   PIPELINE_ENV_FILE=configs/rrec_full_pipeline.example.env bash scripts/run_rrec_full_training_pipeline.sh
+#   PIPELINE_ENV_FILE=configs/rrec_full_pipeline.example.env bash scripts/pipelines/run_rrec_full_training_pipeline.sh
 #
 # If SFT/GRPO datasets were already built elsewhere:
-#   PIPELINE_ENV_FILE=configs/rrec_train_only.example.env bash scripts/run_rrec_full_training_pipeline.sh
+#   PIPELINE_ENV_FILE=configs/rrec_train_only.example.env bash scripts/pipelines/run_rrec_full_training_pipeline.sh
 #
 # For a cheap sanity run:
-#   SMOKE=1 PIPELINE_ENV_FILE=configs/rrec_full_pipeline.example.env bash scripts/run_rrec_full_training_pipeline.sh
+#   SMOKE=1 PIPELINE_ENV_FILE=configs/rrec_full_pipeline.example.env bash scripts/pipelines/run_rrec_full_training_pipeline.sh
 
 PIPELINE_ENV_FILE=${PIPELINE_ENV_FILE:-}
 if [[ -n "$PIPELINE_ENV_FILE" ]]; then
@@ -341,7 +341,7 @@ fi
 
 if stage_enabled "$RUN_PREPARE_EXAMPLES" "$EXAMPLES_FILE"; then
   log "Preparing RRec examples -> $EXAMPLES_FILE"
-  "$PYTHON_BIN" scripts/prepare_rrec_amazon_examples.py \
+  "$PYTHON_BIN" scripts/data/prepare_rrec_amazon_examples.py \
     --data-root "$RREC_DATA_ROOT" \
     --category "$CATEGORY" \
     --split "$SPLIT" \
@@ -363,7 +363,7 @@ fi
 if stage_enabled "$RUN_EMBEDDER_DATA" "$EMBEDDER_DATASET"; then
   log "Building phase-0 embedder dataset -> $EMBEDDER_DATASET"
   read -r -a embedder_categories <<< "$EMBEDDER_CATEGORIES"
-  "$PYTHON_BIN" scripts/make_phase0_embedder_dataset.py \
+  "$PYTHON_BIN" scripts/data/make_phase0_embedder_dataset.py \
     --data-root "$RREC_DATA_ROOT" \
     --categories "${embedder_categories[@]}" \
     --split "$SPLIT" \
@@ -386,7 +386,7 @@ if stage_enabled "$RUN_EMBEDDER_TRAIN" "$(latest_checkpoint "$EMBEDDER_OUT")"; t
   require_file "$EMBEDDER_DATASET"
   log "Training phase-0 embedder -> $EMBEDDER_OUT"
   CUDA_VISIBLE_DEVICES=${EMBEDDER_CUDA_VISIBLE_DEVICES:-0} \
-  "$PYTHON_BIN" scripts/train_phase0_embedder.py \
+  "$PYTHON_BIN" scripts/embedding/train_phase0_embedder.py \
     --model "$BASE_EMBEDDING_MODEL" \
     --dataset "$EMBEDDER_DATASET" \
     --output-dir "$EMBEDDER_OUT" \
@@ -416,7 +416,7 @@ fi
 if stage_enabled "$RUN_COT_GENERATE" "$CANDIDATE_LISTS"; then
   require_file "$EXAMPLES_FILE"
   log "Generating CoT candidate lists -> $CANDIDATE_LISTS"
-  "$PYTHON_BIN" scripts/generate_cot_candidate_lists.py \
+  "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
     --input "$EXAMPLES_FILE" \
     --output "$CANDIDATE_LISTS" \
     --max-examples "$MAX_EXAMPLES" \
@@ -450,7 +450,7 @@ if stage_enabled "$RUN_RUBRIC_SCORE" "$RUBRIC_SCORES"; then
   if [[ "$RUBRIC_JUDGE_SAVE_RAW" == "1" ]]; then
     judge_raw_arg=(--save-raw)
   fi
-  "$PYTHON_BIN" scripts/score_cot_candidate_lists.py \
+  "$PYTHON_BIN" scripts/cot/score_cot_candidate_lists.py \
     --input "$CANDIDATE_LISTS" \
     --output "$RUBRIC_SCORES" \
     --max-examples "$MAX_EXAMPLES" \
@@ -475,7 +475,7 @@ if stage_enabled "$RUN_MERGE" "$COT_JUDGED"; then
   require_file "$CANDIDATE_LISTS"
   require_file "$RUBRIC_SCORES"
   log "Merging candidates and rubric scores -> $COT_JUDGED"
-  "$PYTHON_BIN" scripts/merge_candidate_list_rubric.py \
+  "$PYTHON_BIN" scripts/cot/merge_candidate_list_rubric.py \
     --candidate-lists "$CANDIDATE_LISTS" \
     --rubric-scores "$RUBRIC_SCORES" \
     --output "$COT_JUDGED" \
@@ -490,7 +490,7 @@ if stage_enabled "$RUN_GAIN" "$COT_SCORED"; then
     require_file "$GAIN_ITEM_INFO"
   fi
   log "Computing CoT gain with $GAIN_EMBEDDER_MODE -> $COT_SCORED"
-  "$PYTHON_BIN" scripts/compute_cot_gain.py \
+  "$PYTHON_BIN" scripts/selection/compute_cot_gain.py \
     --input "$COT_JUDGED" \
     --output "$COT_SCORED" \
     --embedder-mode "$GAIN_EMBEDDER_MODE" \
@@ -512,7 +512,7 @@ if stage_enabled "$RUN_SELECT" "$FILTERED_COT"; then
   if [[ "$FALLBACK_WHEN_EMPTY" == "1" ]]; then
     select_args+=(--fallback-when-empty)
   fi
-  "$PYTHON_BIN" scripts/select_filtered_cot.py \
+  "$PYTHON_BIN" scripts/selection/select_filtered_cot.py \
     --input "$COT_SCORED" \
     --output "$FILTERED_COT" \
     --rejected-output "$REJECTED_COT" \
@@ -528,7 +528,7 @@ if stage_enabled "$RUN_DATASETS" "$SFT_DATASET" || stage_enabled "$RUN_DATASETS"
   require_file "$FILTERED_COT"
   require_file "$SCORED_EXAMPLES"
   log "Building SFT dataset -> $SFT_DATASET"
-  "$PYTHON_BIN" scripts/make_sft_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_sft_dataset.py \
     --input "$FILTERED_COT" \
     --output "$SFT_DATASET"
 
@@ -537,7 +537,7 @@ if stage_enabled "$RUN_DATASETS" "$SFT_DATASET" || stage_enabled "$RUN_DATASETS"
   if [[ "$GRPO_EXCLUDE_SFT" == "1" ]]; then
     grpo_exclude_args+=(--exclude-prompts-from "$SFT_DATASET")
   fi
-  "$PYTHON_BIN" scripts/make_grpo_dataset.py \
+  "$PYTHON_BIN" scripts/datasets/make_grpo_dataset.py \
     --input "$SCORED_EXAMPLES" \
     --output "$GRPO_DATASET" \
     --baseline-mode "$GRPO_BASELINE_EMBEDDER_MODE" \
@@ -568,7 +568,7 @@ if stage_enabled "$RUN_SFT" "$(latest_checkpoint "$SFT_OUT")"; then
   MAX_LENGTH="$SFT_MAX_LENGTH" \
   LEARNING_RATE="$SFT_LEARNING_RATE" \
   SAVE_STEPS="$SFT_SAVE_STEPS" \
-  bash scripts/run_sft_qwen3_4b.sh
+  bash scripts/train/run_sft_qwen3_4b.sh
 else
   log "Skipping SFT: $SFT_OUT"
 fi
@@ -684,7 +684,7 @@ if stage_enabled "$RUN_GRPO" "$(latest_checkpoint "$GRPO_OUT")"; then
   VLLM_SERVER_HOST="$VLLM_SERVER_HOST" \
   VLLM_SERVER_PORT="$VLLM_SERVER_PORT" \
   VLLM_SERVER_TIMEOUT="$VLLM_SERVER_TIMEOUT" \
-  bash scripts/run_grpo_qwen3_4b.sh
+  bash scripts/train/run_grpo_qwen3_4b.sh
 else
   log "Skipping GRPO: $GRPO_OUT"
 fi
@@ -699,7 +699,7 @@ if [[ "$RUN_EVAL" == "1" ]]; then
   fi
   log "Running reasoner proxy eval for $eval_adapter"
   CUDA_VISIBLE_DEVICES=${EVAL_CUDA_VISIBLE_DEVICES:-0} \
-  "$PYTHON_BIN" scripts/evaluate_reasoner_fullset_proxy.py \
+  "$PYTHON_BIN" scripts/eval/evaluate_reasoner_fullset_proxy.py \
     --category "$CATEGORY" \
     --split "$EVAL_SPLIT" \
     --model "$GRPO_MODEL" \

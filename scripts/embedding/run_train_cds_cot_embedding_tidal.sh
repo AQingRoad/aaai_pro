@@ -116,7 +116,7 @@ if [[ "$NEGATIVE_SAMPLING" != "none" && "$NUM_NEGATIVES" -gt 0 && -s "$COT_EMBED
 fi
 
 if [[ "$FORCE_REBUILD_DATASET" == "1" || ! -s "$COT_EMBEDDER_DATASET" ]]; then
-  "$PYTHON_BIN" scripts/make_cot_embedder_dataset.py \
+  "$PYTHON_BIN" scripts/data/make_cot_embedder_dataset.py \
     --candidate-lists "$COT_CANDIDATE_LISTS" \
     --item-info "$ITEM_INFO" \
     --output "$COT_EMBEDDER_DATASET" \
@@ -169,7 +169,7 @@ echo "EMBEDDER_GRADIENT_CHECKPOINTING=$EMBEDDER_GRADIENT_CHECKPOINTING"
 echo "EMBEDDER_CROSS_GPU_NEGATIVES=$EMBEDDER_CROSS_GPU_NEGATIVES"
 
 train_args=(
-  scripts/train_phase0_embedder.py
+  scripts/embedding/train_phase0_embedder.py
   --model "$BASE_EMBEDDING_MODEL" \
   --dataset "$COT_EMBEDDER_DATASET" \
   --output-dir "$EMBEDDER_OUT" \

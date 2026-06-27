@@ -7,16 +7,49 @@ changing. Prefer adding new code according to this layout.
 
 ```text
 rubric_cot_pipeline/        Core Python package shared by scripts.
-scripts/                    Grouped runnable scripts plus compatibility links.
+scripts/                    Grouped runnable scripts.
 configs/                    Example and local runtime environment configs.
+paper/                      Manuscript, method notes, figures, tables, references, reviews.
+experiments/                Run status, sanitized runbooks, paper-ready result summaries.
+reproducibility/            Checklists, manifests, and environment records.
 github_artifacts/           Versioned small/medium datasets needed to reproduce runs.
 data/                       Local raw or converted datasets. Ignored by git.
 outputs/                    Local generated outputs. Ignored by git.
 checkpoints/                Local model checkpoints. Ignored by git.
 external/                   External repositories or downloaded source trees. Ignored by git.
 prepared/                   Local prepared upload/staging files. Ignored by git.
+secrets/                    Local credentials and command notes containing keys. Ignored by git.
 docs/                       Project structure and operation notes.
 ```
+
+## Academic Project Layers
+
+Use these directories to keep the research claim, experiment evidence, and
+release material separated:
+
+```text
+paper/
+  notes/method.md           Current method draft and research framing.
+  manuscript/               Future LaTeX or Word manuscript source.
+  figures/                  Paper figures exported from scripts or notebooks.
+  tables/                   Paper tables generated from verified result summaries.
+  references/               BibTeX files and local PDFs. PDFs are ignored by git.
+  reviews/                  Internal review notes and revision ledgers.
+  submission/               Venue package checks and submission files.
+
+experiments/
+  status/                   Implementation and run-state notes.
+  runbooks/                 Sanitized commands that do not contain credentials.
+  results/                  Human-readable result summaries used by the paper.
+
+reproducibility/
+  checklists/               Environment, data, training, and evaluation checklists.
+  manifests/                Artifact manifests that map files to runs and claims.
+```
+
+Keep runnable code in `rubric_cot_pipeline/` and `scripts/`. Keep
+server-specific outputs in ignored local directories unless a small artifact is
+needed for a public reproduction path.
 
 ## Data Policy
 
@@ -39,16 +72,18 @@ checkpoints/
 
 configs/
   Template configs and non-secret defaults. Real API keys stay in ignored local files.
+
+secrets/
+  Local credentials, raw server login notes, and command history with API keys.
+  This directory is ignored and should not be referenced by paper artifacts.
 ```
 
 Do not commit API keys, model weights, or server-only cache directories.
 
 ## Script Groups
 
-The actual implementation files live in grouped subdirectories under
-`scripts/`. The repository also keeps root-level symlinks such as
-`scripts/run_sft_qwen3_4b.sh` and `scripts/compute_cot_gain.py` so existing
-server commands continue to work.
+All runnable script files live in grouped subdirectories under `scripts/`.
+Use the grouped paths in commands and docs.
 
 ```text
 Data preparation
@@ -116,19 +151,11 @@ Utilities
   scripts/utils/upload_cds_prepared_to_modelscope.sh
 ```
 
-## Compatibility Rule
+## Script Path Rule
 
-Keep a symlink at `scripts/<old-name>` when a script moves into a grouped
-directory. The training docs and old server commands use those root-level
-paths, for example:
-
-```text
-scripts/train_phase0_embedder.py -> scripts/embedding/train_phase0_embedder.py
-scripts/run_grpo_qwen3_4b.sh -> scripts/train/run_grpo_qwen3_4b.sh
-```
-
-When adding a new script, place the implementation in the matching grouped
-directory. Add a root-level symlink only if users need a short stable command.
+Do not add runnable script entries directly under `scripts/`. When adding a
+script, place the implementation in the matching grouped directory and reference
+that path directly in docs, configs, and pipeline wrappers.
 
 ## Artifact Layout
 
@@ -149,5 +176,4 @@ github_artifacts/
     rrec_eval/
 ```
 
-Use the grouped paths for code review and edits. Use the root-level symlinks
-when you want the short commands shown in older run notes.
+Use the grouped paths for code review, edits, and runnable commands.

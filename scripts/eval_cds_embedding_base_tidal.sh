@@ -1,1 +1,0 @@
-embedding/eval_cds_embedding_base_tidal.sh

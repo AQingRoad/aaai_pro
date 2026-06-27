@@ -1,1 +1,0 @@
-pipelines/run_phase1_full_rrec_amazon.sh

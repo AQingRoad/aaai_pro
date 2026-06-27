@@ -1,13 +1,15 @@
 # Rubric-Gated CoT 推荐训练流水线
 
-本仓库实现 `method.md` 中的推荐推理训练流程，当前主要服务
-`CDs_and_Vinyl` 数据集。代码入口已经按功能分组到 `scripts/` 子目录，
-根目录下仍保留同名软链接，旧命令可以继续使用。
+本仓库实现 `paper/notes/method.md` 中的推荐推理训练流程，当前主要服务
+`CDs_and_Vinyl` 数据集。代码入口按功能分组到 `scripts/` 子目录。
 
 目录结构和脚本分类见：
 
 - [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)
 - [`scripts/README.md`](scripts/README.md)
+- [`paper/README.md`](paper/README.md)
+- [`experiments/README.md`](experiments/README.md)
+- [`reproducibility/README.md`](reproducibility/README.md)
 
 ## 流程概览
 
@@ -81,6 +83,9 @@ training_output_positive
 ## 目录约定
 
 ```text
+paper/                    论文相关材料：方法笔记、manuscript、图表、引用、审稿记录
+experiments/              实验状态、runbook、论文级结果摘要
+reproducibility/          复现清单、artifact manifest、环境记录
 rubric_cot_pipeline/      共享 Python 模块
 scripts/                  数据、CoT、筛选、训练、评测脚本
 configs/                  配置模板；真实 key 文件不入库
@@ -89,6 +94,7 @@ data/                     本地原始/转换数据，忽略提交
 outputs/                  本地中间结果和评测结果，忽略提交
 checkpoints/              本地模型权重，忽略提交
 prepared/                 本地上传或训练准备目录，忽略提交
+secrets/                  本地凭据和含 key 命令记录，忽略提交
 ```
 
 不要提交 API key、模型权重、缓存目录和服务器本地输出。
@@ -225,7 +231,7 @@ RUN_TAG=deepseek_one_glm52_ckpt167 \
 DEVICES=0,1,2,3,4,5,6,7 \
 TOP_PERCENT=0.2 \
 MIN_GAIN=0 \
-bash scripts/build_deepseek_one_glm52_top20_sft_grpo_tidal.sh
+bash scripts/pipelines/build_deepseek_one_glm52_top20_sft_grpo_tidal.sh
 ```
 
 默认输出：
@@ -283,7 +289,7 @@ NUM_TRAIN_EPOCHS=10 \
 MAX_STEPS=-1 \
 SAVE_STEPS=$SAVE_STEPS \
 SAVE_TOTAL_LIMIT=12 \
-bash scripts/run_sft_qwen3_4b.sh
+bash scripts/train/run_sft_qwen3_4b.sh
 ```
 
 如果 NCCL 默认路径在机器上不稳定，保留上面的 `NCCL_NET=Socket`、
@@ -359,7 +365,7 @@ NUM_GENERATIONS=4 \
 RUBRIC_GAIN_MODE=ndcg \
 RUBRIC_NDCG_ITEM_INFO=$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl \
 QWEN3_EMBEDDING_MODEL=$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_cot_deepseek_v4_pro_low_one_cot_global_bsz128_xgpu/checkpoint-167 \
-bash scripts/run_grpo_qwen3_4b.sh
+bash scripts/train/run_grpo_qwen3_4b.sh
 ```
 
 `configs/glm_codeplan.env` 可保存 `BIGMODEL_API_KEY`，该文件被 `.gitignore`
@@ -387,11 +393,11 @@ EMBEDDER_GRAD_ACCUM=1 \
 EMBEDDER_EPOCHS=3 \
 EMBEDDER_LR=6e-6 \
 EMBEDDER_SAVE_STEPS=83 \
-bash scripts/run_train_cds_embedding_tidal.sh
+bash scripts/embedding/run_train_cds_embedding_tidal.sh
 ```
 
-CoT-aware embedding 数据由 `scripts/make_cot_embedder_dataset.py` 构建，再用
-`scripts/run_train_cds_cot_embedding_tidal.sh` 训练。
+CoT-aware embedding 数据由 `scripts/data/make_cot_embedder_dataset.py` 构建，再用
+`scripts/embedding/run_train_cds_cot_embedding_tidal.sh` 训练。
 
 ### Metadata-rich embedding
 
@@ -442,7 +448,7 @@ EMBEDDER_LR=6e-6 \
 EMBEDDER_SAVE_STEPS=auto \
 EMBEDDER_CROSS_GPU_NEGATIVES=1 \
 EMBEDDER_GRADIENT_CHECKPOINTING=non_reentrant \
-bash scripts/run_train_cds_embedding_tidal.sh
+bash scripts/embedding/run_train_cds_embedding_tidal.sh
 ```
 
 `EMBEDDER_SAVE_STEPS=auto` 会按当前数据量和全局 batch 估算，通常接近每个 epoch
@@ -482,7 +488,7 @@ VLLM_MAX_MODEL_LEN=4096 \
 VLLM_MAX_NUM_SEQS=64 \
 SCORER=qwen3_embedding \
 KS=5,10,20 \
-bash scripts/run_eval_checkpoints_vllm_tidal.sh
+bash scripts/eval/run_eval_checkpoints_vllm_tidal.sh
 ```
 
 直接评测单个 checkpoint 时，把 `CHECKPOINT_ROOT` 指向

@@ -1,1 +1,0 @@
-pipelines/run_rrec_full_training_pipeline.sh

@@ -100,7 +100,7 @@ if [[ ! -s "$EXAMPLES_FILE" ]]; then
   rrec_dataset_dir="$RREC_DATA_ROOT/${CATEGORY}_0_2022-10-2023-10"
   if [[ -d "$rrec_dataset_dir" ]]; then
     echo "Preparing all train examples -> $EXAMPLES_FILE"
-    "$PYTHON_BIN" scripts/prepare_rrec_amazon_examples.py \
+    "$PYTHON_BIN" scripts/data/prepare_rrec_amazon_examples.py \
       --data-root "$RREC_DATA_ROOT" \
       --category "$CATEGORY" \
       --split train \
@@ -165,7 +165,7 @@ echo "  output:       $OUTPUT"
 echo "  max_workers:  $MAX_WORKERS"
 echo "  max_examples: $MAX_EXAMPLES"
 
-"$PYTHON_BIN" scripts/generate_cot_candidate_lists.py \
+"$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
   --input "$EXAMPLES_FILE" \
   --output "$OUTPUT" \
   --max-examples "$MAX_EXAMPLES" \
