@@ -1,0 +1,75 @@
+{
+  "files": {
+    "train_examples": {
+      "path": "data/rrec_amazon/CDs_and_Vinyl/examples_meta_compact_no_all_ratings.jsonl",
+      "rows": 10722,
+      "splits": {
+        "train": 10722
+      },
+      "query_types": {},
+      "star_rating_rows": 0,
+      "catalog_stat_rows": 0,
+      "cot_marker_rows": 0,
+      "rating_key_rows": 0,
+      "leaks": {
+        "target_asin_in_query": 0,
+        "target_id_in_history_ids": 0
+      },
+      "query_len_chars": {
+        "min": 169,
+        "mean": 2681.71,
+        "p50": 1494.0,
+        "max": 13061
+      },
+      "sha256": "e269a27ac688a10b50687971b80daf61aad0776521b28789305f2923b1c52139"
+    },
+    "train_pairs": {
+      "path": "outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_meta_compact_no_all_ratings_history_only.jsonl",
+      "rows": 10722,
+      "splits": {
+        "train": 10722
+      },
+      "query_types": {
+        "history": 10722
+      },
+      "star_rating_rows": 0,
+      "catalog_stat_rows": 0,
+      "cot_marker_rows": 0,
+      "rating_key_rows": 0,
+      "leaks": {
+        "target_asin_in_query": 0,
+        "target_id_in_history_ids": 0
+      },
+      "query_len_chars": {
+        "min": 169,
+        "mean": 2681.71,
+        "p50": 1494.0,
+        "max": 13061
+      },
+      "sha256": "e0dd935f817ae53d1c05718283459ce7fbae7008085deb726f2fd0ad0e45b09b"
+    },
+    "test_examples": {
+      "path": "data/rrec_amazon/CDs_and_Vinyl/examples_meta_compact_no_all_ratings_test.jsonl",
+      "rows": 1341,
+      "splits": {
+        "test": 1341
+      },
+      "query_types": {},
+      "star_rating_rows": 0,
+      "catalog_stat_rows": 0,
+      "cot_marker_rows": 0,
+      "rating_key_rows": 0,
+      "leaks": {
+        "target_asin_in_query": 0,
+        "target_id_in_history_ids": 0
+      },
+      "query_len_chars": {
+        "min": 190,
+        "mean": 2401.28,
+        "p50": 1627,
+        "max": 12234
+      },
+      "sha256": "8c7c0ccf746882fb8063d64f71c59e32e9a88dfccae44058964b17b6d2711f0d"
+    }
+  }
+}

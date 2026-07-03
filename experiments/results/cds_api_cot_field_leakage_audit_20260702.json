@@ -1,0 +1,422 @@
+{
+  "audit_date": "2026-07-02",
+  "scope": "API CoT generation field-level leakage audit for train and latest test raw candidate-list files",
+  "code_path_assertions": {
+    "generation_entry": "scripts/cot/generate_cot_candidate_lists.py build_candidate_task(row, cand_idx, args, temperatures)",
+    "messages_source": "build_generation_messages(row[\"user_history\"], row.get(\"category\", \"\"), args.cot_output_format, args.rating_context)",
+    "prompt_builder": "rubric_cot_pipeline/prompts.py build_history_analysis_prompt(user_history, category, output_format, rating_context)",
+    "target_fields_in_api_messages": false,
+    "target_fields_retained_in_output_rows": [
+      "target_item_id",
+      "target_item_asin",
+      "target_item_title",
+      "target_item_text"
+    ],
+    "why_retained": "used later as supervised positive document and ranking label, not sent to API by generation_entry"
+  },
+  "reports": {
+    "train": {
+      "path": "outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_lists_glm47_meta_compact_one_train_raw.jsonl",
+      "exists": true,
+      "stats": {
+        "rows": 10722,
+        "api_raw_payload_recorded_candidates": 10719,
+        "target_artist_signature_in_user_history_order_insensitive": 1537,
+        "target_artist_signature_in_api_query_order_insensitive": 1540,
+        "target_artist_signature_in_cot_order_insensitive": 1287,
+        "target_title_phrase_in_user_history": 349,
+        "target_title_phrase_in_api_query": 369,
+        "non_generic_target_title_phrase_in_user_history": 91,
+        "non_generic_target_title_phrase_in_api_query": 92,
+        "target_title_phrase_in_cot": 206,
+        "non_generic_target_title_phrase_in_cot": 43,
+        "target_artist_signature_in_answer_order_insensitive": 8,
+        "target_id_string_in_user_history": 13,
+        "target_id_string_in_api_query": 13,
+        "target_title_phrase_in_answer": 60,
+        "non_generic_target_title_phrase_in_cot_not_history": 1,
+        "non_generic_target_title_phrase_in_api_query_not_history": 1,
+        "target_id_string_in_cot": 2,
+        "target_artist_signature_in_cot_not_history_order_insensitive": 2,
+        "target_artist_signature_in_answer_not_history_order_insensitive": 1,
+        "target_artist_signature_in_api_query_not_history_order_insensitive": 3
+      },
+      "split_counts": {
+        "train": 10722
+      },
+      "candidate_count_counts": {
+        "1": 10722
+      },
+      "generation_mode_counts": {
+        "api": 10719,
+        "manual_fill": 3
+      },
+      "generator_model_counts": {
+        "glm-4.7": 10719,
+        "manual-glm47-compatible": 3
+      },
+      "generation_api_meta_counts": {
+        "api_output_format=tagged": 10722
+      },
+      "unique_example_ids": 10722,
+      "unique_users": 2985,
+      "unique_interactions": 10722,
+      "api_prompt_chars": {
+        "min": 3319,
+        "mean": 6097.414217744193,
+        "p50": 4739,
+        "p90": 12155,
+        "p95": 13644,
+        "max": 17331
+      },
+      "api_prompt_est_tokens": {
+        "min": 454,
+        "mean": 891.235656311223,
+        "p50": 679,
+        "p90": 1841,
+        "p95": 2088,
+        "max": 2667
+      }
+    },
+    "test_latest": {
+      "path": "outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "exists": true,
+      "stats": {
+        "rows": 1341,
+        "target_artist_signature_in_user_history_order_insensitive": 235,
+        "target_artist_signature_in_cot_order_insensitive": 201,
+        "target_artist_signature_in_api_query_order_insensitive": 235,
+        "target_title_phrase_in_user_history": 32,
+        "target_title_phrase_in_cot": 18,
+        "target_title_phrase_in_api_query": 34,
+        "target_title_phrase_in_answer": 7,
+        "target_id_string_in_user_history": 5,
+        "target_id_string_in_api_query": 5,
+        "non_generic_target_title_phrase_in_user_history": 8,
+        "non_generic_target_title_phrase_in_api_query": 8,
+        "non_generic_target_title_phrase_in_cot": 5,
+        "target_id_string_in_cot": 1
+      },
+      "split_counts": {
+        "test": 1341
+      },
+      "candidate_count_counts": {
+        "1": 1341
+      },
+      "generation_mode_counts": {
+        "api": 1340,
+        "manual_fill": 1
+      },
+      "generator_model_counts": {
+        "glm-4.7": 1340,
+        "manual-glm47-compatible": 1
+      },
+      "generation_api_meta_counts": {
+        "api_output_format=tagged": 1341,
+        "api_rating_context=rating": 1340
+      },
+      "unique_example_ids": 1341,
+      "unique_users": 483,
+      "unique_interactions": 1341,
+      "api_prompt_chars": {
+        "min": 3338,
+        "mean": 5785.855970149254,
+        "p50": 4929,
+        "p90": 9524,
+        "p95": 12554,
+        "max": 16516
+      },
+      "api_prompt_est_tokens": {
+        "min": 456,
+        "mean": 842.3082089552239,
+        "p50": 707,
+        "p90": 1430,
+        "p95": 1891,
+        "max": 2532
+      }
+    }
+  },
+  "cross_split": {
+    "train_test_example_id_overlap": 0,
+    "train_test_interaction_id_overlap": 0
+  },
+  "example_snippets": {
+    "train::non_generic_target_title_phrase_in_user_history": [
+      {
+        "example_id": "CDs_and_Vinyl:train:45:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ",
+        "title": "Come Together"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:48:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ",
+        "title": "Jason Aldean"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:70:AFUUXMMMEKXCJGKMX6CH7N7YMEQQ",
+        "title": "Wonder What's Next"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:325:AEBXQTGQI27GXZLERCXTBIWNENPA",
+        "title": "Jason Aldean"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:382:AGSXX7UBBTKJBO3MJL2KJ5B3B2AQ",
+        "title": "Glad All Over"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:403:AECMF3THZVQB4CER7DXKTNJ67A4Q",
+        "title": "Taylor Swift"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:504:AHNIKHHYKJ4P456LW3JRA5CULILA",
+        "title": "Love For Sale"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:907:AE5SRIMQVUEWXVIMG5FB7J25P6UA",
+        "title": "Balls To The Wall"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:918:AG72SVA2RA46NBK6LCORIAEU3XLQ",
+        "title": "Heaven and Hell"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:1105:AG6ZUIRWBL2QU6MRTHPWXPV76ATA",
+        "title": "Bebe Le Strange"
+      }
+    ],
+    "train::target_id_string_in_user_history": [
+      "CDs_and_Vinyl:train:188:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ",
+      "CDs_and_Vinyl:train:1106:AGQGQO2UF5I3VHI7RKBPO3AGAISQ",
+      "CDs_and_Vinyl:train:1597:AGPUDOBM4EDZVOVW2OCSROWN42XA",
+      "CDs_and_Vinyl:train:1681:AHGLNY37KSEFFXGGFGFTMDCHAJMA",
+      "CDs_and_Vinyl:train:3081:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ",
+      "CDs_and_Vinyl:train:3135:AHSE5Q4UAYGULTDNWGGYFS6NKIOQ",
+      "CDs_and_Vinyl:train:6100:AELW6KT4YOXEPK2WC35FII3HA2KA",
+      "CDs_and_Vinyl:train:7509:AHGLNY37KSEFFXGGFGFTMDCHAJMA",
+      "CDs_and_Vinyl:train:7679:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA",
+      "CDs_and_Vinyl:train:8001:AEGS7KZGYJCTCI4HAYCXJWWPRVEQ"
+    ],
+    "train::target_id_string_in_api_query": [
+      "CDs_and_Vinyl:train:188:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ",
+      "CDs_and_Vinyl:train:1106:AGQGQO2UF5I3VHI7RKBPO3AGAISQ",
+      "CDs_and_Vinyl:train:1597:AGPUDOBM4EDZVOVW2OCSROWN42XA",
+      "CDs_and_Vinyl:train:1681:AHGLNY37KSEFFXGGFGFTMDCHAJMA",
+      "CDs_and_Vinyl:train:3081:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ",
+      "CDs_and_Vinyl:train:3135:AHSE5Q4UAYGULTDNWGGYFS6NKIOQ",
+      "CDs_and_Vinyl:train:6100:AELW6KT4YOXEPK2WC35FII3HA2KA",
+      "CDs_and_Vinyl:train:7509:AHGLNY37KSEFFXGGFGFTMDCHAJMA",
+      "CDs_and_Vinyl:train:7679:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA",
+      "CDs_and_Vinyl:train:8001:AEGS7KZGYJCTCI4HAYCXJWWPRVEQ"
+    ],
+    "train::non_generic_target_title_phrase_in_cot_not_history": [
+      {
+        "example_id": "CDs_and_Vinyl:train:2224:AFK36VGE2JC3VXI3PK2UVO5BE7ZA",
+        "title": "Gary Clark Jr. Live",
+        "text": "<think>\nThe user has rated four items all with 5 stars, indicating consistent satisfaction. Evidence includes: 1. Firefall: Country/rock band, compilation of hits, Audio CD format. 2. Gary Clark Jr. ("
+      }
+    ],
+    "train::non_generic_target_title_phrase_in_api_query_not_history": [
+      {
+        "example_id": "CDs_and_Vinyl:train:2224:AFK36VGE2JC3VXI3PK2UVO5BE7ZA",
+        "title": "Gary Clark Jr. Live",
+        "text": "This user's Amazon CDs and Vinyl interaction history over time is listed below.\n1. Greatest Hits (5 stars); Store/artist/format: Firefall Format: Audio CD; Categories: CDs & Vinyl > Today's Deals in M"
+      }
+    ],
+    "train::target_id_string_in_cot": [
+      "CDs_and_Vinyl:train:3135:AHSE5Q4UAYGULTDNWGGYFS6NKIOQ",
+      "CDs_and_Vinyl:train:8017:AFHITUTJGZVERM22OQNATLYV5KBQ"
+    ],
+    "train::target_artist_signature_in_cot_not_history_order_insensitive": [
+      {
+        "example_id": "CDs_and_Vinyl:train:3246:AHWAWLYCN46BYIGIURB47QLKCOFQ",
+        "store": "Heavy Metal Soundtrack (Artist) Format: Audio CD",
+        "sig": [
+          "heavy",
+          "metal"
+        ]
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:8867:AFWDMWGY4DXX4ZBJOGWGPI3TJO4Q",
+        "store": "Van Der Graaf Generator Van Der Graaf Generator/Jackso Format: Audio CD",
+        "sig": [
+          "der",
+          "generator",
+          "graaf",
+          "van"
+        ]
+      }
+    ],
+    "train::target_artist_signature_in_answer_not_history_order_insensitive": [
+      {
+        "example_id": "CDs_and_Vinyl:train:3246:AHWAWLYCN46BYIGIURB47QLKCOFQ",
+        "store": "Heavy Metal Soundtrack (Artist) Format: Audio CD",
+        "sig": [
+          "heavy",
+          "metal"
+        ]
+      }
+    ],
+    "train::target_artist_signature_in_api_query_not_history_order_insensitive": [
+      {
+        "example_id": "CDs_and_Vinyl:train:3246:AHWAWLYCN46BYIGIURB47QLKCOFQ",
+        "store": "Heavy Metal Soundtrack (Artist) Format: Audio CD",
+        "sig": [
+          "heavy",
+          "metal"
+        ]
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:7381:AHNEIAJUL7D2OC5YSNOI4CUH5FFQ",
+        "store": "Deep Purple Format: Vinyl",
+        "sig": [
+          "deep",
+          "purple"
+        ]
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:8867:AFWDMWGY4DXX4ZBJOGWGPI3TJO4Q",
+        "store": "Van Der Graaf Generator Van Der Graaf Generator/Jackso Format: Audio CD",
+        "sig": [
+          "der",
+          "generator",
+          "graaf",
+          "van"
+        ]
+      }
+    ],
+    "test_latest::target_id_string_in_user_history": [
+      "CDs_and_Vinyl:test:12325:AGMK2JKB7BW2KBOL5NX4DJWK5NYQ",
+      "CDs_and_Vinyl:test:12492:AFY3M2FXGK7KIMKOX2FGTMBMDFLQ",
+      "CDs_and_Vinyl:test:12955:AHJO2W7HDF2SYZLH4VGQIHRP572Q",
+      "CDs_and_Vinyl:test:13049:AFFK6RYEHGFCBF4KT5E6JRRCW5OQ",
+      "CDs_and_Vinyl:test:13278:AGFSWHZIJD2XINWVXMF3XT47G3MQ"
+    ],
+    "test_latest::target_id_string_in_api_query": [
+      "CDs_and_Vinyl:test:12325:AGMK2JKB7BW2KBOL5NX4DJWK5NYQ",
+      "CDs_and_Vinyl:test:12492:AFY3M2FXGK7KIMKOX2FGTMBMDFLQ",
+      "CDs_and_Vinyl:test:12955:AHJO2W7HDF2SYZLH4VGQIHRP572Q",
+      "CDs_and_Vinyl:test:13049:AFFK6RYEHGFCBF4KT5E6JRRCW5OQ",
+      "CDs_and_Vinyl:test:13278:AGFSWHZIJD2XINWVXMF3XT47G3MQ"
+    ],
+    "test_latest::non_generic_target_title_phrase_in_user_history": [
+      {
+        "example_id": "CDs_and_Vinyl:test:12387:AEEPAHLPP6P2ZMDZK47ER4WCMRNQ",
+        "title": "Epic Trilogy"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12643:AFZINHUV5ARVVPKECBUMVX4T276A",
+        "title": "Iron Maiden"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12741:AHN52LMUHA26RLONUOEWSNH4ZLSQ",
+        "title": "Bat Out Of Hell"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12795:AFUXLJX4ZWX2TP4SAOZLVY4FALRA",
+        "title": "Iron Maiden"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12870:AEI7FVSMBASHCKJSORBKS65CP35Q",
+        "title": "School Of Rock"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12875:AFCT6ZSVOL3WXETLKN4KOGTU63MQ",
+        "title": "Bat Out Of Hell"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:12879:AHI3IHPGQCUXUVPAN7D32KMFIDYA",
+        "title": "Foo Fighters"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:test:13083:AHZKUQSNMQLPXCJ4LK4ZZRTIBP3Q",
+        "title": "Dead Daisies"
+      }
+    ],
+    "test_latest::target_id_string_in_cot": [
+      "CDs_and_Vinyl:test:13049:AFFK6RYEHGFCBF4KT5E6JRRCW5OQ"
+    ]
+  },
+  "interpretation": {
+    "high_risk_direct_field_leakage": "No high-risk direct field leakage if target_id/asIN/full_target_text counts are zero in user_history/cot/answer/api_query and code_path_assertions target_fields_in_api_messages=false.",
+    "title_phrase_overlap": "Exact title phrase overlap can occur for generic titles or repeated catalog phrases; use non_generic_*_not_history counters for higher-risk cases.",
+    "artist_signature_overlap": "Order-insensitive token-set signature is conservative and ignores one-token artists to reduce substring false positives."
+  },
+  "payload_content_refinement": {
+    "train": {
+      "counts": {
+        "candidates": 10722,
+        "payload_recorded": 10719,
+        "target_id_payload_any": 15,
+        "target_asin_payload_any": 0,
+        "target_title_payload_any": 354,
+        "target_text_payload_any": 0,
+        "target_id_payload_not_history": 2,
+        "target_asin_payload_not_history": 0,
+        "target_title_payload_not_history": 6,
+        "target_text_payload_not_history": 0
+      },
+      "samples": [
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:308:AH536W3OE7UD4WKIOOY6OMTXV2RQ",
+          "target": "Series"
+        },
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:3574:AHSVORA2U2CPXQGHDF7ODX6BG3VA",
+          "target": "Step By Step"
+        },
+        {
+          "kind": "target_id",
+          "example_id": "CDs_and_Vinyl:train:4132:AFUIH7SGD7WIKICJHLLK33JWMDPA",
+          "target": "1024"
+        },
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:4145:AHP234IVQZHAFZZDAZZHNGWXVQMA",
+          "target": "Series"
+        },
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:5381:AFQ77Z5GTJBELBOUYCRFWVC7YQFQ",
+          "target": "Low"
+        },
+        {
+          "kind": "target_id",
+          "example_id": "CDs_and_Vinyl:train:7197:AGJ34GJH4TJE7O4A2QHCWA2BS4XA",
+          "target": "45"
+        },
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:7408:AFEHEZECCRD2LIQGE4V2JUIFFQJA",
+          "target": "Title"
+        },
+        {
+          "kind": "target_title",
+          "example_id": "CDs_and_Vinyl:train:9724:AH3DEAE4AW5D4AO67MNOXOI5YE7Q",
+          "target": "Low"
+        }
+      ]
+    },
+    "test_latest": {
+      "counts": {
+        "candidates": 1341,
+        "payload_recorded": 0,
+        "target_id_payload_any": 0,
+        "target_asin_payload_any": 0,
+        "target_title_payload_any": 0,
+        "target_text_payload_any": 0,
+        "target_id_payload_not_history": 0,
+        "target_asin_payload_not_history": 0,
+        "target_title_payload_not_history": 0,
+        "target_text_payload_not_history": 0
+      },
+      "samples": []
+    }
+  },
+  "manual_review_summary": {
+    "train_non_generic_title_cot_not_history": "1 sampled case, Gary Clark Jr. Live; CoT mentions Gary Clark Jr. (Live) from history items around the same artist/live recordings, not from target fields.",
+    "train_artist_signature_cot_not_history": "2 sampled cases. Heavy Metal Soundtrack reduces to generic heavy metal genre from Megadeth history; Van Der Graaf Generator is grounded in historical Van Der Graaf item. Not direct target field injection.",
+    "test_latest_high_risk_new_title_or_artist": "0 non-generic target title or artist signature newly introduced in CoT/answer beyond history.",
+    "api_payload_note": "train raw recorded request/response payloads; code path and payload refinement show no target ASIN/full target text injection. Future runs should keep COT_GENERATION_RECORD_API_RAW=0 unless debugging."
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "category": "Musical_Instruments",
+  "num_sampled": 12,
+  "cases": [
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:4768:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B01L2ONK0O",
+      "target_item_title": "Jean Paul USA AS-400 Student Alto Saxophone, Yellow",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:4769:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B07JZYWD3S",
+      "target_item_title": "Pro Tec LC305M 24-Inch Leather - Less-Stress Saxophone Neck Strap with Metal Snap,Black",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:4774:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B07WGRJR35",
+      "target_item_title": "Jean Paul USA Intermediate Tenor Saxophone TS-400",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:6717:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B08DP5RFQD",
+      "target_item_title": "JodyJazz JET Tenor Saxophone Mouthpiece Model 6 (.090\")",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:9064:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B01E0TCBEE",
+      "target_item_title": "Vandoren Tenor Saxophone Mouthpiece (SM723),Black",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:10006:AEGVLJIQBZBO6BWEALPMJPPQEZCA",
+      "target_item_asin": "B0B4SGJRHR",
+      "target_item_title": "Neotech Sax Strap Navy, Swivel Hook (1903162)",
+      "matched_asin": "B0002KX5E6",
+      "matched_is_target_asin": false,
+      "history_item_id": 4756,
+      "history_item_asin": "B076W18YDF",
+      "history_item_title": "Straight Soprano Saxophone PRO PAC Case by Protec, Model PB310,Black",
+      "metadata_snippet": "able shoulder strap with grip surface & strong metal hardware, luggage ID tag, and backpackable with optional backpack strap (Protec model#: BPSTRAP, Amazon ASIN: B0002KX5E6); Description: Protec’s Straight Soprano Saxophone PRO PAC Case offers great protection and convenience for both fixed or removable neck horns. Each "
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:10977:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B01I5RIHBS",
+      "target_item_title": "Paititi Professional Gold Plated Alto Saxophone Metal Mouthpiece #7",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:11849:AEGVLJIQBZBO6BWEALPMJPPQEZCA",
+      "target_item_asin": "B01E4MELN6",
+      "target_item_title": "Nektar Sustain Pedal, Black, 3.15 x 3.86 x 11.42 inches (NP-2)",
+      "matched_asin": "B0002KX5E6",
+      "matched_is_target_asin": false,
+      "history_item_id": 4756,
+      "history_item_asin": "B076W18YDF",
+      "history_item_title": "Straight Soprano Saxophone PRO PAC Case by Protec, Model PB310,Black",
+      "metadata_snippet": "able shoulder strap with grip surface & strong metal hardware, luggage ID tag, and backpackable with optional backpack strap (Protec model#: BPSTRAP, Amazon ASIN: B0002KX5E6); Description: Protec’s Straight Soprano Saxophone PRO PAC Case offers great protection and convenience for both fixed or removable neck horns. Each "
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:11878:AEGVLJIQBZBO6BWEALPMJPPQEZCA",
+      "target_item_asin": "B01IP4ENCS",
+      "target_item_title": "Korg, 25-Key Midi Controller (MKEYAIR25)",
+      "matched_asin": "B0002KX5E6",
+      "matched_is_target_asin": false,
+      "history_item_id": 4756,
+      "history_item_asin": "B076W18YDF",
+      "history_item_title": "Straight Soprano Saxophone PRO PAC Case by Protec, Model PB310,Black",
+      "metadata_snippet": "able shoulder strap with grip surface & strong metal hardware, luggage ID tag, and backpackable with optional backpack strap (Protec model#: BPSTRAP, Amazon ASIN: B0002KX5E6); Description: Protec’s Straight Soprano Saxophone PRO PAC Case offers great protection and convenience for both fixed or removable neck horns. Each "
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:12285:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B0BXT41WJW",
+      "target_item_title": "Vandoren SM601B A35 Jumbo JAVA Alto Saxophone Mouthpiece",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:15570:AH342UKVZ4FNT5KPJA6B2L2U3O3A",
+      "target_item_asin": "B0BHWR2B9Y",
+      "target_item_title": "JAZZLAB Strap, Support (SAXHOLDER-PRO)",
+      "matched_asin": "B0002KX5E6",
+      "matched_is_target_asin": false,
+      "history_item_id": 4756,
+      "history_item_asin": "B076W18YDF",
+      "history_item_title": "Straight Soprano Saxophone PRO PAC Case by Protec, Model PB310,Black",
+      "metadata_snippet": "able shoulder strap with grip surface & strong metal hardware, luggage ID tag, and backpackable with optional backpack strap (Protec model#: BPSTRAP, Amazon ASIN: B0002KX5E6); Description: Protec’s Straight Soprano Saxophone PRO PAC Case offers great protection and convenience for both fixed or removable neck horns. Each "
+    },
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:17379:AFIGHJOA444C2ZHVW2SEZOYDBAUA",
+      "target_item_asin": "B07NFMHLM6",
+      "target_item_title": "Yamaha 4C Tenor Saxophone Mouthpiece, Standard Series",
+      "matched_asin": "B002BVW6VW",
+      "matched_is_target_asin": false,
+      "history_item_id": 396,
+      "history_item_asin": "B07FQCQM4D",
+      "history_item_title": "Protec MX304CT Alto Saxophone Contoured MAX Case, Black",
+      "metadata_snippet": "er bells, larger bodies, or bell keys located on the opposite side (left-hand side). For larger vintage horns, see Protec’s XL case, model PB304CTXL, ASIN B002BVW6VW.; Ultra-light shock resistant EPS foam frame featuring a soft lining and separate neck and mouthpiece storage sections; Padded backpack straps with h"
+    }
+  ]
+}

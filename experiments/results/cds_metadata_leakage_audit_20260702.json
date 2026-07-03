@@ -1,0 +1,151 @@
+{
+  "item_info_path": "github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl",
+  "item_info_rows": 12001,
+  "metadata_fields_used_by_history_text": {
+    "direct_item_fields": [
+      "store",
+      "categories",
+      "features",
+      "description",
+      "average_rating",
+      "rating_number"
+    ],
+    "details_subfields": [
+      "Artist",
+      "Composer",
+      "Label or Manufacturer",
+      "Original Release Date",
+      "Genre",
+      "Style",
+      "Media Format or Format",
+      "Run time or Runtime",
+      "Number of discs or Number Of Discs",
+      "Language"
+    ],
+    "not_used_in_history_metadata": [
+      "parent_asin",
+      "price",
+      "subtitle",
+      "main_category",
+      "Date First Available",
+      "Item model number",
+      "Product Dimensions"
+    ]
+  },
+  "files": {
+    "train_meta_compact_raw": {
+      "path": "outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_lists_glm47_meta_compact_one_train_raw.jsonl",
+      "rows": 10722,
+      "stats": {
+        "target_metadata_segment_in_query": 5449,
+        "target_metadata_segment_in_query_from_history_source": 5449,
+        "target_title_exact_in_query": 102
+      },
+      "target_metadata_segment_hits_by_field": {
+        "categories": 1485,
+        "details.Label": 2420,
+        "store": 1263,
+        "catalog_stats": 36,
+        "title": 95,
+        "description[0]": 137,
+        "description[1]": 8,
+        "details.Genre": 1,
+        "details.Language": 3,
+        "details.Run time": 1
+      },
+      "target_metadata_segment_hits_from_history_source_by_field": {
+        "categories": 1485,
+        "details.Label": 2420,
+        "store": 1263,
+        "catalog_stats": 36,
+        "title": 95,
+        "description[0]": 137,
+        "description[1]": 8,
+        "details.Genre": 1,
+        "details.Language": 3,
+        "details.Run time": 1
+      },
+      "target_metadata_segment_hits_not_history_source_by_field": {},
+      "examples": {
+        "target_title_exact_in_query_from_history_source": [
+          {
+            "example_id": "CDs_and_Vinyl:train:45:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ",
+            "title": "Come Together"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:train:48:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ",
+            "title": "Jason Aldean"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:train:70:AFUUXMMMEKXCJGKMX6CH7N7YMEQQ",
+            "title": "Wonder What's Next"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:train:325:AEBXQTGQI27GXZLERCXTBIWNENPA",
+            "title": "Jason Aldean"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:train:382:AGSXX7UBBTKJBO3MJL2KJ5B3B2AQ",
+            "title": "Glad All Over"
+          }
+        ]
+      }
+    },
+    "test_meta_compact_latest_raw": {
+      "path": "outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "rows": 1341,
+      "stats": {
+        "target_metadata_segment_in_query": 757,
+        "target_metadata_segment_in_query_from_history_source": 757,
+        "target_title_exact_in_query": 10
+      },
+      "target_metadata_segment_hits_by_field": {
+        "details.Label": 319,
+        "categories": 196,
+        "store": 198,
+        "description[0]": 21,
+        "catalog_stats": 4,
+        "description[1]": 3,
+        "title": 10,
+        "details.Genre": 3,
+        "details.Language": 3
+      },
+      "target_metadata_segment_hits_from_history_source_by_field": {
+        "details.Label": 319,
+        "categories": 196,
+        "store": 198,
+        "description[0]": 21,
+        "catalog_stats": 4,
+        "description[1]": 3,
+        "title": 10,
+        "details.Genre": 3,
+        "details.Language": 3
+      },
+      "target_metadata_segment_hits_not_history_source_by_field": {},
+      "examples": {
+        "target_title_exact_in_query_from_history_source": [
+          {
+            "example_id": "CDs_and_Vinyl:test:12387:AEEPAHLPP6P2ZMDZK47ER4WCMRNQ",
+            "title": "Epic Trilogy"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:test:12643:AFZINHUV5ARVVPKECBUMVX4T276A",
+            "title": "Iron Maiden"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:test:12741:AHN52LMUHA26RLONUOEWSNH4ZLSQ",
+            "title": "Bat Out Of Hell"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:test:12795:AFUXLJX4ZWX2TP4SAOZLVY4FALRA",
+            "title": "Iron Maiden"
+          },
+          {
+            "example_id": "CDs_and_Vinyl:test:12870:AEI7FVSMBASHCKJSORBKS65CP35Q",
+            "title": "School Of Rock"
+          }
+        ]
+      }
+    }
+  }
+}

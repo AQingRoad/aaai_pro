@@ -21,6 +21,9 @@ DETAIL_KEYS = (
     "Number Of Discs",
     "Language",
 )
+STAR_RATING_TEXT_RE = re.compile(r"\s*\([-+]?\d+(?:\.\d+)?\s+stars?\)", re.IGNORECASE)
+ASIN_REFERENCE_RE = re.compile(r"(?:,\s*)?\b(?:Amazon\s+)?ASIN\s*[:#]?\s*[A-Z0-9]{10}\b", re.IGNORECASE)
+RAW_ASIN_RE = re.compile(r"\bB[0-9A-Z]{9}\b")
 
 
 def compact(text: Any, max_chars: int) -> str:
@@ -30,7 +33,23 @@ def compact(text: Any, max_chars: int) -> str:
     return text[: max_chars - 15].rstrip() + " [TRUNCATED]"
 
 
-def as_text_list(value: Any, limit: int = 8) -> list[str]:
+def strip_star_ratings(text: str) -> str:
+    return STAR_RATING_TEXT_RE.sub("", text)
+
+
+def strip_asin_references(text: str) -> str:
+    text = ASIN_REFERENCE_RE.sub("", text)
+    text = RAW_ASIN_RE.sub("", text)
+    text = re.sub(r"\(\s*\)", "", text)
+    text = re.sub(r"\s+,", ",", text)
+    text = re.sub(r",\s*([).;])", r"\1", text)
+    text = re.sub(r"\b(with|for|of|to)\s+([.;])", r"\2", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+([.;])", r"\1", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def as_text_list(value: Any, limit: int = 8, max_chars: int = 500) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
@@ -38,13 +57,13 @@ def as_text_list(value: Any, limit: int = 8) -> list[str]:
     if isinstance(value, (list, tuple)):
         out = []
         for item in value:
-            text = compact(item, 500)
+            text = compact(item, max_chars)
             if text:
                 out.append(text)
             if len(out) >= limit:
                 break
         return out
-    return [compact(value, 500)]
+    return [compact(value, max_chars)]
 
 
 def category_label(category: str) -> str:
@@ -87,17 +106,19 @@ def build_item_text(item: Mapping[str, Any] | None, title: str, max_chars: int) 
         return compact(title, max_chars)
 
     parts: list[str] = []
+    field_max_chars = 0 if max_chars <= 0 else 300
+    list_item_max_chars = 0 if max_chars <= 0 else 500
     for key in ("title", "main_category", "store"):
-        value = compact(item.get(key), 300)
+        value = compact(item.get(key), field_max_chars)
         if value:
             parts.append(value)
-    categories = " > ".join(as_text_list(item.get("categories"), limit=6))
+    categories = " > ".join(as_text_list(item.get("categories"), limit=6, max_chars=list_item_max_chars))
     if categories:
         parts.append(f"Categories: {categories}")
-    features = "; ".join(as_text_list(item.get("features"), limit=8))
+    features = "; ".join(as_text_list(item.get("features"), limit=8, max_chars=list_item_max_chars))
     if features:
         parts.append(f"Features: {features}")
-    description = " ".join(as_text_list(item.get("description"), limit=2))
+    description = " ".join(as_text_list(item.get("description"), limit=2, max_chars=list_item_max_chars))
     if description:
         parts.append(f"Description: {description}")
     if not parts:
@@ -167,6 +188,7 @@ def build_history_item_metadata(
     max_chars: int,
     metadata_mode: str = "compact",
     description_summary: str = "",
+    include_catalog_stats: bool = True,
 ) -> str:
     if not item:
         return ""
@@ -197,7 +219,7 @@ def build_history_item_metadata(
     if details:
         parts.append("Details: " + details)
 
-    if metadata_mode != "summary":
+    if metadata_mode != "summary" and include_catalog_stats:
         stats = _item_stats(item)
         if stats:
             parts.append(f"Catalog stats: {stats}")
@@ -215,6 +237,8 @@ def history_text(
     metadata_mode: str = "none",
     max_item_chars: int = 320,
     summary_map: Mapping[int, str] | None = None,
+    include_ratings: bool = True,
+    include_catalog_stats: bool = True,
 ) -> str:
     if max_history_items > 0:
         titles = titles[-max_history_items:]
@@ -225,7 +249,7 @@ def history_text(
     def format_entry(pos: int | None, title: str, rating: float | None) -> str:
         title = compact(title, 240)
         prefix = f"{pos}. " if pos is not None else ""
-        rating_text = f" ({float(rating):g} stars)" if rating is not None else ""
+        rating_text = f" ({float(rating):g} stars)" if include_ratings and rating is not None else ""
         if title:
             return f"{prefix}{title}{rating_text}"
         if rating_text:
@@ -240,7 +264,9 @@ def history_text(
                 entries.append(entry)
 
         history = "; ".join(entries)
-        return (
+        if not include_ratings:
+            history = strip_star_ratings(history)
+        return strip_asin_references(
             f"This user's Amazon {category_label(category)} interaction history over time is listed below. "
             f"{history}."
         )
@@ -255,13 +281,16 @@ def history_text(
                 max_item_chars,
                 metadata_mode=metadata_mode,
                 description_summary=(summary_map or {}).get(item_id, ""),
+                include_catalog_stats=include_catalog_stats,
             )
             if metadata:
                 entry = f"{entry}; {metadata}"
         entries.append(entry)
 
     history = "\n".join(entries)
-    return (
+    if not include_ratings:
+        history = strip_star_ratings(history)
+    return strip_asin_references(
         f"This user's Amazon {category_label(category)} interaction history over time is listed below.\n"
         f"{history}"
     ).strip()

@@ -4,12 +4,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from datasets import load_from_disk
 
 from rubric_cot_pipeline.item_metadata import build_item_map, build_item_summary_map, build_item_text, compact, history_text
 from rubric_cot_pipeline.io import read_jsonl
@@ -22,11 +21,78 @@ def split_names(raw: str) -> list[str]:
     return [raw]
 
 
+def build_output_row(
+    row: dict,
+    *,
+    args: argparse.Namespace,
+    split: str,
+    item_map: dict[int, dict],
+    summary_map: dict[int, str],
+    fallback_interaction_id: int,
+) -> dict | None:
+    history_item_ids = [int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])]
+    titles = [compact(x, 300) for x in row.get("history_item_title", [])]
+    ratings = [float(x) for x in row.get("history_rating", [])]
+    if len(titles) < args.min_history or float(row.get("rating", row.get("target_rating", 0.0)) or 0.0) < args.min_rating:
+        return None
+    if len(ratings) != len(titles):
+        raise ValueError(
+            f"history_rating length mismatch in {args.category}:{split}: "
+            f"user_id={row.get('user_id')} interaction_id={row.get('interaction_id')} "
+            f"titles={len(titles)} ratings={len(ratings)}."
+        )
+
+    item_id = int(row.get("item_id", row.get("target_item_id")))
+    target_title = compact(row.get("item_title", row.get("target_item_title", "")), 300)
+    item_text = build_item_text(item_map.get(item_id), target_title, args.max_target_chars)
+    interaction_id = int(row.get("interaction_id", fallback_interaction_id))
+    user_id = str(row["user_id"])
+    example_id = f"{args.category}:{split}:{interaction_id}:{user_id}"
+
+    max_history_items = args.max_history_items
+    history_slice = slice(-max_history_items, None) if max_history_items > 0 else slice(None)
+    out = {
+        "example_id": example_id,
+        "dataset": "rrec-amazon-2023",
+        "category": args.category,
+        "split": split,
+        "user_id": user_id,
+        "interaction_id": interaction_id,
+        "target_item_id": item_id,
+        "target_item_asin": row.get("item_asin", row.get("target_item_asin", "")),
+        "target_item_title": target_title,
+        "target_item_text": item_text,
+        "target_rating": float(row.get("rating", row.get("target_rating", 0.0)) or 0.0),
+        "history_item_ids": history_item_ids[history_slice],
+        "history_item_asins": list(row.get("item_asins", row.get("history_item_asins", [])))[history_slice],
+        "history_item_count": min(len(titles), max_history_items) if max_history_items > 0 else len(titles),
+        "user_history": history_text(
+            args.category,
+            titles,
+            ratings,
+            max_history_items,
+            item_ids=history_item_ids,
+            item_map=item_map,
+            metadata_mode=args.history_metadata_mode,
+            max_item_chars=args.history_max_item_chars,
+            summary_map=summary_map,
+            include_ratings=args.history_include_ratings,
+            include_catalog_stats=args.history_include_catalog_stats,
+        ),
+    }
+    if args.strip_rating_fields:
+        for key in ("target_rating", "history_rating", "history_ratings", "rating"):
+            out.pop(key, None)
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="/root/autodl-tmp/rec/RRec_official/data")
     parser.add_argument("--category", required=True)
     parser.add_argument("--dataset-dir", default="")
+    parser.add_argument("--examples-jsonl", default="")
+    parser.add_argument("--item-info", default="")
     parser.add_argument("--split", choices=["train", "valid", "test", "all"], default="train")
     parser.add_argument("--output", default="")
     parser.add_argument("--max-examples", type=int, default=0)
@@ -35,7 +101,12 @@ def main() -> None:
     parser.add_argument("--min-rating", type=float, default=0.0)
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max-target-chars", type=int, default=1400)
+    parser.add_argument(
+        "--max-target-chars",
+        type=int,
+        default=0,
+        help="Maximum target_item_text characters; 0 keeps the full target text.",
+    )
     parser.add_argument(
         "--history-metadata-mode",
         choices=["none", "compact", "summary"],
@@ -43,87 +114,96 @@ def main() -> None:
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
     parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
+    parser.add_argument("--history-include-ratings", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--history-include-catalog-stats", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--strip-rating-fields", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
     dataset_dir = Path(args.dataset_dir) if args.dataset_dir else Path(args.data_root) / f"{args.category}_0_2022-10-2023-10"
-    if not dataset_dir.exists():
-        raise FileNotFoundError(f"RRec dataset directory does not exist: {dataset_dir}")
-
     output = args.output or f"data/rrec_amazon/{args.category}/examples.jsonl"
-    ds = load_from_disk(str(dataset_dir))
-    item_map = build_item_map(ds["item_info"])
     summary_map = build_item_summary_map(read_jsonl(args.item_summary)) if args.item_summary else {}
 
     rows = []
     skipped = 0
-    for split in split_names(args.split):
-        split_ds = ds[split]
-        if args.shuffle:
-            split_ds = split_ds.shuffle(seed=args.seed)
-        if args.max_examples > 0:
-            split_ds = split_ds.select(range(min(args.max_examples, len(split_ds))))
+    source = ""
+    if dataset_dir.exists():
+        try:
+            from datasets import load_from_disk
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "The HuggingFace datasets package is required for --dataset-dir/--data-root input. "
+                "Use --examples-jsonl with --item-info to prepare examples from JSONL artifacts without installing datasets."
+            ) from exc
 
-        for row in split_ds:
-            history_item_ids = [int(x) for x in row.get("history_item_id", [])]
-            titles = [compact(x, 300) for x in row.get("history_item_title", [])]
-            ratings = [float(x) for x in row.get("history_rating", [])]
-            if len(titles) < args.min_history or float(row.get("rating", 0.0)) < args.min_rating:
+        ds = load_from_disk(str(dataset_dir))
+        item_map = build_item_map(ds["item_info"])
+        source = str(dataset_dir)
+        for split in split_names(args.split):
+            split_ds = ds[split]
+            if args.shuffle:
+                split_ds = split_ds.shuffle(seed=args.seed)
+            if args.max_examples > 0:
+                split_ds = split_ds.select(range(min(args.max_examples, len(split_ds))))
+
+            for row in split_ds:
+                out = build_output_row(
+                    dict(row),
+                    args=args,
+                    split=split,
+                    item_map=item_map,
+                    summary_map=summary_map,
+                    fallback_interaction_id=len(rows),
+                )
+                if out is None:
+                    skipped += 1
+                    continue
+                rows.append(out)
+    else:
+        if args.split == "all" and not args.examples_jsonl:
+            raise FileNotFoundError(f"RRec dataset directory does not exist and JSONL fallback needs a single split: {dataset_dir}")
+        examples_path = Path(args.examples_jsonl) if args.examples_jsonl else Path("github_artifacts") / args.category / "rrec_eval" / f"{args.split}.jsonl"
+        item_info_path = Path(args.item_info) if args.item_info else Path("github_artifacts") / args.category / "rrec_eval" / "item_info.jsonl"
+        if not examples_path.exists() or not item_info_path.exists():
+            raise FileNotFoundError(
+                f"RRec dataset directory does not exist: {dataset_dir}; "
+                f"JSONL fallback also missing examples={examples_path} or item_info={item_info_path}"
+            )
+        item_map = build_item_map(read_jsonl(item_info_path))
+        jsonl_rows = list(read_jsonl(examples_path))
+        if args.shuffle:
+            random.Random(args.seed).shuffle(jsonl_rows)
+        if args.max_examples > 0:
+            jsonl_rows = jsonl_rows[: args.max_examples]
+        source = str(examples_path)
+        split = args.split
+        for row in jsonl_rows:
+            out = build_output_row(
+                row,
+                args=args,
+                split=split,
+                item_map=item_map,
+                summary_map=summary_map,
+                fallback_interaction_id=len(rows),
+            )
+            if out is None:
                 skipped += 1
                 continue
-            if len(ratings) != len(titles):
-                raise ValueError(
-                    f"history_rating length mismatch in {args.category}:{split}: "
-                    f"user_id={row.get('user_id')} interaction_id={row.get('interaction_id')} "
-                    f"titles={len(titles)} ratings={len(ratings)}."
-                )
-
-            item_id = int(row["item_id"])
-            target_title = compact(row.get("item_title", ""), 300)
-            item_text = build_item_text(item_map.get(item_id), target_title, args.max_target_chars)
-            interaction_id = int(row.get("interaction_id", len(rows)))
-            user_id = str(row["user_id"])
-            example_id = f"{args.category}:{split}:{interaction_id}:{user_id}"
-
-            rows.append(
-                {
-                    "example_id": example_id,
-                    "dataset": "rrec-amazon-2023",
-                    "category": args.category,
-                    "split": split,
-                    "user_id": user_id,
-                    "interaction_id": interaction_id,
-                    "target_item_id": item_id,
-                    "target_item_asin": row.get("item_asin", ""),
-                    "target_item_title": target_title,
-                    "target_item_text": item_text,
-                    "target_rating": float(row.get("rating", 0.0)),
-                    "history_item_ids": history_item_ids[-args.max_history_items :],
-                    "history_item_asins": list(row.get("item_asins", []))[-args.max_history_items :],
-                    "history_item_count": min(len(titles), args.max_history_items) if args.max_history_items > 0 else len(titles),
-                    "user_history": history_text(
-                        args.category,
-                        titles,
-                        ratings,
-                        args.max_history_items,
-                        item_ids=history_item_ids,
-                        item_map=item_map,
-                        metadata_mode=args.history_metadata_mode,
-                        max_item_chars=args.history_max_item_chars,
-                        summary_map=summary_map,
-                    ),
-                }
-            )
+            rows.append(out)
 
     count = write_jsonl(output, rows)
     stats = {
         "category": args.category,
         "split": args.split,
         "dataset_dir": str(dataset_dir),
+        "source": source,
         "output": output,
         "written": count,
         "skipped": skipped,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "history_include_ratings": args.history_include_ratings,
+        "history_include_catalog_stats": args.history_include_catalog_stats,
+        "strip_rating_fields": args.strip_rating_fields,
         "item_summary": args.item_summary,
     }
     print(json.dumps(stats, ensure_ascii=False, indent=2))

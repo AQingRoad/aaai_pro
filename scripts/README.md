@@ -17,12 +17,12 @@ scripts/data/rewrite_examples_with_item_metadata.py
 ```
 
 默认历史输入仍使用旧版 `title + rating`。需要在历史条目中加入
-`item_info.jsonl` 里的 artist/store、category、description、details 等信息时，
+`item_info.jsonl` 里的 creator/brand/source、category、description、details 等信息时，
 在命令前设置 `HISTORY_METADATA_MODE=compact`；可用
 `HISTORY_MAX_ITEM_CHARS=320` 调整每个历史 item 的 metadata 长度。
 如果已经生成 item-level description summary sidecar，则使用
 `HISTORY_METADATA_MODE=summary ITEM_METADATA_SUMMARY=/path/to/item_metadata_summary_*.jsonl`。
-`summary` 模式只拼接 store/categories/summary/精选 details，不直接拼原始 description。
+`summary` 模式只拼接 source/categories/summary/精选 details，不直接拼原始 description。
 
 ## CoT 生成和 Rubric
 
@@ -101,6 +101,11 @@ scripts/pipelines/run_phase1_full_rrec_amazon.sh
 scripts/pipelines/run_phase1_full_ml1m.sh
 scripts/pipelines/run_smoke_test.sh
 scripts/pipelines/run_generate_cds_glm47_low_one_cot.sh
+                                                    GLM-4.7 API one-CoT 生成，默认关闭 thinking，
+                                                    普通 content 直接输出 <analysis>/<answer>，
+                                                    解析落盘时归一化为 <think>/<answer>，
+                                                    不限制 prompt token，只记录 prompt 长度审计；
+                                                    smoke 输出见 experiments/runbooks/glm47_tagged_api_generation.md。
 scripts/pipelines/run_generate_musical_instruments_glm_codeplan.sh
 scripts/pipelines/run_cds_meta_cot_generation_vllm_tidal.sh
                                                     summary -> metadata history -> local Qwen/vLLM one-CoT 生成。

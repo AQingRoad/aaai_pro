@@ -126,7 +126,12 @@ def main() -> None:
     parser.add_argument("--query-batch-size", type=int, default=32)
     parser.add_argument("--embedding-batch-size", type=int, default=128)
     parser.add_argument("--embedding-max-length", type=int, default=4096)
-    parser.add_argument("--max-item-chars", type=int, default=1800)
+    parser.add_argument(
+        "--max-item-chars",
+        type=int,
+        default=0,
+        help="Maximum mined negative item text characters; 0 keeps full item text.",
+    )
     parser.add_argument("--torch-dtype", default="bfloat16")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)

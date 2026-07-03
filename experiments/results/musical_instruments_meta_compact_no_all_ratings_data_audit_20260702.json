@@ -1,0 +1,101 @@
+{
+  "category": "Musical_Instruments",
+  "files": {
+    "train": {
+      "path": "data/rrec_amazon/Musical_Instruments/examples_meta_compact_no_all_ratings.jsonl",
+      "rows": 44822,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 100,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 2,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": [
+        {
+          "example_id": "Musical_Instruments:train:18732:AHPITFBIDAIOJHF3C4YEXE7NOWSA",
+          "target_item_id": 4471,
+          "target_item_asin": "B09SZMTJTC",
+          "target_item_title": "G7th Performance 3 Capo",
+          "history_item_ids": [
+            8649
+          ],
+          "history_item_asins": [
+            "B09SVD6M4Z"
+          ]
+        },
+        {
+          "example_id": "Musical_Instruments:train:41372:AF6X6NTDGUVDAEH6645SGTXQ4H7A",
+          "target_item_id": 5594,
+          "target_item_asin": "B0B8NXV975",
+          "target_item_title": "Snark ST-2 Multi-Instrument Chromatic Tuner",
+          "history_item_ids": [
+            277,
+            5593,
+            7019,
+            440
+          ],
+          "history_item_asins": [
+            "B07DLDB3MS",
+            "B017808XKS",
+            "B0B8P1YW7L",
+            "B09LTXSQTY"
+          ]
+        }
+      ]
+    },
+    "valid": {
+      "path": "data/rrec_amazon/Musical_Instruments/examples_meta_compact_no_all_ratings_valid.jsonl",
+      "rows": 5603,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 8,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 0,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": []
+    },
+    "test": {
+      "path": "data/rrec_amazon/Musical_Instruments/examples_meta_compact_no_all_ratings_test.jsonl",
+      "rows": 5603,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 13,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 0,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": []
+    }
+  },
+  "cross_split": {
+    "train_valid_example_id_overlap": 0,
+    "train_valid_interaction_id_overlap": 0,
+    "test_train_example_id_overlap": 0,
+    "test_train_interaction_id_overlap": 0,
+    "test_valid_example_id_overlap": 0,
+    "test_valid_interaction_id_overlap": 0
+  }
+}

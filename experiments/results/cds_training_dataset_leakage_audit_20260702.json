@@ -1,0 +1,136 @@
+{
+  "audit_date": "2026-07-02",
+  "scope": "actual remote CoT embedding training pair JSONL and checkpoint phase0_args",
+  "dataset": "/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only.jsonl",
+  "phase0_args_path": "/root/autodl-tmp/rec/aaai_pro/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_0p6b_cds_glm47_meta_compact_one_tagged_cot_only_len4096_batch32_accum8_epoch5/phase0_args.json",
+  "stats": {
+    "rows": 10722,
+    "target_artist_signature_in_history_part_order_insensitive": 1536,
+    "target_artist_signature_in_cot_part_order_insensitive": 1287,
+    "target_title_phrase_in_history_part": 349,
+    "target_title_phrase_in_query": 369,
+    "non_generic_target_title_phrase_in_history_part": 91,
+    "target_title_phrase_in_cot_part": 206,
+    "non_generic_target_title_phrase_in_cot_part": 43,
+    "target_id_string_in_query_numeric_collision_check": 13,
+    "non_generic_target_title_phrase_in_cot_not_history": 1,
+    "target_artist_signature_in_cot_not_history_order_insensitive": 2
+  },
+  "query_type_counts": {
+    "history_plus_cot_tagged": 10722
+  },
+  "split_counts": {
+    "train": 10722
+  },
+  "field_presence": {
+    "query": 10722,
+    "positive": 10722,
+    "target_item_id": 10722,
+    "target_item_title": 10722,
+    "history_item_ids": 10722
+  },
+  "unique_source_example_ids": 10722,
+  "unique_training_example_ids": 10722,
+  "unique_users": 2985,
+  "unique_interactions": 10722,
+  "query_char_length": {
+    "min": 795,
+    "mean": 3993.0441149039357,
+    "p50": 2694,
+    "p90": 10102,
+    "p95": 11697,
+    "p99": 13376,
+    "max": 15327
+  },
+  "positive_char_length": {
+    "min": 69,
+    "mean": 418.8848162656221,
+    "p50": 442,
+    "p90": 639,
+    "p95": 665,
+    "p99": 867,
+    "max": 1397
+  },
+  "explicit_negative_count_per_row": {
+    "min": 0,
+    "mean": 0.0,
+    "p50": 0,
+    "p90": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0
+  },
+  "cross_split_against_latest_test_raw": {
+    "source_example_id_overlap_with_test_example_id": 0,
+    "interaction_id_overlap_with_test": 0
+  },
+  "phase0_args_selected": {
+    "dataset": "/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only.jsonl",
+    "model": "/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B",
+    "max_length": 4096,
+    "batch_size": 32,
+    "grad_accum": 8,
+    "epochs": 5.0,
+    "max_steps": -1,
+    "learning_rate": 3e-06,
+    "temperature": 0.05,
+    "cross_gpu_negatives": false,
+    "global_batch_size": 256,
+    "gradient_checkpointing_enabled": true,
+    "gradient_checkpointing_mode": "auto",
+    "save_steps": 42,
+    "seed": 42,
+    "query_instruction": "Given a user's past item interactions and optional recommendation reasoning, retrieve items the user is likely to prefer next."
+  },
+  "examples": {
+    "non_generic_target_title_phrase_in_cot_not_history": [
+      {
+        "example_id": "CDs_and_Vinyl:train:2224:AFK36VGE2JC3VXI3PK2UVO5BE7ZA:cot:0",
+        "title": "Gary Clark Jr. Live",
+        "cot": "<think> The user has rated four items all with 5 stars, indicating consistent satisfaction. Evidence includes: 1. Firefall: Country/rock band, compilation of hits, Audio CD format. 2. Gary Clark Jr. (Studio): Blues rock, guitar-driven, Audi"
+      }
+    ],
+    "target_artist_signature_in_cot_not_history_order_insensitive": [
+      {
+        "example_id": "CDs_and_Vinyl:train:3246:AHWAWLYCN46BYIGIURB47QLKCOFQ:cot:0",
+        "store": "Heavy Metal Soundtrack (Artist) Format: Audio CD",
+        "sig": [
+          "heavy",
+          "metal"
+        ],
+        "cot": "<think> History contains a single positive interaction with Megadeth's album \"The Sick, The Dying. And The Dead!\", rated 5 stars. The user expressed strong satisfaction with this release. Positive evi"
+      },
+      {
+        "example_id": "CDs_and_Vinyl:train:8867:AFWDMWGY4DXX4ZBJOGWGPI3TJO4Q:cot:0",
+        "store": "Van Der Graaf Generator Van Der Graaf Generator/Jackso Format: Audio CD",
+        "sig": [
+          "der",
+          "generator",
+          "graaf",
+          "van"
+        ],
+        "cot": "<think> Positive evidence comes from the 5-star rating of King Crimson's Starless Deluxe. This indicates a strong preference for progressive rock, specifically live improvisation, complex musical stru"
+      }
+    ]
+  },
+  "interpretation": {
+    "positive_side": "The positive field is the supervised target document for contrastive learning; it is encoded as doc_texts, not appended to query_texts.",
+    "query_side_high_risk": "full_positive_text_in_query, target_asin_in_query, target_id_in_history_item_ids, and target_id/string-not-history counters should be zero or explained as numeric collisions.",
+    "title_artist_overlap": "Title or artist mentions can be legitimate when the same artist/title appears in historical items; *_not_history counters isolate newly introduced CoT-side mentions."
+  },
+  "zero_counter_assertions": {
+    "full_positive_text_in_query": 0,
+    "full_positive_text_in_cot": 0,
+    "target_asin_in_query": 0,
+    "target_id_in_history_item_ids": 0,
+    "query_equals_positive": 0,
+    "rows_with_explicit_negatives": 0,
+    "negative_item_ids_contains_target": 0,
+    "negative_item_ids_overlap_history": 0
+  },
+  "manual_review_summary": {
+    "positive_field": "Positive text is target document supervision and is encoded through doc_texts, not appended to query_texts.",
+    "title_artist_overlap": "One non-generic title-not-history case and two artist-signature-not-history cases were sampled; they are explainable by same-artist history, generic genre wording, or history-grounded CoT, not label concatenation.",
+    "split_integrity": "All rows are train split and there is no source example or interaction overlap with latest test raw."
+  }
+}

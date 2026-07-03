@@ -92,7 +92,12 @@ def main() -> None:
     parser.add_argument("--min-rating", type=float, default=0.0)
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max-target-chars", type=int, default=1400)
+    parser.add_argument(
+        "--max-target-chars",
+        type=int,
+        default=0,
+        help="Maximum positive item text characters; 0 keeps the full target text.",
+    )
     parser.add_argument(
         "--history-metadata-mode",
         choices=["none", "compact", "summary"],

@@ -19,7 +19,14 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from rubric_cot_pipeline.io import ensure_parent, read_jsonl
-from rubric_cot_pipeline.prompts import ANSWER_TAG, REASONING_TAG, build_generation_messages, normalize_cot_tags
+from rubric_cot_pipeline.prompts import (
+    API_REASONING_TAG,
+    ANSWER_TAG,
+    REASONING_TAG,
+    build_generation_messages,
+    normalize_cot_tags,
+    normalize_rating_context,
+)
 
 
 OPENAI_COMPATIBLE_PROVIDERS = {"openai", "openai_compatible", "chat_completions"}
@@ -34,6 +41,23 @@ API_KEY_ENV_NAMES = (
     "ZHIPU_API_KEY",
     "GLM_API_KEY",
 )
+WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]*|[\u4e00-\u9fff]")
+ANSWER_BANNED_PATTERNS = (
+    # User/history self-reference rather than item features.
+    r"\b(?:the|this)\s+user\b|\buser['’]s\b|\b(?:user|interaction)\s+history\b|\bhistorical\s+items?\b",
+    # Advice, policy, or future-action wording rather than a neutral item profile.
+    r"\b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b",
+    # Audience-targeting copy rather than transferable item attributes.
+    r"\b(?:suitable|appeal\w*|fans?|enthusiasts?)\b",
+    # External appraisal, popularity, review, sales, rating, or catalog-stat signals.
+    r"\b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b",
+)
+NO_RATING_BANNED_PATTERNS = (
+    r"\b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b",
+    r"\brating\s+scores?\b|\bstar\s+ratings?\b|\b[1-5](?:\.\d+)?\s*(?:/|out\s+of)\s*5\b|\b[1-5](?:\.\d+)?\s*stars?\b",
+    r"\b(?:positive|negative)\s+(?:interaction|evidence|feedback|signal|signals?|item|items?|example|examples?)\b",
+    r"\b(?:high|low)[- ]rated\b|\b(?:high|low)\s+rating\b|\b(?:liked|disliked)\b",
+)
 
 
 def first_env(*names: str) -> str:
@@ -42,6 +66,13 @@ def first_env(*names: str) -> str:
         if value:
             return value
     return ""
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"", "0", "false", "off", "no", "none", "null"}
 
 
 def cli_arg_supplied(name: str) -> bool:
@@ -219,12 +250,119 @@ def extract_recommendation(content: str) -> str:
     return answer
 
 
-def split_api_output(content: str, reasoning: str) -> tuple[str, str]:
-    think = reasoning.strip()
-    answer = extract_recommendation(content)
+def strip_output_markup(text: str) -> str:
+    text = re.sub(
+        rf"</?(?:{REASONING_TAG}|{ANSWER_TAG}|think|thinking|thoughts|answer|hidden_reasoning|reasoning|analysis)>|</?tool_call>|```[\s\S]*?```",
+        "",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def extract_tagged_output(content: str, normalize_legacy_tags: bool = True) -> tuple[str, str, bool]:
+    normalized = normalize_cot_tags(content) if normalize_legacy_tags else (content or "").strip()
+    reasoning_tag = REASONING_TAG if normalize_legacy_tags else API_REASONING_TAG
+    think_match = re.search(rf"<\s*{reasoning_tag}\s*>([\s\S]*?)<\s*/\s*{reasoning_tag}\s*>", normalized, flags=re.IGNORECASE)
+    answer_match = re.search(rf"<\s*{ANSWER_TAG}\s*>([\s\S]*?)<\s*/\s*{ANSWER_TAG}\s*>", normalized, flags=re.IGNORECASE)
+    think = strip_output_markup(think_match.group(1)) if think_match else ""
+    answer = strip_output_markup(answer_match.group(1)) if answer_match else ""
+    return think, answer, bool(think_match or answer_match)
+
+
+def detect_block_tag(content: str, tags: tuple[str, ...]) -> str:
+    for tag in tags:
+        if re.search(rf"<\s*{tag}\s*>", content or "", flags=re.IGNORECASE):
+            return tag
+    return ""
+
+
+def output_word_count(*parts: str) -> int:
+    return len(WORD_RE.findall(" ".join(part for part in parts if part)))
+
+
+def prompt_length_meta(messages: list[dict[str, str]]) -> dict[str, int]:
+    text = "\n".join(str(message.get("content") or "") for message in messages)
+    return {
+        "api_prompt_message_count": len(messages),
+        "api_prompt_chars": len(text),
+        "api_prompt_est_tokens": output_word_count(text),
+    }
+
+
+def validate_answer_constraints(
+    answer: str,
+    min_answer_words: int = 0,
+    max_answer_words: int = 0,
+    rating_context: str = "rating",
+) -> int:
+    normalized = re.sub(r"\s+", " ", answer or "").strip().lower()
+    answer_words = output_word_count(answer)
+    if min_answer_words > 0 and answer_words < min_answer_words:
+        raise ValueError(f"API answer has {answer_words} words, below --min-answer-words={min_answer_words}")
+    if max_answer_words > 0 and answer_words > max_answer_words:
+        raise ValueError(f"API answer has {answer_words} words, above --max-answer-words={max_answer_words}")
+    for pattern in ANSWER_BANNED_PATTERNS:
+        if re.search(pattern, normalized):
+            raise ValueError(f"API answer contains banned wording pattern: {pattern}")
+    if normalize_rating_context(rating_context) == "no_rating":
+        for pattern in NO_RATING_BANNED_PATTERNS:
+            if re.search(pattern, normalized):
+                raise ValueError(f"API answer contains no-rating banned wording pattern: {pattern}")
+    return answer_words
+
+
+def validate_reasoning_constraints(think: str, rating_context: str = "rating") -> None:
+    if normalize_rating_context(rating_context) != "no_rating":
+        return
+    normalized = re.sub(r"\s+", " ", think or "").strip().lower()
+    for pattern in NO_RATING_BANNED_PATTERNS:
+        if re.search(pattern, normalized):
+            raise ValueError(f"API analysis contains no-rating banned wording pattern: {pattern}")
+
+
+def split_api_output(
+    content: str,
+    reasoning: str,
+    max_output_words: int = 0,
+    min_answer_words: int = 0,
+    max_answer_words: int = 0,
+    rating_context: str = "rating",
+    require_content_tags: bool = False,
+    require_literal_tags: bool = False,
+) -> tuple[str, str, dict[str, Any]]:
+    rating_context = normalize_rating_context(rating_context)
+    content_think, content_answer, has_content_tags = extract_tagged_output(
+        content,
+        normalize_legacy_tags=not (require_content_tags and require_literal_tags),
+    )
+    if require_content_tags and (not content_think or not content_answer):
+        raise ValueError(f"API output missing required <{API_REASONING_TAG}> or <{ANSWER_TAG}> block in tagged mode")
+    think = content_think or reasoning.strip()
+    answer = content_answer or extract_recommendation(content)
     if not answer:
         raise ValueError("API returned empty content/answer; increase --max-new-tokens or retry")
-    return think, answer
+    validate_output = require_content_tags or min_answer_words > 0 or max_answer_words > 0 or rating_context == "no_rating"
+    if validate_output:
+        answer_words = validate_answer_constraints(answer, min_answer_words, max_answer_words, rating_context)
+        validate_reasoning_constraints(think, rating_context)
+    else:
+        answer_words = output_word_count(answer)
+    reasoning_words = output_word_count(think)
+    total_words = output_word_count(think, answer)
+    if max_output_words > 0 and total_words > max_output_words:
+        raise ValueError(f"API output has {total_words} words, above --max-output-words={max_output_words}")
+    return think, answer, {
+        "api_has_content_tags": has_content_tags,
+        "api_has_content_analysis": detect_block_tag(content, (API_REASONING_TAG,)) == API_REASONING_TAG,
+        "api_has_content_think": bool(content_think),
+        "api_has_content_answer": bool(content_answer),
+        "api_content_reasoning_tag": detect_block_tag(content, (API_REASONING_TAG, REASONING_TAG, "reasoning", "thinking", "thoughts")),
+        "api_content_answer_tag": detect_block_tag(content, ("answer", "recommendation")),
+        "api_reasoning_word_count": reasoning_words,
+        "api_answer_word_count": answer_words,
+        "api_output_word_count": total_words,
+    }
 
 
 def call_api(messages: list[dict[str, str]], args: argparse.Namespace, temperature: float) -> tuple[str, str, dict[str, Any]]:
@@ -233,6 +371,7 @@ def call_api(messages: list[dict[str, str]], args: argparse.Namespace, temperatu
     headers = {"Content-Type": "application/json"}
     if args.api_key:
         headers["Authorization"] = f"Bearer {args.api_key}"
+    prompt_meta = prompt_length_meta(messages)
     payload: dict[str, Any] = {
         "model": args.api_model,
         "messages": messages,
@@ -270,7 +409,16 @@ def call_api(messages: list[dict[str, str]], args: argparse.Namespace, temperatu
             message = choice["message"]
             content = str(message.get("content") or "").strip()
             reasoning = str(message.get("reasoning_content") or "").strip()
-            think, answer = split_api_output(content, reasoning)
+            think, answer, parse_meta = split_api_output(
+                content,
+                reasoning,
+                args.max_output_words,
+                min_answer_words=args.min_answer_words,
+                max_answer_words=args.max_answer_words,
+                rating_context=args.rating_context,
+                require_content_tags=args.cot_output_format == "tagged",
+                require_literal_tags=args.require_literal_tags,
+            )
             parsed_cot = time.perf_counter()
             meta = {
                 "timing": {
@@ -286,7 +434,22 @@ def call_api(messages: list[dict[str, str]], args: argparse.Namespace, temperatu
                 "api_content_chars": len(content),
                 "api_reasoning_chars": len(reasoning),
                 "api_usage": obj.get("usage", {}),
+                "api_output_format": args.cot_output_format,
+                "api_rating_context": args.rating_context,
+                "api_min_answer_words": args.min_answer_words,
+                "api_max_answer_words": args.max_answer_words,
+                **prompt_meta,
+                **parse_meta,
             }
+            if args.record_api_raw:
+                meta.update(
+                    {
+                        "api_request_payload": payload,
+                        "api_raw_response": raw,
+                        "api_raw_content": content,
+                        "api_raw_reasoning_content": reasoning,
+                    }
+                )
             return think, answer, meta
         except urllib.error.HTTPError as exc:
             try:
@@ -314,7 +477,12 @@ def build_candidate_task(row: dict[str, Any], cand_idx: int, args: argparse.Name
     if not key:
         raise ValueError("row must contain example_id, user_id, or id")
     temp = temperatures[cand_idx % len(temperatures)]
-    messages = build_generation_messages(row["user_history"], row.get("category", ""))
+    messages = build_generation_messages(
+        row["user_history"],
+        row.get("category", ""),
+        args.cot_output_format,
+        args.rating_context,
+    )
     cand_start = time.perf_counter()
     think, answer, meta = call_api(messages, args, temp)
     cand_end = time.perf_counter()
@@ -326,6 +494,7 @@ def build_candidate_task(row: dict[str, Any], cand_idx: int, args: argparse.Name
         "temperature": temp,
         "think": think,
         "answer": answer,
+        "cot": f"<{REASONING_TAG}>\n{think}\n</{REASONING_TAG}>\n<{ANSWER_TAG}>\n{answer}\n</{ANSWER_TAG}>",
         "generator_model": args.api_model,
         "generation_mode": "api",
         "generation_timing": meta.get("timing", {}),
@@ -381,13 +550,26 @@ def main() -> None:
     parser.add_argument("--api-min-interval", type=float, default=float(os.getenv("COT_GENERATION_API_MIN_INTERVAL", "0")))
     parser.add_argument("--api-thinking", default=os.getenv("COT_GENERATION_API_THINKING", "enabled"))
     parser.add_argument("--api-reasoning-effort", default=os.getenv("COT_GENERATION_API_REASONING_EFFORT", ""))
+    parser.add_argument("--cot-output-format", choices=["answer_only", "tagged"], default=os.getenv("COT_GENERATION_OUTPUT_FORMAT", "answer_only"))
+    parser.add_argument("--max-output-words", type=int, default=int(os.getenv("COT_GENERATION_MAX_OUTPUT_WORDS", "0")))
+    parser.add_argument("--rating-context", default=os.getenv("COT_GENERATION_RATING_CONTEXT", "rating"))
+    parser.add_argument("--min-answer-words", type=int, default=int(os.getenv("COT_GENERATION_MIN_ANSWER_WORDS", "0")))
+    parser.add_argument("--max-answer-words", type=int, default=int(os.getenv("COT_GENERATION_MAX_ANSWER_WORDS", "0")))
+    parser.add_argument("--record-api-raw", action=argparse.BooleanOptionalAction, default=env_bool("COT_GENERATION_RECORD_API_RAW", False))
+    parser.add_argument("--require-literal-tags", action=argparse.BooleanOptionalAction, default=env_bool("COT_GENERATION_REQUIRE_LITERAL_TAGS", False))
     parser.add_argument("--max-new-tokens", type=int, default=2048)
-    parser.add_argument("--max-prompt-tokens", type=int, default=2048)
+    parser.add_argument(
+        "--max-prompt-tokens",
+        type=int,
+        default=0,
+        help="Deprecated compatibility option. API generation does not truncate prompts; use 0.",
+    )
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     resolve_api_args(args)
+    args.rating_context = normalize_rating_context(args.rating_context)
     args._api_request_lock = threading.Lock()
     args._api_last_request_ts = 0.0
 
@@ -397,6 +579,12 @@ def main() -> None:
         raise ValueError("--api-base-url is required")
     if not args.api_model:
         raise ValueError("--api-model is required")
+    if args.cot_output_format == "tagged" and args.max_output_words <= 0:
+        args.max_output_words = 1024
+    if args.min_answer_words < 0 or args.max_answer_words < 0:
+        raise ValueError("--min-answer-words and --max-answer-words must be non-negative")
+    if args.max_answer_words > 0 and args.min_answer_words > args.max_answer_words:
+        raise ValueError("--min-answer-words cannot exceed --max-answer-words")
 
     random.seed(args.seed)
     temperatures = parse_temperatures(args.temperatures) or [0.7]

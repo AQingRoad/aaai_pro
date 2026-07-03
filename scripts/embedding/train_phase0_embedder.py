@@ -158,6 +158,7 @@ def main() -> None:
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--save-steps", type=int, default=0)
     parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
+    parser.add_argument("--attn-implementation", default="")
     parser.add_argument("--cross-gpu-negatives", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--sync-barriers", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--preview-cases", type=int, default=2)
@@ -212,11 +213,13 @@ def main() -> None:
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModel.from_pretrained(
-        args.model,
-        trust_remote_code=True,
-        torch_dtype=resolve_torch_dtype(args.torch_dtype),
-    ).to(device)
+    model_kwargs = {
+        "trust_remote_code": True,
+        "torch_dtype": resolve_torch_dtype(args.torch_dtype),
+    }
+    if args.attn_implementation:
+        model_kwargs["attn_implementation"] = args.attn_implementation
+    model = AutoModel.from_pretrained(args.model, **model_kwargs).to(device)
     model.train()
     use_non_reentrant_checkpointing = args.gradient_checkpointing == "non_reentrant"
     use_gradient_checkpointing = use_non_reentrant_checkpointing or args.gradient_checkpointing == "on" or (

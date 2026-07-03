@@ -1,0 +1,11 @@
+{
+  "category": "Video_Games",
+  "dataset_dir": "data/rrec_amazon/Video_Games_0_2022-10-2023-10",
+  "per_split": {
+    "train": 0,
+    "valid": 0,
+    "test": 0
+  },
+  "num_cases": 0,
+  "cases": []
+}

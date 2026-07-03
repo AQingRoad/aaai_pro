@@ -74,19 +74,21 @@ def build_summary_item_text(
         return compact(title, max_chars)
 
     parts: list[str] = []
-    title_text = compact(item.get("title") or title, 300)
+    field_max_chars = 0 if max_chars <= 0 else 300
+    detail_max_chars = 0 if max_chars <= 0 else 500
+    title_text = compact(item.get("title") or title, field_max_chars)
     if title_text:
         parts.append(title_text)
 
-    main_category = compact(item.get("main_category"), 160)
+    main_category = compact(item.get("main_category"), 0 if max_chars <= 0 else 160)
     if main_category:
         parts.append(f"Main category: {main_category}")
 
-    store = compact(item.get("store"), 300)
+    store = compact(item.get("store"), field_max_chars)
     if store:
         parts.append(f"Store/artist/format: {store}")
 
-    categories = " > ".join(as_text_list(item.get("categories"), limit=6))
+    categories = " > ".join(as_text_list(item.get("categories"), limit=6, max_chars=detail_max_chars))
     if categories:
         parts.append(f"Categories: {categories}")
 
@@ -152,7 +154,12 @@ def main() -> None:
         default="summary",
     )
     parser.add_argument("--history-max-item-chars", type=int, default=0)
-    parser.add_argument("--max-target-chars", type=int, default=1800)
+    parser.add_argument(
+        "--max-target-chars",
+        type=int,
+        default=0,
+        help="Maximum positive item text characters; 0 keeps the full target text.",
+    )
     parser.add_argument("--default-history-rating", type=float, default=5.0)
     parser.add_argument(
         "--query-source",

@@ -1,0 +1,24 @@
+{
+  "category": "Musical_Instruments",
+  "dataset_dir": "data/rrec_amazon/Musical_Instruments_0_2022-10-2023-10",
+  "per_split": {
+    "train": 1,
+    "valid": 0,
+    "test": 0
+  },
+  "num_cases": 1,
+  "cases": [
+    {
+      "split": "train",
+      "example_id": "Musical_Instruments:train:21932:AH342UKVZ4FNT5KPJA6B2L2U3O3A",
+      "target_item_id": 3425,
+      "target_item_asin": "B0002KX5E6",
+      "target_item_title": "Protec Padded Backpack Strap",
+      "history_match_pos": 1,
+      "history_item_id": 4756,
+      "history_item_asin": "B076W18YDF",
+      "history_item_title": "Straight Soprano Saxophone PRO PAC Case by Protec, Model PB310,Black",
+      "metadata_snippet": "kly padded adjustable shoulder strap with grip surface & strong metal hardware, luggage ID tag, and backpackable with optional backpack strap (Protec model#: BPSTRAP, Amazon ASIN: B0002KX5E6); Description: Protec’s Straight Soprano Saxophone PRO PAC Case offers great protection and convenience for both fixed or removable neck horns. Each PRO PAC case features a shaped"
+    }
+  ]
+}

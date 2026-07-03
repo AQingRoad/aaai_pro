@@ -1,0 +1,423 @@
+{
+  "shape": {
+    "test_cot_rows": 1341,
+    "train_cot_rows": 10722,
+    "item_info_rows": 12001,
+    "candidate_count_bad": 0,
+    "missing_cot": 0,
+    "manual_fill_rows": 1,
+    "api_raw_payload_recorded_rows": 0
+  },
+  "split_overlap": {
+    "train_test_example_id_overlap": 0,
+    "train_test_interaction_id_overlap": 0,
+    "test_duplicate_example_id": 0,
+    "test_duplicate_interaction_id": 0,
+    "test_user_overlap_with_train": 178,
+    "user_overlap_expected_for_sequential_recommendation": true
+  },
+  "identity_leak_checks": {
+    "target_id_in_history": {
+      "count": 0,
+      "examples": []
+    },
+    "target_asin_in_history": {
+      "count": 0,
+      "examples": []
+    },
+    "target_asin_in_query": {
+      "count": 0,
+      "examples": []
+    },
+    "full_target_text_in_query": {
+      "count": 0,
+      "examples": []
+    },
+    "target_title_phrase_in_history": {
+      "count": 31,
+      "examples": [
+        [
+          "CDs_and_Vinyl:test:12120:AECRGJATLVTX26XPKIKW3UHBCDKA",
+          "The Wiz"
+        ],
+        [
+          "CDs_and_Vinyl:test:12182:AFTGVXV7JIKHT53FAODPSMYIU4WQ",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12185:AFTGVXV7JIKHT53FAODPSMYIU4WQ",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12201:AGGKE2FPHSVSH7ZFR376ITBBLEKQ",
+          "Traffic"
+        ],
+        [
+          "CDs_and_Vinyl:test:12205:AGRI6YCBSLVCYAYJQ34KNQA2CC6A",
+          "Original Album Classics"
+        ],
+        [
+          "CDs_and_Vinyl:test:12259:AGZWIBCIV2JFPFPVI3OXSQJORRKA",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12387:AEEPAHLPP6P2ZMDZK47ER4WCMRNQ",
+          "Epic Trilogy"
+        ],
+        [
+          "CDs_and_Vinyl:test:12643:AFZINHUV5ARVVPKECBUMVX4T276A",
+          "Iron Maiden"
+        ],
+        [
+          "CDs_and_Vinyl:test:12741:AHN52LMUHA26RLONUOEWSNH4ZLSQ",
+          "Bat Out Of Hell"
+        ],
+        [
+          "CDs_and_Vinyl:test:12795:AFUXLJX4ZWX2TP4SAOZLVY4FALRA",
+          "Iron Maiden"
+        ],
+        [
+          "CDs_and_Vinyl:test:12813:AEL4JIS7MU76QIB27GOO7O4RFHSA",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12855:AFGTIXU3BMHCWG2ALITQWHF2KGYA",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12870:AEI7FVSMBASHCKJSORBKS65CP35Q",
+          "School Of Rock"
+        ],
+        [
+          "CDs_and_Vinyl:test:12874:AFCT6ZSVOL3WXETLKN4KOGTU63MQ",
+          "...Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12875:AFCT6ZSVOL3WXETLKN4KOGTU63MQ",
+          "Bat Out Of Hell"
+        ],
+        [
+          "CDs_and_Vinyl:test:12879:AHI3IHPGQCUXUVPAN7D32KMFIDYA",
+          "Foo Fighters"
+        ],
+        [
+          "CDs_and_Vinyl:test:12887:AFYDPZPN2GQNECLWYYVECGMXL2TA",
+          "Gold"
+        ],
+        [
+          "CDs_and_Vinyl:test:12914:AEGD62WOJ5IMSDZUG63NO7KSPPCQ",
+          "Rubberband"
+        ],
+        [
+          "CDs_and_Vinyl:test:12943:AGSZCL6RF3AEXOL3JO2PHBSFN27A",
+          "Greatest Hits"
+        ],
+        [
+          "CDs_and_Vinyl:test:12987:AGB2UHWT2PPETI5HAOVIGUXQIUBA",
+          "On the Beach"
+        ]
+      ]
+    },
+    "target_title_phrase_in_cot": {
+      "count": 18,
+      "examples": [
+        [
+          "CDs_and_Vinyl:test:12120:AECRGJATLVTX26XPKIKW3UHBCDKA",
+          "The Wiz",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12182:AFTGVXV7JIKHT53FAODPSMYIU4WQ",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12185:AFTGVXV7JIKHT53FAODPSMYIU4WQ",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12205:AGRI6YCBSLVCYAYJQ34KNQA2CC6A",
+          "Original Album Classics",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12259:AGZWIBCIV2JFPFPVI3OXSQJORRKA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12643:AFZINHUV5ARVVPKECBUMVX4T276A",
+          "Iron Maiden",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12795:AFUXLJX4ZWX2TP4SAOZLVY4FALRA",
+          "Iron Maiden",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12813:AEL4JIS7MU76QIB27GOO7O4RFHSA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12870:AEI7FVSMBASHCKJSORBKS65CP35Q",
+          "School Of Rock",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12879:AHI3IHPGQCUXUVPAN7D32KMFIDYA",
+          "Foo Fighters",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12925:AFDQXJSNG4VTICQ3RQDWOK54NAPA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12943:AGSZCL6RF3AEXOL3JO2PHBSFN27A",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12996:AGFSWHZIJD2XINWVXMF3XT47G3MQ",
+          "Michael",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13041:AFDQXJSNG4VTICQ3RQDWOK54NAPA",
+          "Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13048:AFXA3LLBZVIZD2HRIOX7QVEYT3SQ",
+          "Live",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13083:AHZKUQSNMQLPXCJ4LK4ZZRTIBP3Q",
+          "Dead Daisies",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13263:AFHXMZMS5KZ6U3YGQAMLEO53VCZA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13266:AE3B7UYWJWLQOW4XTLBNWWELBYQQ",
+          "Lita",
+          "api"
+        ]
+      ]
+    },
+    "target_title_phrase_in_answer": {
+      "count": 7,
+      "examples": [
+        [
+          "CDs_and_Vinyl:test:12185:AFTGVXV7JIKHT53FAODPSMYIU4WQ",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12259:AGZWIBCIV2JFPFPVI3OXSQJORRKA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12925:AFDQXJSNG4VTICQ3RQDWOK54NAPA",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12943:AGSZCL6RF3AEXOL3JO2PHBSFN27A",
+          "Greatest Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13041:AFDQXJSNG4VTICQ3RQDWOK54NAPA",
+          "Hits",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13048:AFXA3LLBZVIZD2HRIOX7QVEYT3SQ",
+          "Live",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:13263:AFHXMZMS5KZ6U3YGQAMLEO53VCZA",
+          "Greatest Hits",
+          "api"
+        ]
+      ]
+    },
+    "non_generic_target_title_phrase_in_cot_not_history": {
+      "count": 0,
+      "examples": []
+    },
+    "non_generic_target_title_phrase_in_answer_not_history": {
+      "count": 0,
+      "examples": []
+    },
+    "target_artist_phrase_or_variant_in_cot_not_history": {
+      "count": 2,
+      "examples": [
+        [
+          "CDs_and_Vinyl:test:12892:AF2TAPJ6LGJVKGYLDRYKCHU7BKNA",
+          "Now",
+          "Jessica Andrews",
+          "api"
+        ],
+        [
+          "CDs_and_Vinyl:test:12895:AF2TAPJ6LGJVKGYLDRYKCHU7BKNA",
+          "Paradise & Lunch",
+          "Ry Cooder",
+          "api"
+        ]
+      ]
+    },
+    "target_artist_phrase_or_variant_in_answer_not_history": {
+      "count": 0,
+      "examples": []
+    },
+    "manual_fill_rows": {
+      "count": 1,
+      "examples": [
+        [
+          "CDs_and_Vinyl:test:13230:AE6UBRZCH2U4UYYFUS7WTSBNXXGQ",
+          "Peace Sells...But Who's Buying Explicit Lyrics",
+          "Hard rock or heavy metal vinyl LP featuring aggressive guitar riffs, intense vocals, rhythmic shifts, and compact studio-album sequencing."
+        ]
+      ]
+    },
+    "target_artist_token_set_in_cot_not_history_order_insensitive": {
+      "count": 0,
+      "examples": []
+    },
+    "target_artist_token_set_in_answer_not_history_order_insensitive": {
+      "count": 0,
+      "examples": []
+    }
+  },
+  "cot_meta": {
+    "generation_mode_counts": {
+      "api": 1340,
+      "manual_fill": 1
+    },
+    "generator_model_counts": {
+      "glm-4.7": 1340,
+      "manual-glm47-compatible": 1
+    },
+    "rows_missing_tag_blocks": 0
+  },
+  "eval_result_configs": [
+    {
+      "file": "checkpoint-42_test.json",
+      "evaluated": 1341,
+      "num_items": 12001,
+      "query_mode": "history_plus_cot",
+      "cot_queries": 1341,
+      "require_cot": true,
+      "examples": "cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "metrics": {
+        "HR@5": 0.06785980611483967,
+        "HR@10": 0.11782252050708426,
+        "HR@20": 0.15883668903803133,
+        "NDCG@5": 0.03561344114370523,
+        "NDCG@10": 0.051757852491214985,
+        "NDCG@20": 0.06218181787615885
+      }
+    },
+    {
+      "file": "checkpoint-84_test.json",
+      "evaluated": 1341,
+      "num_items": 12001,
+      "query_mode": "history_plus_cot",
+      "cot_queries": 1341,
+      "require_cot": true,
+      "examples": "cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "metrics": {
+        "HR@5": 0.07606263982102908,
+        "HR@10": 0.12527964205816555,
+        "HR@20": 0.1662938105891126,
+        "NDCG@5": 0.03930583868138874,
+        "NDCG@10": 0.055260719954684255,
+        "NDCG@20": 0.06570460001926046
+      }
+    },
+    {
+      "file": "checkpoint-126_test.json",
+      "evaluated": 1341,
+      "num_items": 12001,
+      "query_mode": "history_plus_cot",
+      "cot_queries": 1341,
+      "require_cot": true,
+      "examples": "cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "metrics": {
+        "HR@5": 0.07680835197613721,
+        "HR@10": 0.1267710663683818,
+        "HR@20": 0.16778523489932887,
+        "NDCG@5": 0.03963718106903601,
+        "NDCG@10": 0.05578860422586954,
+        "NDCG@20": 0.06626676753752055
+      }
+    },
+    {
+      "file": "checkpoint-168_test.json",
+      "evaluated": 1341,
+      "num_items": 12001,
+      "query_mode": "history_plus_cot",
+      "cot_queries": 1341,
+      "require_cot": true,
+      "examples": "cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "metrics": {
+        "HR@5": 0.07680835197613721,
+        "HR@10": 0.12826249067859807,
+        "HR@20": 0.17002237136465326,
+        "NDCG@5": 0.03966945717037363,
+        "NDCG@10": 0.05630139794350206,
+        "NDCG@20": 0.06693487218803167
+      }
+    },
+    {
+      "file": "checkpoint-210_test.json",
+      "evaluated": 1341,
+      "num_items": 12001,
+      "query_mode": "history_plus_cot",
+      "cot_queries": 1341,
+      "require_cot": true,
+      "examples": "cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
+      "metrics": {
+        "HR@5": 0.07457121551081283,
+        "HR@10": 0.12602535421327368,
+        "HR@20": 0.16927665920954513,
+        "NDCG@5": 0.03898159890874311,
+        "NDCG@10": 0.05574209950676627,
+        "NDCG@20": 0.06680625487709055
+      }
+    }
+  ],
+  "impact_upper_bounds": {
+    "all_title_phrase_in_cot_max_hr_or_ndcg_contribution": 0.013422818791946308,
+    "title_phrase_in_answer_max_hr_or_ndcg_contribution": 0.005219985085756898,
+    "non_generic_title_in_cot_not_history_max_contribution": 0.0,
+    "artist_phrase_in_cot_not_history_max_contribution": 0.0014914243102162564
+  },
+  "conclusion": {
+    "direct_target_field_leakage_found": false,
+    "high_confidence_reasons": [
+      "evaluation query construction uses user_history plus selected CoT only; target_item_text and target_item_title are not read for query construction",
+      "CoT generation prompt is built from row.user_history and category only",
+      "target item id, target ASIN, and full target_item_text never appear in the evaluated query text",
+      "train and test example_id/interaction_id overlap is zero",
+      "non-generic target title newly appearing in CoT or answer is zero",
+      "order-insensitive target artist token set newly appearing in CoT or answer is zero"
+    ],
+    "remaining_protocol_risks": [
+      "seen item mask is not applied, which adds history items as distractors and can depress metrics rather than leak target identity",
+      "generic title phrases such as Greatest Hits, Gold, Live, and Hits appear naturally in histories and model outputs; report exact title overlap separately in experiments"
+    ]
+  }
+}

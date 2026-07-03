@@ -23,6 +23,10 @@ EMBEDDING_MAX_LENGTH=${EMBEDDING_MAX_LENGTH:-2048}
 EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-8}
 EMBEDDING_TORCH_DTYPE=${EMBEDDING_TORCH_DTYPE:-bfloat16}
 EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cuda:0}
+EVAL_QUERY_MODE=${EVAL_QUERY_MODE:-rebuild_history}
+EVAL_COT_TEXT_MODE=${EVAL_COT_TEXT_MODE:-tagged}
+EVAL_CANDIDATE_INDEX=${EVAL_CANDIDATE_INDEX:-0}
+EVAL_REQUIRE_COT=${EVAL_REQUIRE_COT:-0}
 KS=${KS:-5,10,20}
 EVAL_OUT=${EVAL_OUT:-}
 
@@ -67,6 +71,15 @@ echo "SPLIT=$SPLIT"
 echo "MAX_EXAMPLES=$MAX_EXAMPLES"
 echo "EVAL_OUT=$EVAL_OUT"
 echo "EMBEDDING_DEVICE=$EMBEDDING_DEVICE"
+echo "EVAL_QUERY_MODE=$EVAL_QUERY_MODE"
+echo "EVAL_COT_TEXT_MODE=$EVAL_COT_TEXT_MODE"
+echo "EVAL_CANDIDATE_INDEX=$EVAL_CANDIDATE_INDEX"
+echo "EVAL_REQUIRE_COT=$EVAL_REQUIRE_COT"
+
+require_cot_arg="--no-require-cot"
+if [[ "$EVAL_REQUIRE_COT" == "1" || "$EVAL_REQUIRE_COT" == "true" ]]; then
+  require_cot_arg="--require-cot"
+fi
 
 "$PYTHON_BIN" scripts/eval/evaluate_rrec_jsonl_fullset.py \
   --examples "$EVAL_EXAMPLES" \
@@ -74,6 +87,10 @@ echo "EMBEDDING_DEVICE=$EMBEDDING_DEVICE"
   --category "$CATEGORY" \
   --split "$SPLIT" \
   --max-examples "$MAX_EXAMPLES" \
+  --query-mode "$EVAL_QUERY_MODE" \
+  --cot-text-mode "$EVAL_COT_TEXT_MODE" \
+  --candidate-index "$EVAL_CANDIDATE_INDEX" \
+  "$require_cot_arg" \
   --ks "$KS" \
   --scorer qwen3_embedding \
   --embedding-model "$QWEN3_EMBEDDING_MODEL" \

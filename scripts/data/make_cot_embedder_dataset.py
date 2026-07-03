@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from rubric_cot_pipeline.embeddings import append_recommendation_reasoning
 from rubric_cot_pipeline.io import read_jsonl, write_jsonl
 
+TRUNCATION_MARKER = "[TRUNCATED]"
+
 
 def compact(text: Any, max_chars: int) -> str:
     text = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -23,7 +25,7 @@ def compact(text: Any, max_chars: int) -> str:
     return text[: max_chars - 15].rstrip() + " [TRUNCATED]"
 
 
-def as_text_list(value: Any, limit: int = 8) -> list[str]:
+def as_text_list(value: Any, limit: int = 8, max_chars: int = 500) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
@@ -31,13 +33,13 @@ def as_text_list(value: Any, limit: int = 8) -> list[str]:
     if isinstance(value, (list, tuple)):
         out = []
         for item in value:
-            text = compact(item, 500)
+            text = compact(item, max_chars)
             if text:
                 out.append(text)
             if len(out) >= limit:
                 break
         return out
-    return [compact(value, 500)]
+    return [compact(value, max_chars)]
 
 
 def build_item_text(item: dict[str, Any] | None, title: str, max_chars: int) -> str:
@@ -45,17 +47,19 @@ def build_item_text(item: dict[str, Any] | None, title: str, max_chars: int) -> 
         return compact(title, max_chars)
 
     parts: list[str] = []
+    field_max_chars = 0 if max_chars <= 0 else 300
+    list_item_max_chars = 0 if max_chars <= 0 else 500
     for key in ("title", "main_category", "store"):
-        value = compact(item.get(key), 300)
+        value = compact(item.get(key), field_max_chars)
         if value:
             parts.append(value)
-    categories = " > ".join(as_text_list(item.get("categories"), limit=6))
+    categories = " > ".join(as_text_list(item.get("categories"), limit=6, max_chars=list_item_max_chars))
     if categories:
         parts.append(f"Categories: {categories}")
-    features = "; ".join(as_text_list(item.get("features"), limit=8))
+    features = "; ".join(as_text_list(item.get("features"), limit=8, max_chars=list_item_max_chars))
     if features:
         parts.append(f"Features: {features}")
-    description = " ".join(as_text_list(item.get("description"), limit=2))
+    description = " ".join(as_text_list(item.get("description"), limit=2, max_chars=list_item_max_chars))
     if description:
         parts.append(f"Description: {description}")
     if not parts:
@@ -159,7 +163,7 @@ def row_key(row: dict[str, Any]) -> str:
 
 def target_text(row: dict[str, Any], item_map: dict[int, dict[str, Any]], max_item_chars: int) -> str:
     text = str(row.get("target_item_text") or row.get("positive") or "").strip()
-    if text:
+    if text and TRUNCATION_MARKER not in text:
         return text
     title = str(row.get("target_item_title") or row.get("item_title") or "").strip()
     target_id = row.get("target_item_id", row.get("item_id"))
@@ -167,7 +171,8 @@ def target_text(row: dict[str, Any], item_map: dict[int, dict[str, Any]], max_it
         item = item_map.get(int(target_id))
     except Exception:
         item = None
-    return build_item_text(item, title, max_item_chars)
+    rebuilt = build_item_text(item, title, max_item_chars)
+    return rebuilt or text
 
 
 def selected_candidates(row: dict[str, Any], candidate_index: int) -> list[dict[str, Any]]:
@@ -190,7 +195,12 @@ def main() -> None:
     parser.add_argument("--candidate-index", type=int, default=0)
     parser.add_argument("--cot-text-mode", choices=["answer", "think", "tagged", "full"], default="answer")
     parser.add_argument("--max-cot-chars", type=int, default=1200)
-    parser.add_argument("--max-item-chars", type=int, default=1400)
+    parser.add_argument(
+        "--max-item-chars",
+        type=int,
+        default=0,
+        help="Maximum positive/negative item text characters; 0 keeps full item text.",
+    )
     parser.add_argument("--include-history", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--include-cot", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--negative-sampling", choices=["none", "random_unseen"], default="none")

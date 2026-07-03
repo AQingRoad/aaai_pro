@@ -34,17 +34,26 @@ OUTPUT=${OUTPUT:-$OUT_DIR/cot_candidate_lists_glm47_low_one_train.jsonl}
 API_PROVIDER=${API_PROVIDER:-glm_codeplan}
 API_BASE_URL=${API_BASE_URL:-https://open.bigmodel.cn/api/coding/paas/v4}
 API_MODEL=${API_MODEL:-glm-4.7}
-API_THINKING=${API_THINKING:-enabled}
-API_REASONING_EFFORT=${API_REASONING_EFFORT:-low}
+API_THINKING=${API_THINKING:-disabled}
+API_REASONING_EFFORT=${API_REASONING_EFFORT:-}
+COT_OUTPUT_FORMAT=${COT_OUTPUT_FORMAT:-tagged}
+MAX_OUTPUT_WORDS=${MAX_OUTPUT_WORDS:-1024}
+RATING_CONTEXT=${RATING_CONTEXT:-rating}
+MIN_ANSWER_WORDS=${MIN_ANSWER_WORDS:-0}
+MAX_ANSWER_WORDS=${MAX_ANSWER_WORDS:-0}
+RECORD_API_RAW=${RECORD_API_RAW:-0}
+REQUIRE_LITERAL_TAGS=${REQUIRE_LITERAL_TAGS:-0}
 API_TIMEOUT=${API_TIMEOUT:-300}
 API_MAX_RETRIES=${API_MAX_RETRIES:-3}
 API_MIN_INTERVAL=${API_MIN_INTERVAL:-0.2}
 MAX_WORKERS=${MAX_WORKERS:-8}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-2048}
-MAX_PROMPT_TOKENS=${MAX_PROMPT_TOKENS:-2048}
 MAX_HISTORY_ITEMS=${MAX_HISTORY_ITEMS:-20}
 HISTORY_METADATA_MODE=${HISTORY_METADATA_MODE:-none}
 HISTORY_MAX_ITEM_CHARS=${HISTORY_MAX_ITEM_CHARS:-320}
+HISTORY_INCLUDE_RATINGS=${HISTORY_INCLUDE_RATINGS:-1}
+HISTORY_INCLUDE_CATALOG_STATS=${HISTORY_INCLUDE_CATALOG_STATS:-1}
+STRIP_RATING_FIELDS=${STRIP_RATING_FIELDS:-0}
 ITEM_METADATA_SUMMARY=${ITEM_METADATA_SUMMARY:-}
 TOP_P=${TOP_P:-0.9}
 TEMPERATURES=${TEMPERATURES:-0.6}
@@ -96,6 +105,37 @@ if [[ -n "$VENV" ]]; then
 fi
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 
+history_include_rating_args=()
+history_include_ratings_lc="$(printf '%s' "$HISTORY_INCLUDE_RATINGS" | tr '[:upper:]' '[:lower:]')"
+case "$history_include_ratings_lc" in
+  0|false|no|off)
+    history_include_rating_args+=(--no-history-include-ratings)
+    ;;
+  *)
+    history_include_rating_args+=(--history-include-ratings)
+    ;;
+esac
+history_include_catalog_stats_args=()
+history_include_catalog_stats_lc="$(printf '%s' "$HISTORY_INCLUDE_CATALOG_STATS" | tr '[:upper:]' '[:lower:]')"
+case "$history_include_catalog_stats_lc" in
+  0|false|no|off)
+    history_include_catalog_stats_args+=(--no-history-include-catalog-stats)
+    ;;
+  *)
+    history_include_catalog_stats_args+=(--history-include-catalog-stats)
+    ;;
+esac
+strip_rating_fields_args=()
+strip_rating_fields_lc="$(printf '%s' "$STRIP_RATING_FIELDS" | tr '[:upper:]' '[:lower:]')"
+case "$strip_rating_fields_lc" in
+  1|true|yes|on)
+    strip_rating_fields_args+=(--strip-rating-fields)
+    ;;
+  *)
+    strip_rating_fields_args+=(--no-strip-rating-fields)
+    ;;
+esac
+
 if [[ ! -s "$EXAMPLES_FILE" ]]; then
   rrec_dataset_dir="$RREC_DATA_ROOT/${CATEGORY}_0_2022-10-2023-10"
   if [[ -d "$rrec_dataset_dir" ]]; then
@@ -109,7 +149,10 @@ if [[ ! -s "$EXAMPLES_FILE" ]]; then
       --max-history-items "$MAX_HISTORY_ITEMS" \
       --history-metadata-mode "$HISTORY_METADATA_MODE" \
       --history-max-item-chars "$HISTORY_MAX_ITEM_CHARS" \
-      --item-summary "$ITEM_METADATA_SUMMARY"
+      --item-summary "$ITEM_METADATA_SUMMARY" \
+      "${history_include_rating_args[@]}" \
+      "${history_include_catalog_stats_args[@]}" \
+      "${strip_rating_fields_args[@]}"
   else
     require_file "phase0 train dataset" "$PHASE0_DATASET"
     echo "Converting phase0 train dataset -> $EXAMPLES_FILE"
@@ -157,9 +200,44 @@ fi
 
 require_file "train examples" "$EXAMPLES_FILE"
 
+answer_words_label="$MIN_ANSWER_WORDS-$MAX_ANSWER_WORDS"
+if [[ "$MIN_ANSWER_WORDS" == "0" && "$MAX_ANSWER_WORDS" == "0" ]]; then
+  answer_words_label="disabled"
+fi
+
+record_api_raw_args=()
+record_api_raw_lc="$(printf '%s' "$RECORD_API_RAW" | tr '[:upper:]' '[:lower:]')"
+case "$record_api_raw_lc" in
+  1|true|yes|on)
+    record_api_raw_args+=(--record-api-raw)
+    ;;
+  *)
+    record_api_raw_args+=(--no-record-api-raw)
+    ;;
+esac
+require_literal_tags_args=()
+require_literal_tags_lc="$(printf '%s' "$REQUIRE_LITERAL_TAGS" | tr '[:upper:]' '[:lower:]')"
+case "$require_literal_tags_lc" in
+  1|true|yes|on)
+    require_literal_tags_args+=(--require-literal-tags)
+    ;;
+  *)
+    require_literal_tags_args+=(--no-require-literal-tags)
+    ;;
+esac
+
 echo "Generating one CoT candidate per train example"
 echo "  model:        $API_MODEL"
-echo "  effort:       $API_REASONING_EFFORT"
+echo "  thinking:     $API_THINKING"
+echo "  output_mode:  $COT_OUTPUT_FORMAT"
+echo "  max_words:    $MAX_OUTPUT_WORDS"
+echo "  rating_ctx:   $RATING_CONTEXT"
+echo "  answer_words: $answer_words_label"
+echo "  record_raw:   $RECORD_API_RAW"
+echo "  literal_tags: $REQUIRE_LITERAL_TAGS"
+echo "  hist_rating:  $HISTORY_INCLUDE_RATINGS"
+echo "  catalog_stat: $HISTORY_INCLUDE_CATALOG_STATS"
+echo "  strip_rating: $STRIP_RATING_FIELDS"
 echo "  examples:     $EXAMPLES_FILE"
 echo "  output:       $OUTPUT"
 echo "  max_workers:  $MAX_WORKERS"
@@ -182,8 +260,14 @@ echo "  max_examples: $MAX_EXAMPLES"
   --api-min-interval "$API_MIN_INTERVAL" \
   --api-thinking "$API_THINKING" \
   --api-reasoning-effort "$API_REASONING_EFFORT" \
+  --cot-output-format "$COT_OUTPUT_FORMAT" \
+  --max-output-words "$MAX_OUTPUT_WORDS" \
+  --rating-context "$RATING_CONTEXT" \
+  --min-answer-words "$MIN_ANSWER_WORDS" \
+  --max-answer-words "$MAX_ANSWER_WORDS" \
+  "${record_api_raw_args[@]}" \
+  "${require_literal_tags_args[@]}" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
-  --max-prompt-tokens "$MAX_PROMPT_TOKENS" \
   --top-p "$TOP_P"
 
 echo "Done: $OUTPUT"

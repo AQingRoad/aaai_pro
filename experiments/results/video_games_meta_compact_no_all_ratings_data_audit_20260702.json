@@ -1,0 +1,425 @@
+{
+  "category": "Video_Games",
+  "files": {
+    "train": {
+      "path": "data/rrec_amazon/Video_Games/examples_meta_compact_no_all_ratings.jsonl",
+      "rows": 68252,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 157,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 184,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": [
+        {
+          "example_id": "Video_Games:train:44:AFGKQM76K7AQIVNQT7TK327F3OQQ",
+          "target_item_id": 3666,
+          "target_item_asin": "B0009VXBAQ",
+          "target_item_title": "Wii",
+          "history_item_ids": [
+            8081,
+            9923,
+            5171,
+            6674,
+            8231
+          ],
+          "history_item_asins": [
+            "B0017ZK7PA",
+            "B000KUHR8S",
+            "B000R3BNE2",
+            "B000LSJKAM",
+            "B000FQ9QVI"
+          ]
+        },
+        {
+          "example_id": "Video_Games:train:51:AGHYAIAIYSSYTGNF3O57HORE2ACA",
+          "target_item_id": 9895,
+          "target_item_asin": "B004EVWYYG",
+          "target_item_title": "Pokemon White Version",
+          "history_item_ids": [
+            4656,
+            1999,
+            6151
+          ],
+          "history_item_asins": [
+            "B0053B5RGI",
+            "B0050SVNP8",
+            "B008GEH8LQ"
+          ]
+        },
+        {
+          "example_id": "Video_Games:train:59:AEM26WP52PFRV3LSCXDWHNM677LQ",
+          "target_item_id": 4404,
+          "target_item_asin": "B001EYUTPM",
+          "target_item_title": "NBA Jam",
+          "history_item_ids": [
+            6967,
+            2305
+          ],
+          "history_item_asins": [
+            "B00004SVY8",
+            "B001EYUTQQ"
+          ]
+        },
+        {
+          "example_id": "Video_Games:train:217:AFYIYMAPADWROV6H6QMQUUL5S2QA",
+          "target_item_id": 137,
+          "target_item_asin": "B00149TZ66",
+          "target_item_title": "Harvest Moon: Island of Happiness",
+          "history_item_ids": [
+            8738,
+            3107,
+            6294
+          ],
+          "history_item_asins": [
+            "B001D8PFIK",
+            "B003L5B0IM",
+            "B002HJUX7C"
+          ]
+        },
+        {
+          "example_id": "Video_Games:train:300:AEGLLR6ODMZAXXYCKNNUDSE7SSOA",
+          "target_item_id": 435,
+          "target_item_asin": "B00002ST28",
+          "target_item_title": "Super Mario Land",
+          "history_item_ids": [
+            7432,
+            5468
+          ],
+          "history_item_asins": [
+            "B001AMMZU0",
+            "B00002ST27"
+          ]
+        }
+      ]
+    },
+    "valid": {
+      "path": "data/rrec_amazon/Video_Games/examples_meta_compact_no_all_ratings_valid.jsonl",
+      "rows": 8531,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 99,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 29,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": [
+        {
+          "example_id": "Video_Games:valid:68777:AGCBJGBAZLC7SM6PN3H4HUYOYKYA",
+          "target_item_id": 7507,
+          "target_item_asin": "B00017X22U",
+          "target_item_title": "R-Type Final",
+          "history_item_ids": [
+            1742,
+            6669,
+            3871,
+            887,
+            2220,
+            5492
+          ],
+          "history_item_asins": [
+            "B06XHVJY3T",
+            "B01GY35QPU",
+            "B08MBMBVJX",
+            "B08LRT6V9V",
+            "B09DNT3FCC",
+            "B0941XMYPV"
+          ]
+        },
+        {
+          "example_id": "Video_Games:valid:69020:AGN7GJPFZS6TESNQIVSHJLV5K26A",
+          "target_item_id": 9768,
+          "target_item_asin": "B0000C7GHG",
+          "target_item_title": "PlayStation 2",
+          "history_item_ids": [
+            8906,
+            8308,
+            9185,
+            419,
+            3114,
+            8504,
+            2248,
+            5775,
+            2667,
+            6095,
+            1143,
+            315,
+            2174,
+            7824
+          ],
+          "history_item_asins": [
+            "B00000IWYT",
+            "B00005MA97",
+            "B001TOQ8UW",
+            "B001ELJDUC",
+            "B07V693FF7",
+            "B01L1P49OA",
+            "B001EYUNJE",
+            "B00001QER9",
+            "B004HILZX2",
+            "B001EYUY3Y",
+            "B00006LEM5",
+            "B08LRLTZB3",
+            "B001EYUY70",
+            "B00000I1BE"
+          ]
+        },
+        {
+          "example_id": "Video_Games:valid:69608:AFO5FIZ3RI55LOSXOLTHIFZHGCJA",
+          "target_item_id": 116,
+          "target_item_asin": "B000IN0BSU",
+          "target_item_title": "Wii Classic Controller",
+          "history_item_ids": [
+            10011,
+            5597,
+            2131,
+            9066,
+            4098,
+            6487,
+            6645,
+            684,
+            371,
+            989,
+            1700,
+            1005,
+            6682,
+            4792,
+            678,
+            1794,
+            9516,
+            282,
+            3671,
+            3765
+          ],
+          "history_item_asins": [
+            "B000ZKBJYG",
+            "B01N5SXZ4K",
+            "B07K79ZSJC",
+            "B001DJ3GTO",
+            "B00DDIRERI",
+            "B00005O0I3",
+            "B0000AI1KE",
+            "B00COFV68E",
+            "B00OA306WU",
+            "B00HM1XPN4",
+            "B002LLRLMQ",
+            "B001G6061U",
+            "B08MBKGJVY",
+            "B07N2Z9VZX",
+            "B005UUOA3I",
+            "B001EYUQRI",
+            "B00117PPME",
+            "B07KRWJCQW",
+            "B006VR663G",
+            "B003BLUA64"
+          ]
+        },
+        {
+          "example_id": "Video_Games:valid:70016:AF5B3WCZBOD72UHNCY5IKEBCD3ZQ",
+          "target_item_id": 9240,
+          "target_item_asin": "B001EYUXZI",
+          "target_item_title": "The Sims",
+          "history_item_ids": [
+            2359,
+            8520,
+            4807,
+            2687,
+            7192,
+            935
+          ],
+          "history_item_asins": [
+            "B07NRHR43N",
+            "B07RXXMPXT",
+            "B08TM4T3NS",
+            "B00XH1FV3A",
+            "B0018RYC9Y",
+            "B003L20IPQ"
+          ]
+        },
+        {
+          "example_id": "Video_Games:valid:70162:AERAJ7TONOATQAN3UKTVTDA4OUQA",
+          "target_item_id": 9768,
+          "target_item_asin": "B0000C7GHG",
+          "target_item_title": "PlayStation 2",
+          "history_item_ids": [
+            7040
+          ],
+          "history_item_asins": [
+            "B07R1T4PLM"
+          ]
+        }
+      ]
+    },
+    "test": {
+      "path": "data/rrec_amazon/Video_Games/examples_meta_compact_no_all_ratings_test.jsonl",
+      "rows": 8532,
+      "wrong_split": 0,
+      "rating_fields_present": 0,
+      "star_rating_template_in_user_history": 0,
+      "catalog_stats_in_user_history": 0,
+      "raw_asin_token_in_user_history": 0,
+      "asin_redacted_marker_in_user_history": 80,
+      "target_id_in_history_item_ids": 0,
+      "target_asin_in_history_item_asins": 0,
+      "target_asin_in_user_history": 0,
+      "full_target_text_substring_in_user_history": 0,
+      "target_title_exact_in_user_history": 20,
+      "missing_target_item_text": 0,
+      "missing_user_history": 0,
+      "max_history_item_count": 20,
+      "samples_target_title_exact_in_user_history": [
+        {
+          "example_id": "Video_Games:test:77345:AFK6O63ELVM53AQOJAJYOYUIH45A",
+          "target_item_id": 1640,
+          "target_item_asin": "B06Y2GDXMC",
+          "target_item_title": "HTC Vive Deluxe Audio Strap",
+          "history_item_ids": [
+            6042,
+            360,
+            318,
+            3127,
+            2361,
+            1695,
+            8564,
+            5694,
+            2526,
+            8366,
+            6133
+          ],
+          "history_item_asins": [
+            "B0BZ3LNGXC",
+            "B0997Y1LWH",
+            "B0B6H9M492",
+            "B0BXKJ4FTC",
+            "B0BXP879GV",
+            "B08P1N8LDQ",
+            "B083TDHQH7",
+            "B081SHD773",
+            "B0B1V9BFV5",
+            "B09FJJPY99",
+            "B093BQ688H"
+          ]
+        },
+        {
+          "example_id": "Video_Games:test:77881:AE6O3TZ5SNXSXUC5HKKXYIVKNJUA",
+          "target_item_id": 1262,
+          "target_item_asin": "B0C1K1R6HK",
+          "target_item_title": "Xbox Series X",
+          "history_item_ids": [
+            809,
+            2237,
+            5053,
+            9886,
+            8923,
+            7122
+          ],
+          "history_item_asins": [
+            "B08TG138F1",
+            "B07ZJ6RY1W",
+            "B000N5Z2L4",
+            "B0CCZWKKV3",
+            "B095T8C99C",
+            "B07VGRJDFY"
+          ]
+        },
+        {
+          "example_id": "Video_Games:test:77941:AHP2ZFO5XTXZDWNT2YJDXZQNZ4QA",
+          "target_item_id": 7039,
+          "target_item_asin": "B07624RBWB",
+          "target_item_title": "Nintendo Switch Pro Controller",
+          "history_item_ids": [
+            1606,
+            3381,
+            5426,
+            597,
+            813,
+            2843,
+            2119,
+            6410,
+            6915,
+            132,
+            9392,
+            2025,
+            4352,
+            5017,
+            6078,
+            660,
+            5977,
+            6268,
+            3065,
+            3391
+          ],
+          "history_item_asins": [
+            "B087SHFL9B",
+            "B099M4RSVG",
+            "B0979ZHC5B",
+            "B097B8PBL5",
+            "B07PYY5RFY",
+            "B09R4K5ZTZ",
+            "B087NN2K41",
+            "B08JHX17ZZ",
+            "B09D96QX61",
+            "B09QTCLJ9T",
+            "B07GW3YK17",
+            "B07D3JSZ8F",
+            "B09WBQQ6XT",
+            "B09B1L53CB",
+            "B08F97Q8HS",
+            "B08N7VJBH6",
+            "B07VJPKYKP",
+            "B06XS4XXFT",
+            "B0C6BLYZYF",
+            "B0B784X5HB"
+          ]
+        },
+        {
+          "example_id": "Video_Games:test:78251:AFDZQDHS3AS2O6DE3OMMYU2GHMYA",
+          "target_item_id": 5535,
+          "target_item_asin": "B07H9MH4HC",
+          "target_item_title": "The Golf Club 2019 Featuring PGA Tour - PlayStation 4",
+          "history_item_ids": [
+            283
+          ],
+          "history_item_asins": [
+            "B088PN83MZ"
+          ]
+        },
+        {
+          "example_id": "Video_Games:test:78473:AHIDV4UEIWX3DESZLZBAMAPT2QUQ",
+          "target_item_id": 1262,
+          "target_item_asin": "B0C1K1R6HK",
+          "target_item_title": "Xbox Series X",
+          "history_item_ids": [
+            1989
+          ],
+          "history_item_asins": [
+            "B09HTJV7NG"
+          ]
+        }
+      ]
+    }
+  },
+  "cross_split": {
+    "train_valid_example_id_overlap": 0,
+    "train_valid_interaction_id_overlap": 0,
+    "test_train_example_id_overlap": 0,
+    "test_train_interaction_id_overlap": 0,
+    "test_valid_example_id_overlap": 0,
+    "test_valid_interaction_id_overlap": 0
+  }
+}

@@ -426,7 +426,7 @@ python scripts/data/make_phase0_embedder_dataset_from_examples.py \
   --max-history-items 20 \
   --history-metadata-mode summary \
   --history-max-item-chars 0 \
-  --max-target-chars 1800
+  --max-target-chars 0
 ```
 
 再训练 embedding。下面命令使用 8 卡，per-GPU batch 为 32，全局 batch 为 256，

@@ -92,11 +92,16 @@ def rewrite_row(
         metadata_mode=args.history_metadata_mode,
         max_item_chars=args.history_max_item_chars,
         summary_map=summary_map,
+        include_ratings=args.history_include_ratings,
+        include_catalog_stats=args.history_include_catalog_stats,
     )
     out["user_history"] = rewritten_history
     out["query"] = rewritten_history
     out["history_metadata_mode"] = args.history_metadata_mode
     out["history_max_item_chars"] = args.history_max_item_chars
+    if args.strip_rating_fields:
+        for key in ("target_rating", "history_rating", "history_ratings", "rating"):
+            out.pop(key, None)
     if args.item_summary:
         out["item_summary_source"] = args.item_summary
     return out
@@ -117,6 +122,9 @@ def main() -> None:
         default="summary",
     )
     parser.add_argument("--history-max-item-chars", type=int, default=420)
+    parser.add_argument("--history-include-ratings", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--history-include-catalog-stats", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--strip-rating-fields", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
     item_map = build_item_map(read_jsonl(args.item_info))
@@ -133,6 +141,9 @@ def main() -> None:
         "item_summary": args.item_summary,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
+        "history_include_ratings": args.history_include_ratings,
+        "history_include_catalog_stats": args.history_include_catalog_stats,
+        "strip_rating_fields": args.strip_rating_fields,
         "written": count,
         "summary_items": len(summary_map),
     }

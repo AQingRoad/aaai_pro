@@ -15,7 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import torch
 
-from rubric_cot_pipeline.embeddings import DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION, Qwen3TextEmbedder
+from rubric_cot_pipeline.embeddings import (
+    DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION,
+    Qwen3TextEmbedder,
+    append_recommendation_reasoning,
+)
 from rubric_cot_pipeline.io import read_jsonl
 from rubric_cot_pipeline.item_metadata import build_item_summary_map
 from rubric_cot_pipeline.item_metadata import build_item_text as metadata_build_item_text
@@ -94,6 +98,92 @@ def history_text(category: str, titles: list[str], ratings: list[float], max_his
     )
 
 
+def candidate_text(candidate: dict[str, Any], mode: str) -> str:
+    think = str(candidate.get("think") or "").strip()
+    answer = str(candidate.get("answer") or "").strip()
+    cot = str(candidate.get("cot") or "").strip()
+    if mode == "answer":
+        return answer or cot or think
+    if mode == "think":
+        return think or cot or answer
+    if mode == "tagged":
+        if think and answer:
+            return f"<think>\n{think}\n</think>\n<answer>\n{answer}\n</answer>"
+        return cot or answer or think
+    if mode == "full":
+        return cot or candidate_text(candidate, "tagged")
+    raise ValueError(f"Unsupported cot text mode: {mode}")
+
+
+def selected_candidate(row: dict[str, Any], candidate_index: int) -> dict[str, Any] | None:
+    candidates = row.get("candidates")
+    if isinstance(candidates, list):
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            try:
+                index = int(candidate.get("candidate_index", -1))
+            except (TypeError, ValueError):
+                index = -1
+            if index == candidate_index:
+                return candidate
+        return None
+    if any(key in row for key in ("think", "answer", "cot")):
+        return row
+    return None
+
+
+def row_target_id(row: dict[str, Any]) -> int:
+    for key in ("item_id", "target_item_id"):
+        value = row.get(key)
+        if value is not None:
+            return int(value)
+    raise KeyError("row must contain item_id or target_item_id")
+
+
+def row_history_item_ids(row: dict[str, Any]) -> list[int]:
+    return [int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])]
+
+
+def build_rebuilt_history_query(row: dict[str, Any], args: argparse.Namespace, item_map: dict[int, dict[str, Any]], summary_map: dict[int, str]) -> str:
+    return metadata_history_text(
+        args.category,
+        [str(x) for x in row.get("history_item_title", [])],
+        [float(x) for x in row.get("history_rating", [])],
+        args.max_history_items,
+        item_ids=row_history_item_ids(row),
+        item_map=item_map,
+        metadata_mode=args.history_metadata_mode,
+        max_item_chars=args.history_max_item_chars,
+        summary_map=summary_map,
+    )
+
+
+def build_query(
+    row: dict[str, Any],
+    args: argparse.Namespace,
+    item_map: dict[int, dict[str, Any]],
+    summary_map: dict[int, str],
+) -> tuple[str, bool]:
+    rebuilt = None
+    if args.query_mode == "rebuild_history":
+        return build_rebuilt_history_query(row, args, item_map, summary_map), False
+
+    history = str(row.get("user_history") or row.get("query") or "").strip()
+    if not history:
+        rebuilt = build_rebuilt_history_query(row, args, item_map, summary_map)
+        history = rebuilt
+
+    if args.query_mode == "user_history":
+        return history, False
+
+    candidate = selected_candidate(row, args.candidate_index)
+    cot = candidate_text(candidate, args.cot_text_mode) if candidate else ""
+    if args.require_cot and not cot:
+        raise ValueError(f"Missing CoT candidate for example {row.get('example_id') or row.get('interaction_id')}")
+    return append_recommendation_reasoning(history, cot), bool(cot)
+
+
 def counts(text: str) -> Counter[str]:
     return Counter(WORD_RE.findall((text or "").lower()))
 
@@ -168,6 +258,15 @@ def main() -> None:
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
     parser.add_argument("--item-summary", default=os.getenv("ITEM_METADATA_SUMMARY", ""))
+    parser.add_argument(
+        "--query-mode",
+        choices=["rebuild_history", "user_history", "history_plus_cot"],
+        default=os.getenv("EVAL_QUERY_MODE", "rebuild_history"),
+        help="rebuild_history preserves the original RRec eval path; user_history uses row.user_history; history_plus_cot appends the selected generated CoT.",
+    )
+    parser.add_argument("--cot-text-mode", choices=["answer", "think", "tagged", "full"], default=os.getenv("EVAL_COT_TEXT_MODE", "tagged"))
+    parser.add_argument("--candidate-index", type=int, default=int(os.getenv("EVAL_CANDIDATE_INDEX", "0")))
+    parser.add_argument("--require-cot", action=argparse.BooleanOptionalAction, default=os.getenv("EVAL_REQUIRE_COT", "0").lower() in {"1", "true", "yes", "on"})
     parser.add_argument("--ks", default="5,10,20")
     parser.add_argument("--scorer", choices=["lexical", "qwen3_embedding"], default="qwen3_embedding")
     parser.add_argument("--embedding-model", default="")
@@ -220,19 +319,12 @@ def main() -> None:
 
     totals = {f"HR@{k}": 0.0 for k in ks} | {f"NDCG@{k}": 0.0 for k in ks}
     ranks: list[int] = []
+    cot_queries = 0
     for row in examples:
-        prompt = metadata_history_text(
-            args.category,
-            [str(x) for x in row.get("history_item_title", [])],
-            [float(x) for x in row.get("history_rating", [])],
-            args.max_history_items,
-            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
-            item_map=item_map,
-            metadata_mode=args.history_metadata_mode,
-            max_item_chars=args.history_max_item_chars,
-            summary_map=summary_map,
-        )
-        target_id = int(row["item_id"])
+        prompt, used_cot = build_query(row, args, item_map, summary_map)
+        if used_cot:
+            cot_queries += 1
+        target_id = row_target_id(row)
         if args.scorer == "lexical":
             rank = rank_target_lexical(prompt, item_ids, item_vecs, item_norms, target_id)
         else:
@@ -256,6 +348,11 @@ def main() -> None:
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
+        "query_mode": args.query_mode,
+        "cot_text_mode": args.cot_text_mode if args.query_mode == "history_plus_cot" else None,
+        "candidate_index": args.candidate_index if args.query_mode == "history_plus_cot" else None,
+        "cot_queries": cot_queries,
+        "require_cot": args.require_cot,
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
         "item_summary": args.item_summary,
