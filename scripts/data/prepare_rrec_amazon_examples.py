@@ -21,6 +21,39 @@ def split_names(raw: str) -> list[str]:
     return [raw]
 
 
+def read_arrow_rows(split_dir: Path) -> list[dict]:
+    try:
+        import pyarrow as pa
+        import pyarrow.ipc as ipc
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "pyarrow is required for the Arrow fallback when datasets.load_from_disk cannot read the dataset."
+        ) from exc
+
+    rows: list[dict] = []
+    arrow_files = sorted(split_dir.glob("*.arrow"))
+    if not arrow_files:
+        raise FileNotFoundError(f"No .arrow files found in {split_dir}")
+    for arrow_path in arrow_files:
+        with pa.memory_map(str(arrow_path), "r") as source:
+            try:
+                reader = ipc.open_stream(source)
+            except pa.ArrowInvalid:
+                source.seek(0)
+                reader = ipc.open_file(source)
+            rows.extend(reader.read_all().to_pylist())
+    return rows
+
+
+def load_dataset_or_arrow(dataset_dir: Path):
+    try:
+        from datasets import load_from_disk
+
+        return load_from_disk(str(dataset_dir)), ""
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def build_output_row(
     row: dict,
     *,
@@ -127,37 +160,53 @@ def main() -> None:
     skipped = 0
     source = ""
     if dataset_dir.exists():
-        try:
-            from datasets import load_from_disk
-        except ModuleNotFoundError as exc:
-            raise ModuleNotFoundError(
-                "The HuggingFace datasets package is required for --dataset-dir/--data-root input. "
-                "Use --examples-jsonl with --item-info to prepare examples from JSONL artifacts without installing datasets."
-            ) from exc
-
-        ds = load_from_disk(str(dataset_dir))
-        item_map = build_item_map(ds["item_info"])
+        ds, dataset_load_error = load_dataset_or_arrow(dataset_dir)
         source = str(dataset_dir)
-        for split in split_names(args.split):
-            split_ds = ds[split]
-            if args.shuffle:
-                split_ds = split_ds.shuffle(seed=args.seed)
-            if args.max_examples > 0:
-                split_ds = split_ds.select(range(min(args.max_examples, len(split_ds))))
+        if ds is not None:
+            item_map = build_item_map(ds["item_info"])
+            for split in split_names(args.split):
+                split_rows = ds[split]
+                if args.shuffle:
+                    split_rows = split_rows.shuffle(seed=args.seed)
+                if args.max_examples > 0:
+                    split_rows = split_rows.select(range(min(args.max_examples, len(split_rows))))
 
-            for row in split_ds:
-                out = build_output_row(
-                    dict(row),
-                    args=args,
-                    split=split,
-                    item_map=item_map,
-                    summary_map=summary_map,
-                    fallback_interaction_id=len(rows),
-                )
-                if out is None:
-                    skipped += 1
-                    continue
-                rows.append(out)
+                for row in split_rows:
+                    out = build_output_row(
+                        dict(row),
+                        args=args,
+                        split=split,
+                        item_map=item_map,
+                        summary_map=summary_map,
+                        fallback_interaction_id=len(rows),
+                    )
+                    if out is None:
+                        skipped += 1
+                        continue
+                    rows.append(out)
+        else:
+            item_map = build_item_map(read_arrow_rows(dataset_dir / "item_info"))
+            source = f"{dataset_dir} (pyarrow fallback after {dataset_load_error})"
+            for split in split_names(args.split):
+                split_rows = read_arrow_rows(dataset_dir / split)
+                if args.shuffle:
+                    random.Random(args.seed).shuffle(split_rows)
+                if args.max_examples > 0:
+                    split_rows = split_rows[: args.max_examples]
+
+                for row in split_rows:
+                    out = build_output_row(
+                        row,
+                        args=args,
+                        split=split,
+                        item_map=item_map,
+                        summary_map=summary_map,
+                        fallback_interaction_id=len(rows),
+                    )
+                    if out is None:
+                        skipped += 1
+                        continue
+                    rows.append(out)
     else:
         if args.split == "all" and not args.examples_jsonl:
             raise FileNotFoundError(f"RRec dataset directory does not exist and JSONL fallback needs a single split: {dataset_dir}")
