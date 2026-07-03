@@ -11,7 +11,7 @@
 | 任务 | Amazon CDs_and_Vinyl next-item retrieval |
 | 模型 | Qwen3-Embedding-0.6B |
 | 训练方式 | contrastive embedding training |
-| 训练数据 | `outputs/rrec_amazon/reusable_cot/CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only_full_target.jsonl` |
+| 训练数据 | `outputs/rrec_amazon/CDs_and_Vinyl/cot/training/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only_full_target.jsonl` |
 | 评测数据 | `outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl` |
 | 评测模式 | `history_plus_cot` |
 | 候选物品数 | 12001 |

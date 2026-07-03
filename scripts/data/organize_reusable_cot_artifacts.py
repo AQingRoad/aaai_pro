@@ -25,8 +25,8 @@ DEFAULT_ARTIFACTS = [
         "split": "train",
         "source": "outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_one_train_raw.jsonl",
         "item_info": "github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl",
-        "canonical": "CDs_and_Vinyl/cds_glm47_meta_compact_one_train_full_target.jsonl",
-        "embedder": "CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only_full_target.jsonl",
+        "canonical": "CDs_and_Vinyl/cot/api/cds_glm47_meta_compact_one_train_full_target.jsonl",
+        "embedder": "CDs_and_Vinyl/cot/training/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only_full_target.jsonl",
         "build_embedder": True,
         "notes": "Original GLM-4.7 train CoT with ratings in user_history.",
     },
@@ -36,8 +36,8 @@ DEFAULT_ARTIFACTS = [
         "split": "train",
         "source": "outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_no_all_ratings_observed_one_train_raw.jsonl",
         "item_info": "github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl",
-        "canonical": "CDs_and_Vinyl/cds_glm47_meta_compact_no_all_ratings_observed_one_train_full_target.jsonl",
-        "embedder": "CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_no_all_ratings_observed_tagged_cot_only_full_target.jsonl",
+        "canonical": "CDs_and_Vinyl/cot/api/cds_glm47_meta_compact_no_all_ratings_observed_one_train_full_target.jsonl",
+        "embedder": "CDs_and_Vinyl/cot/training/phase0_embedder_cds_glm47_meta_compact_no_all_ratings_observed_tagged_cot_only_full_target.jsonl",
         "build_embedder": True,
         "notes": "GLM-4.7 train CoT with ratings and catalog stats removed from history.",
     },
@@ -47,7 +47,7 @@ DEFAULT_ARTIFACTS = [
         "split": "test",
         "source": "outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_no_trunc_one_test_raw.jsonl",
         "item_info": "github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl",
-        "canonical": "CDs_and_Vinyl/cds_glm47_meta_compact_no_trunc_one_test_full_target.jsonl",
+        "canonical": "CDs_and_Vinyl/cot/api/cds_glm47_meta_compact_no_trunc_one_test_full_target.jsonl",
         "embedder": "",
         "build_embedder": False,
         "notes": "Latest GLM-4.7 test CoT for history_plus_cot evaluation.",
@@ -151,7 +151,7 @@ def build_embedder_dataset(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Organize existing CoT artifacts for reuse without calling generation APIs again.")
     parser.add_argument("--root", default=".")
-    parser.add_argument("--output-root", default="outputs/rrec_amazon/reusable_cot")
+    parser.add_argument("--output-root", default="outputs/rrec_amazon")
     parser.add_argument("--max-target-chars", type=int, default=0)
     parser.add_argument("--cot-text-mode", choices=["answer", "think", "tagged", "full"], default="tagged")
     parser.add_argument("--max-cot-chars", type=int, default=0)
@@ -166,7 +166,7 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     manifest: dict[str, Any] = {
-        "description": "Reusable CoT artifacts: old generated CoT is preserved; target_item_text/positive are refreshed from item_info.",
+        "description": "Reusable CoT artifacts: API-built CoT files live under cot/api; CoT-derived training pairs live under cot/training.",
         "root": str(root),
         "output_root": str(output_root),
         "max_target_chars": args.max_target_chars,
@@ -216,7 +216,7 @@ def main() -> None:
             entry["embedder_stats"] = count_jsonl(embedder)
         manifest["artifacts"].append(entry)
 
-    manifest_path = output_root / "manifest.json"
+    manifest_path = output_root / "cot_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"manifest": str(manifest_path.relative_to(root)), "artifacts": len(manifest["artifacts"])}, ensure_ascii=False, indent=2))
 
