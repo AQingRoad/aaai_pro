@@ -14,7 +14,7 @@ CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 
 CHECKPOINT_ROOT=${CHECKPOINT_ROOT:-${EMBEDDER_OUT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_cds_tidal}}
 CHECKPOINT_PATTERN=${CHECKPOINT_PATTERN:-checkpoint-*}
-EVAL_DIR=${EVAL_DIR:-$ROOT/outputs/rrec_amazon/eval/$(basename "$CHECKPOINT_ROOT")_${SPLIT}_all_ckpts}
+EVAL_DIR=${EVAL_DIR:-$ROOT/outputs/rrec_amazon/eval/$CATEGORY/$(basename "$CHECKPOINT_ROOT")_${SPLIT}_all_ckpts}
 
 RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
 EVAL_EXAMPLES=${EVAL_EXAMPLES:-$RREC_EVAL_DIR/${SPLIT}.jsonl}

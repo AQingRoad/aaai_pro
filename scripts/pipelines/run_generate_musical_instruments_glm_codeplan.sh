@@ -12,9 +12,11 @@ if [[ -z "${BIGMODEL_API_KEY:-}" ]]; then
   exit 2
 fi
 
+mkdir -p outputs/rrec_amazon/Musical_Instruments/cot/api
+
 python3 scripts/cot/generate_cot_candidate_lists.py \
   --input data/rrec_amazon/Musical_Instruments/examples.jsonl \
-  --output outputs/rrec_amazon/Musical_Instruments/cot_candidate_lists_glm_codeplan_low.jsonl \
+  --output outputs/rrec_amazon/Musical_Instruments/cot/api/cot_candidate_lists_glm_codeplan_low.jsonl \
   --num-candidates 4 \
   --max-workers 16 \
   --resume \

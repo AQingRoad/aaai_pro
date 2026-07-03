@@ -13,11 +13,13 @@ PYTHON_BIN=${PYTHON_BIN:-$VENV/bin/python}
 
 CATEGORY=${CATEGORY:-CDs_and_Vinyl}
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
+COT_API_DIR=${COT_API_DIR:-$OUT_DIR/cot/api}
+COT_TRAINING_DIR=${COT_TRAINING_DIR:-$OUT_DIR/cot/training}
 TRAIN_EXAMPLES=${TRAIN_EXAMPLES:-$ROOT/data/rrec_amazon/$CATEGORY/examples.jsonl}
 ITEM_INFO=${ITEM_INFO:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl}
 
 LLM_MODEL=${LLM_MODEL:-/mnt/tidal-sh01/usr/xiayu6/xiayu/checkpoint/Qwen3/4B}
-COT_OUTPUT=${COT_OUTPUT:-$OUT_DIR/cot_candidate_one_lists_qwen3_4b_local.jsonl}
+COT_OUTPUT=${COT_OUTPUT:-$COT_API_DIR/cot_candidate_one_lists_qwen3_4b_local.jsonl}
 COT_SHARD_DIR=${COT_SHARD_DIR:-$COT_OUTPUT.shards}
 RUN_NAME=${RUN_NAME:-qwen3_4b_local_cot}
 
@@ -35,7 +37,7 @@ RESUME=${RESUME:-1}
 GEN_AGGREGATE_EVERY=${GEN_AGGREGATE_EVERY:-20}
 
 COT_TEXT_MODE=${COT_TEXT_MODE:-answer}
-COT_EMBEDDER_DATASET=${COT_EMBEDDER_DATASET:-$OUT_DIR/phase0_embedder_cds_with_${RUN_NAME}_${COT_TEXT_MODE}.jsonl}
+COT_EMBEDDER_DATASET=${COT_EMBEDDER_DATASET:-$COT_TRAINING_DIR/phase0_embedder_cds_with_${RUN_NAME}_${COT_TEXT_MODE}.jsonl}
 INCLUDE_HISTORY=${INCLUDE_HISTORY:-1}
 INCLUDE_COT=${INCLUDE_COT:-1}
 MAX_COT_CHARS=${MAX_COT_CHARS:-1200}
@@ -129,7 +131,7 @@ if (( NUM_SHARDS > ${#DEVICE_LIST[@]} )); then
 fi
 
 cd "$ROOT"
-mkdir -p "$OUT_DIR" "$COT_SHARD_DIR" "$EMBEDDER_OUT"
+mkdir -p "$COT_API_DIR" "$COT_TRAINING_DIR" "$COT_SHARD_DIR" "$EMBEDDER_OUT"
 
 export PATH="$VENV/bin:$PATH"
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"

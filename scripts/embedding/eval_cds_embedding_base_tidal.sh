@@ -28,7 +28,7 @@ EVAL_OUT=${EVAL_OUT:-}
 if [[ "${SMOKE:-0}" == "1" && "$MAX_EXAMPLES" == "0" ]]; then
   MAX_EXAMPLES=100
 fi
-EVAL_OUT=${EVAL_OUT:-$ROOT/outputs/rrec_amazon/eval/CDs_and_Vinyl_embedding_base_${SPLIT}_max${MAX_EXAMPLES}.json}
+EVAL_OUT=${EVAL_OUT:-$ROOT/outputs/rrec_amazon/eval/$CATEGORY/CDs_and_Vinyl_embedding_base_${SPLIT}_max${MAX_EXAMPLES}.json}
 
 require_path() {
   local label="$1"

@@ -12,12 +12,14 @@ PYTHON_BIN=${PYTHON_BIN:-$VENV/bin/python}
 
 CATEGORY=${CATEGORY:-CDs_and_Vinyl}
 OUT_DIR=${OUT_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY}
+COT_API_DIR=${COT_API_DIR:-$OUT_DIR/cot/api}
+COT_TRAINING_DIR=${COT_TRAINING_DIR:-$OUT_DIR/cot/training}
 RREC_EVAL_DIR=${RREC_EVAL_DIR:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval}
 ITEM_INFO=${ITEM_INFO:-$RREC_EVAL_DIR/item_info.jsonl}
 
-COT_CANDIDATE_LISTS=${COT_CANDIDATE_LISTS:-$OUT_DIR/cot_candidate_one_lists_deepseek_v4_pro_low.jsonl}
+COT_CANDIDATE_LISTS=${COT_CANDIDATE_LISTS:-$COT_API_DIR/cot_candidate_one_lists_deepseek_v4_pro_low.jsonl}
 COT_TEXT_MODE=${COT_TEXT_MODE:-answer}
-COT_EMBEDDER_DATASET=${COT_EMBEDDER_DATASET:-$OUT_DIR/phase0_embedder_cds_with_cot_${COT_TEXT_MODE}.jsonl}
+COT_EMBEDDER_DATASET=${COT_EMBEDDER_DATASET:-$COT_TRAINING_DIR/phase0_embedder_cds_with_cot_${COT_TEXT_MODE}.jsonl}
 FORCE_REBUILD_DATASET=${FORCE_REBUILD_DATASET:-0}
 INCLUDE_HISTORY=${INCLUDE_HISTORY:-1}
 INCLUDE_COT=${INCLUDE_COT:-1}
@@ -98,7 +100,7 @@ require_file "CoT candidate lists" "$COT_CANDIDATE_LISTS"
 require_file "item info" "$ITEM_INFO"
 require_path "base embedding model" "$BASE_EMBEDDING_MODEL"
 
-mkdir -p "$OUT_DIR" "$EMBEDDER_OUT"
+mkdir -p "$COT_API_DIR" "$COT_TRAINING_DIR" "$EMBEDDER_OUT"
 cd "$ROOT"
 
 export PATH="$VENV/bin:$PATH"
@@ -165,6 +167,8 @@ print_param "VENV" "$VENV" "Python 环境目录，决定训练和数据构建使
 print_param "PYTHON_BIN" "$PYTHON_BIN" "运行数据构建脚本和训练脚本的 Python 可执行文件。"
 print_param "CATEGORY" "$CATEGORY" "本次嵌入模型训练对应的 Amazon 类目。"
 print_param "OUT_DIR" "$OUT_DIR" "该类目的输出目录，用于保存中间数据文件。"
+print_param "COT_API_DIR" "$COT_API_DIR" "API 构造的 CoT 候选、raw、失败记录和判分中间结果目录。"
+print_param "COT_TRAINING_DIR" "$COT_TRAINING_DIR" "由 CoT 转换后直接用于训练的 query/positive pair 目录。"
 print_param "RREC_EVAL_DIR" "$RREC_EVAL_DIR" "RRec 验证集、测试集和物品元数据所在目录。"
 print_param "ITEM_INFO" "$ITEM_INFO" "物品元数据 JSONL，用于构造正样本和可选负样本文本。"
 print_param "COT_CANDIDATE_LISTS" "$COT_CANDIDATE_LISTS" "作为训练来源的原始或聚合后的 CoT 候选列表 JSONL。"

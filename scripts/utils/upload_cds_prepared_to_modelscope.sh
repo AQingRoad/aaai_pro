@@ -39,11 +39,11 @@ fi
 EMBEDDER_DATASET=${EMBEDDER_DATASET:-$ROOT/data/rrec_amazon/phase0_embedder_CDs_and_Vinyl_train.jsonl}
 EMBEDDING_CKPT=${EMBEDDING_CKPT:-$ROOT/checkpoints/phase0_qwen3_embedding_CDs_and_Vinyl_len2048_bs128_20260616_150058/checkpoint-83}
 EMBEDDING_ARGS=${EMBEDDING_ARGS:-$ROOT/checkpoints/phase0_qwen3_embedding_CDs_and_Vinyl_len2048_bs128_20260616_150058/phase0_args.json}
-SFT_DATASET=${SFT_DATASET:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/sft_deepseek_v4_pro_cds_embedder_partial.jsonl}
-GRPO_DATASET=${GRPO_DATASET:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/grpo_deepseek_v4_pro_cds_embedder_disjoint_full.jsonl}
-FILTERED_COT=${FILTERED_COT:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/filtered_high_quality_cot_deepseek_v4_pro_cds_embedder_partial.jsonl}
-COT_SCORED=${COT_SCORED:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/cot_scored_deepseek_v4_pro_cds_embedder_partial.jsonl}
-MANIFEST=${MANIFEST:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/modelscope_upload_manifest_cds.json}
+SFT_DATASET=${SFT_DATASET:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/cot/training/sft_deepseek_v4_pro_cds_embedder_partial.jsonl}
+GRPO_DATASET=${GRPO_DATASET:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/cot/training/grpo_deepseek_v4_pro_cds_embedder_disjoint_full.jsonl}
+FILTERED_COT=${FILTERED_COT:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/cot/api/filtered_high_quality_cot_deepseek_v4_pro_cds_embedder_partial.jsonl}
+COT_SCORED=${COT_SCORED:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_scored_deepseek_v4_pro_cds_embedder_partial.jsonl}
+MANIFEST=${MANIFEST:-$ROOT/outputs/rrec_amazon/CDs_and_Vinyl/manifests/modelscope_upload_manifest_cds.json}
 UPLOAD_INTERMEDIATE=${UPLOAD_INTERMEDIATE:-0}
 
 require_path() {

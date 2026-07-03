@@ -51,11 +51,11 @@ run_worker() {
   export ROOT=/root/autodl-tmp/rec/aaai_pro
   export VENV=/root/miniconda3/envs/swift
   export PYTHON_BIN=/root/miniconda3/envs/swift/bin/python
-  export COT_CANDIDATE_LISTS=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/cot_candidate_lists_glm47_meta_compact_one_train_raw.jsonl
+  export COT_CANDIDATE_LISTS=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_one_train_raw.jsonl
   export COT_TEXT_MODE=tagged
   export INCLUDE_HISTORY=0
   export INCLUDE_COT=1
-  export COT_EMBEDDER_DATASET=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only.jsonl
+  export COT_EMBEDDER_DATASET=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/CDs_and_Vinyl/cot/training/phase0_embedder_cds_glm47_meta_compact_one_tagged_cot_only.jsonl
   export BASE_EMBEDDING_MODEL=/root/autodl-tmp/modelscope_cache/models/Qwen/Qwen3-Embedding-0.6B
   export EMBEDDER_OUT=/root/autodl-tmp/rec/aaai_pro/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen3_embedding_0p6b_cds_glm47_meta_compact_one_tagged_cot_only_len4096_batch32_accum8_epoch5
   export EMBEDDER_CUDA_VISIBLE_DEVICES=0
@@ -81,7 +81,7 @@ run_worker() {
   eval_status=0
   if [[ "$train_status" -eq 0 ]]; then
     export CHECKPOINT_ROOT="$EMBEDDER_OUT"
-    export EVAL_DIR=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/eval/qwen3_embedding_0p6b_cds_glm47_meta_compact_one_tagged_cot_only_len4096_batch32_accum8_epoch5_test
+    export EVAL_DIR=/root/autodl-tmp/rec/aaai_pro/outputs/rrec_amazon/eval/CDs_and_Vinyl/qwen3_embedding_0p6b_cds_glm47_meta_compact_one_tagged_cot_only_len4096_batch32_accum8_epoch5_test
     export SPLIT=test
     export MAX_EXAMPLES=0
     export CUDA_VISIBLE_DEVICES=0
