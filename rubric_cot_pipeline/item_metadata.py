@@ -126,50 +126,47 @@ def build_item_text(item: Mapping[str, Any] | None, title: str, max_chars: int) 
     return compact(" ".join(parts), max_chars)
 
 
-def selected_details(item: Mapping[str, Any], max_chars: int = 180) -> dict[str, str]:
+def selected_details(item: Mapping[str, Any]) -> dict[str, str]:
     details = parse_details(item.get("details"))
     out: dict[str, str] = {}
-    field_max_chars = 0 if max_chars <= 0 else max_chars
-    short_max_chars = 0 if max_chars <= 0 else 60
-    store_max_chars = 0 if max_chars <= 0 else 300
 
     for key in ("Artist", "Composer"):
-        value = compact(details.get(key), field_max_chars)
+        value = compact(details.get(key), 180)
         if value:
             out[key] = value
 
-    label = compact(details.get("Label"), field_max_chars) or compact(details.get("Manufacturer"), field_max_chars)
+    label = compact(details.get("Label"), 180) or compact(details.get("Manufacturer"), 180)
     if label:
         out["Label"] = label
 
     for key in ("Original Release Date", "Genre", "Style"):
-        value = compact(details.get(key), field_max_chars)
+        value = compact(details.get(key), 180)
         if value:
             out[key] = value
 
-    store = compact(item.get("store"), store_max_chars).lower()
+    store = compact(item.get("store"), 300).lower()
     if "format:" not in store:
-        fmt = compact(details.get("Media Format"), field_max_chars) or compact(details.get("Format"), field_max_chars)
+        fmt = compact(details.get("Media Format"), 180) or compact(details.get("Format"), 180)
         if fmt:
             out["Format"] = fmt
 
-    run_time = compact(details.get("Run time"), field_max_chars) or compact(details.get("Runtime"), field_max_chars)
+    run_time = compact(details.get("Run time"), 180) or compact(details.get("Runtime"), 180)
     if run_time:
         out["Run time"] = run_time
 
-    discs = compact(details.get("Number of discs"), short_max_chars) or compact(details.get("Number Of Discs"), short_max_chars)
+    discs = compact(details.get("Number of discs"), 60) or compact(details.get("Number Of Discs"), 60)
     if discs:
         out["Number of discs"] = discs
 
-    language = compact(details.get("Language"), field_max_chars)
+    language = compact(details.get("Language"), 120)
     if language:
         out["Language"] = language
 
     return out
 
 
-def format_selected_details(item: Mapping[str, Any], max_chars: int = 180) -> str:
-    detail_map = selected_details(item, max_chars=max_chars)
+def format_selected_details(item: Mapping[str, Any]) -> str:
+    detail_map = selected_details(item)
     return "; ".join(f"{key}={value}" for key, value in detail_map.items() if value)
 
 
@@ -197,13 +194,11 @@ def build_history_item_metadata(
         return ""
 
     parts: list[str] = []
-    field_max_chars = 0 if max_chars <= 0 else 180
-    list_item_max_chars = 0 if max_chars <= 0 else 500
-    store = compact(item.get("store"), field_max_chars)
+    store = compact(item.get("store"), 180)
     if store:
         parts.append(f"Store/artist/format: {store}")
 
-    categories = " > ".join(as_text_list(item.get("categories"), limit=4, max_chars=list_item_max_chars))
+    categories = " > ".join(as_text_list(item.get("categories"), limit=4))
     if categories:
         parts.append(f"Categories: {categories}")
 
@@ -212,15 +207,15 @@ def build_history_item_metadata(
         if summary:
             parts.append(f"Summary: {summary}")
     else:
-        features = "; ".join(as_text_list(item.get("features"), limit=3, max_chars=list_item_max_chars))
+        features = "; ".join(as_text_list(item.get("features"), limit=3))
         if features:
             parts.append(f"Features: {features}")
 
-        description = " ".join(as_text_list(item.get("description"), limit=1, max_chars=list_item_max_chars))
+        description = " ".join(as_text_list(item.get("description"), limit=1))
         if description:
             parts.append(f"Description: {description}")
 
-    details = format_selected_details(item, max_chars=field_max_chars)
+    details = format_selected_details(item)
     if details:
         parts.append("Details: " + details)
 
@@ -251,10 +246,8 @@ def history_text(
         if item_ids is not None:
             item_ids = item_ids[-max_history_items:]
 
-    title_max_chars = 0 if max_item_chars <= 0 else 240
-
     def format_entry(pos: int | None, title: str, rating: float | None) -> str:
-        title = compact(title, title_max_chars)
+        title = compact(title, 240)
         prefix = f"{pos}. " if pos is not None else ""
         rating_text = f" ({float(rating):g} stars)" if include_ratings and rating is not None else ""
         if title:
