@@ -30,6 +30,14 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def display_path(path: Path) -> str:
+    path = path.resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def load_native_dataset(path: Path) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     from datasets import load_from_disk
 
@@ -327,16 +335,16 @@ def main() -> None:
     audit = {
         "query_side": "title_store_categories",
         "target_side": "train examples keep original target_item_text; valid/test examples rebuild target_item_text from item_info; native rows keep original RRec target fields.",
-        "timestamp_source": str(args.native_dataset_dir),
+        "timestamp_source": display_path(args.native_dataset_dir),
         "inputs": {
-            "train_examples": str(args.train_examples),
-            "native_dataset_dir": str(args.native_dataset_dir),
-            "item_info_for_query_and_target_text": str(args.item_info),
+            "train_examples": display_path(args.train_examples),
+            "native_dataset_dir": display_path(args.native_dataset_dir),
+            "item_info_for_query_and_target_text": display_path(args.item_info),
         },
         "outputs": {
-            "examples": str(args.output_dir / "examples"),
-            "native_jsonl": str(args.output_dir / "native_jsonl"),
-            "rrec_dataset": str(args.output_dir / "rrec_dataset"),
+            "examples": display_path(args.output_dir / "examples"),
+            "native_jsonl": display_path(args.output_dir / "native_jsonl"),
+            "rrec_dataset": display_path(args.output_dir / "rrec_dataset"),
         },
         "examples_audit": [
             audit_examples(train_examples, examples["train"], "train", source_is_train_examples=True),

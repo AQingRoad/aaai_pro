@@ -16,6 +16,10 @@ env/
 /logs/
 /prepared/
 /external/
+/ablantion/outputs/
+/ablantion/datas/processed_datas/rrec_meta/**/examples/
+/ablantion/datas/processed_datas/rrec_meta/**/native_jsonl/
+/scripts/codex_pet/
 /secrets/
 
 *.safetensors

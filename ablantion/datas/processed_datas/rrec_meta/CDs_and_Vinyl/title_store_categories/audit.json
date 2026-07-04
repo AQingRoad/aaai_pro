@@ -1,0 +1,94 @@
+{
+  "query_side": "title_store_categories",
+  "target_side": "train examples keep original target_item_text; valid/test examples rebuild target_item_text from item_info; native rows keep original RRec target fields.",
+  "timestamp_source": "data/rrec_amazon/CDs_and_Vinyl_0_2022-10-2023-10",
+  "inputs": {
+    "train_examples": "data/rrec_amazon/CDs_and_Vinyl/examples.jsonl",
+    "native_dataset_dir": "data/rrec_amazon/CDs_and_Vinyl_0_2022-10-2023-10",
+    "item_info_for_query_and_target_text": "github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl"
+  },
+  "outputs": {
+    "examples": "ablantion/datas/processed_datas/rrec_meta/CDs_and_Vinyl/title_store_categories/examples",
+    "native_jsonl": "ablantion/datas/processed_datas/rrec_meta/CDs_and_Vinyl/title_store_categories/native_jsonl",
+    "rrec_dataset": "ablantion/datas/processed_datas/rrec_meta/CDs_and_Vinyl/title_store_categories/rrec_dataset"
+  },
+  "examples_audit": [
+    {
+      "split": "train",
+      "rows": 10722,
+      "target_diff_vs_source": 0,
+      "empty_query": 0,
+      "raw_asin_in_query": 0,
+      "query_contains_store": 10722,
+      "query_contains_categories": 10722,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    },
+    {
+      "split": "valid",
+      "rows": 1340,
+      "target_diff_vs_source": 0,
+      "empty_query": 0,
+      "raw_asin_in_query": 0,
+      "query_contains_store": 1340,
+      "query_contains_categories": 1340,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    },
+    {
+      "split": "test",
+      "rows": 1341,
+      "target_diff_vs_source": 0,
+      "empty_query": 0,
+      "raw_asin_in_query": 0,
+      "query_contains_store": 1341,
+      "query_contains_categories": 1341,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    }
+  ],
+  "native_audit": [
+    {
+      "split": "train",
+      "rows": 10722,
+      "target_diff_vs_source_native": 0,
+      "raw_asin_in_history_item_title": 0,
+      "history_title_contains_store": 59098,
+      "history_title_contains_categories": 59098,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    },
+    {
+      "split": "valid",
+      "rows": 1340,
+      "target_diff_vs_source_native": 0,
+      "raw_asin_in_history_item_title": 0,
+      "history_title_contains_store": 7623,
+      "history_title_contains_categories": 7623,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    },
+    {
+      "split": "test",
+      "rows": 1341,
+      "target_diff_vs_source_native": 0,
+      "raw_asin_in_history_item_title": 0,
+      "history_title_contains_store": 6662,
+      "history_title_contains_categories": 6662,
+      "missing_history_timestamp": 0,
+      "missing_timestamp": 0,
+      "missing_history_rating": 0
+    }
+  ],
+  "rrec_dataset_counts": {
+    "train": 10722,
+    "valid": 1340,
+    "test": 1341,
+    "item_info": 12001
+  }
+}

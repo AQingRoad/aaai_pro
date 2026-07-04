@@ -1,0 +1,184 @@
+{
+  "completed_raw": "outputs/rrec_amazon/CDs_and_Vinyl/cot/api/cot_candidate_lists_glm47_meta_compact_no_all_ratings_observed_one_train_raw_manual_filled.jsonl",
+  "completed_pair": "outputs/rrec_amazon/CDs_and_Vinyl/cot/training/phase0_embedder_cds_meta_compact_no_all_ratings_history_plus_tagged_cot_manual_filled_full_target.jsonl",
+  "history_rows": 10722,
+  "api_rows": 10687,
+  "manual_fill_rows": 35,
+  "manual_fills": [
+    {
+      "example_id": "CDs_and_Vinyl:train:11:AGMVKY5XQVIUTLRMICRAGOKITZIA",
+      "think": "The observed history includes Simon and Garfunkel oldies, a Fleetwood Mac album-documentary DVD, and a multi-artist eighties pop CD. The shared signal is retro pop and rock material in physical media formats.",
+      "answer": "A physical CD or music video release centered on oldies, eighties pop, or classic rock-era material fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:320:AFUBRO3KC6HQ6CH3EH24SCDVZN3A",
+      "think": "The observed history contains a Kate Bush multi-disc remastered Audio CD set on Rhino. The metadata points to art-pop songwriting, curated archival packaging, and physical CD box formatting.",
+      "answer": "A physical CD release with art-pop, synth-pop, or remastered archival album material fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:432:AFBZRJQDR4ZANQEWMTMHLRD5QSHA",
+      "think": "The observed history spans John Lennon, Frank Zappa, Pink Floyd tribute material, Black Crowes, Brian Setzer, Aerosmith, Edgar Winter, Jack White, and related rock artists. The shared signal is rock music across archival, tribute, blues, and hard-rock contexts.",
+      "answer": "A physical Audio CD release tied to classic rock, blues rock, guitar rock, or archival rock performance fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1352:AE6RR4M3PEQ3S3OHNRIOFBX2RXIQ",
+      "think": "The observed history contains a Led Zeppelin two-disc Audio CD compilation. The metadata points to classic rock, guitar-driven arrangements, and remastered physical CD packaging.",
+      "answer": "A physical Audio CD rock release with heavy guitar work, classic rock lineage, or remastered album packaging fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1610:AGPUDOBM4EDZVOVW2OCSROWN42XA",
+      "think": "The observed history contains many physical Audio CD entries from multi-artist hit series, pop, R and B, dance, pop rap, teen pop, and adult alternative. The sequence favors broad contemporary compilation formats.",
+      "answer": "A physical Audio CD compilation or mainstream pop release drawing from pop, dance, R and B, or rap tracks fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1625:AHNSXU52753GTLC4BCECD5PCGE7Q",
+      "think": "The observed history contains a recent country Audio CD built around Bob Dylan songs performed by the Nitty Gritty Dirt Band. The metadata points to country, Americana, fiddle, and Nashville studio context.",
+      "answer": "A physical Audio CD release in country, Americana, folk-rock, or songwriter-centered material fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1747:AETEQRILBXUGGXKPPMKBCF4LM67Q",
+      "think": "The observed history contains a System of a Down vinyl LP in hard rock with metal traits. The metadata signals heavy guitar music, modern rock production, and physical vinyl packaging.",
+      "answer": "A vinyl rock or metal release with heavy guitars and modern hard rock energy fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1778:AE4XDDTKRMCHNC7ETU6IVYXAX35A",
+      "think": "The observed history contains rock video media: a Rush DVD collection and a Tom Petty Blu-ray documentary. The metadata points to progressive rock, classic rock, concert footage, and long-form music video formats.",
+      "answer": "A rock concert video, documentary, or physical media release tied to progressive or classic rock artists fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:1791:AF6LO4HFXBREVVCMOBWABKRNQJ6A",
+      "think": "The observed history contains a Linda Ronstadt remastered Audio CD with Spanish-language song material. The metadata points to vocal pop, Latin-influenced repertoire, and remastered physical CD presentation.",
+      "answer": "A physical Audio CD release with vocal pop, Latin song material, or singer-songwriter interpretation fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:2621:AF6QMAELKWJW4VVOM2KONCMYFUCA",
+      "think": "The observed history combines King Crimson progressive rock material with a Jerry Lee Lewis rockabilly live Audio CD. The shared pattern is energetic rock-rooted music from earlier eras in archival physical form.",
+      "answer": "A physical release tied to progressive rock, early rock-and-roll, rockabilly, or archival live performance fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:3280:AELNUMSOP7B37VW5ZPGUMKF3PMXA",
+      "think": "The observed history centers on Foreigner, Ozzy Osbourne, and Lita Ford Audio CDs. The metadata points to album-oriented rock, hard rock, heavy metal, expanded editions, and legacy label CD issues.",
+      "answer": "A physical Audio CD release in hard rock, heavy metal, or album-oriented classic rock fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:3389:AHHEBWT3UHHY65I2MQTH4RMQEIGA",
+      "think": "The observed history contains a Foghat multi-disc original album series Audio CD. The metadata points to blues-based classic rock and compact box-set packaging.",
+      "answer": "A physical Audio CD release with blues rock, boogie rock, or classic rock album-series packaging fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4343:AHYKFUJJ6PWCZ5UCGI5JHQJASTLQ",
+      "think": "The observed history contains a Jean-Luc Ponty Audio CD categorized as progressive rock. The metadata points to instrumental fusion, violin-led rock, and Atlantic-era physical CD material.",
+      "answer": "A physical Audio CD release with progressive rock, jazz fusion, or instrumental rock traits fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4388:AHAXDESC2KFUGMQIBK6VDVKUDXDQ",
+      "think": "The observed history combines proto-punk from The Sonics, R and B vocal material, sixties pop songwriting, rock collections, and a country Audio CD. The sequence leans toward older guitar and vocal music in physical CD form.",
+      "answer": "A physical Audio CD release from retro rock, soul/R and B, oldies pop, or roots-oriented country fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4636:AEZAMUJUOENDECX2D7RME4PZVHQA",
+      "think": "The observed history includes Madonna pop, Annie Lennox vocal standards, and Jackie Evancho folk-oriented material, all in Audio CD format. The metadata points to vocal performance, pop production, and curated song interpretation.",
+      "answer": "A physical Audio CD release with vocal pop, adult contemporary, standards, or singer-led folk material fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4729:AFFCZYWPDGLGGEB4HC7CE5ILQF3Q",
+      "think": "The observed history centers on Jimi Hendrix, Thin Lizzy, and DIO in physical CD and multi-format packages. The metadata points to blues rock guitar, live or archival rock, and heavier guitar-driven albums.",
+      "answer": "A physical CD release with blues rock, guitar hero material, live rock, or hard rock/metal traits fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4735:AF5K2ZNT6ELYFQ4IM7OUJGWO2NBA",
+      "think": "The observed history contains a John Coltrane Audio CD collection. The metadata points to saxophone-led jazz and Atlantic-era physical CD material.",
+      "answer": "A physical Audio CD jazz release with saxophone, traditional vocal-adjacent jazz, or mid-century jazz repertoire fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4808:AHSJ3Q7E5A5GP6IMM5QYKMBWGZMA",
+      "think": "The observed history spans White Stripes, Bob Seger, Boz Scaggs, Linda Ronstadt, Muddy Waters, Neil Young, Poco, and related rock/blues/pop CDs. The pattern combines classic rock, blues, country rock, and adult pop in physical CD form.",
+      "answer": "A physical Audio CD release in classic rock, blues rock, country rock, or adult-oriented pop/rock fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:4963:AEGVISNRGUF7WCZRIES33J3KUPTA",
+      "think": "The observed history contains an expanded Foreigner Audio CD from the album-oriented classic rock category. The metadata points to Atlantic label material and physical CD reissue formatting.",
+      "answer": "A physical Audio CD release with album-oriented rock, arena rock, or expanded classic rock packaging fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:5030:AGNNIWW5KRBNFST55FJQ5RDADFVQ",
+      "think": "The observed history contains Elvis holiday and gospel-related physical media, including Audio CD and DVD formats. The metadata points to vocal performance, Christmas material, gospel songs, and legacy artist packaging.",
+      "answer": "A physical Audio CD or DVD release centered on Elvis-era vocal music, gospel, holiday songs, or legacy performance footage fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:5168:AGZK7SQC5OZBDN5WKTANHSV45JWQ",
+      "think": "The observed history contains a Led Zeppelin vinyl release in blues rock. The metadata points to classic rock, guitar-led arrangements, and physical LP packaging.",
+      "answer": "A vinyl release with classic rock, blues rock, or heavy guitar-driven album material fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:5248:AEE2DH4OYLFFNYFV6BSJ2V7XPM5Q",
+      "think": "The observed history contains a Pink Floyd vinyl release in progressive rock. The metadata points to album-length rock, studio texture, and physical LP format.",
+      "answer": "A vinyl release with progressive rock, atmospheric classic rock, or concept-album traits fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:5424:AGHAPAJE5WTRLIZ5OKXJJDYMQGPQ",
+      "think": "The observed history contains an Enoch Light Audio CD built around cha-cha and easy listening percussion. The metadata points to Latin dance rhythm, orchestral pop, and physical CD packaging.",
+      "answer": "A physical Audio CD release with Latin dance, easy listening, percussion-led arrangements, or lounge-style orchestral pop fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:6319:AEXXLO7RNRE6YEROMFCGPNY2TKYA",
+      "think": "The observed history combines Whitney Houston vocal pop, Beatles oldies, and Golden Earring classic rock. The metadata points to adult contemporary vocals, sixties pop, and album-oriented rock in physical CD form.",
+      "answer": "A physical Audio CD release from vocal pop, oldies pop, or classic rock fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:7646:AGVUTJFHSWCYU4QTUEOSMKSKXACA",
+      "think": "The observed history includes Three Dog Night live classic rock and Hall and Oates blue-eyed soul on multi-disc Audio CD. The metadata points to late-sixties or seventies rock and R and B crossover songwriting.",
+      "answer": "A physical Audio CD release with classic rock, blue-eyed soul, or live band performance material fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:8100:AFTD2N7TOATMRTWRJNOHXXP26A6A",
+      "think": "The observed history contains a Bread Audio CD in a country-labeled category. The metadata points to soft-rock songwriting, vocal harmony, and Elektra-era physical CD packaging.",
+      "answer": "A physical Audio CD release with soft rock, melodic pop-rock, or country-leaning adult song material fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:8458:AGYYWIL6GFYIX7GKIXQK5ZCTGMMQ",
+      "think": "The observed history spans R.E.M., Queensryche, Iron Maiden, AC/DC, Duran Duran, Flotsam and Jetsam, and related rock or metal CDs. The pattern combines alternative rock, metal, new wave, and album-oriented hard rock.",
+      "answer": "A physical Audio CD release in metal, hard rock, alternative rock, or new-wave-adjacent rock fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:8735:AE4CACSJOI6CA3CGUPC62XYHJHCA",
+      "think": "The observed history combines Def Leppard rock box material with Michael Jackson vinyl in dance and electronic categories. The metadata points to physical collector formats, rock albums, and dance-pop production.",
+      "answer": "A physical vinyl or CD release with rock, dance-pop, or collector-box presentation fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:8890:AFM3U2RNHC7WXLLVS4DGNABU46CQ",
+      "think": "The observed history contains a Brian Wilson solo piano Audio CD categorized as classical. The metadata points to instrumental piano versions of familiar pop songwriting in physical CD form.",
+      "answer": "A physical Audio CD release with solo piano, classical crossover, or instrumental arrangements of pop repertoire fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:9216:AFSKMCO4ASHWQEOPXZT5CMQCMKJQ",
+      "think": "The observed history includes The Outfield and The Left Banke Audio CDs. The metadata points to pop-rock, melodic sixties pop, baroque pop elements, and physical CD reissues.",
+      "answer": "A physical Audio CD release with melodic pop-rock, sixties pop, or baroque pop songwriting fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:9285:AEQQF2GFHJMKK23VSSA4NUH4NKBA",
+      "think": "The observed history centers on Il Divo Audio CDs across musicals, Motown songs, and classical crossover categories. The metadata points to vocal ensemble performance, theatrical repertoire, and polished orchestral pop.",
+      "answer": "A physical Audio CD release with classical crossover vocals, musical-theater songs, or Motown-influenced vocal ensemble material fits the history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:9293:AFI3ZFJQ6IYXKT325ME4FCUMKDTA",
+      "think": "The observed history contains a Charles Aznavour Audio CD in European international music. The metadata points to French vocal chanson and physical import CD packaging.",
+      "answer": "A physical Audio CD release with European vocal music, French chanson, or continental pop song traditions fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:10102:AGOHBJYBF2VXR2CKGAMNEQAKF53Q",
+      "think": "The observed history contains Audio CD jazz from Ray Charles and John Coltrane. The metadata points to vocal and piano-led soul jazz together with saxophone-centered avant-garde jazz, both in physical CD form.",
+      "answer": "An Audio CD jazz release with mid-century jazz instrumentation, horn-led arrangements, or modal jazz lineage fits the observed history."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:10137:AEZAMUJUOENDECX2D7RME4PZVHQA",
+      "think": "The observed history spans physical Audio CD releases across pop, vocal standards, folk singer-songwriter work, alternative rock, and pop rap. Several entries center on female vocalists and curated album editions.",
+      "answer": "A physical Audio CD release in vocal pop, singer-songwriter, alternative pop, or adult contemporary style matches the cross-genre listening pattern."
+    },
+    {
+      "example_id": "CDs_and_Vinyl:train:10282:AE7BV6IMNPZ3F266H7PXMH3BZQNQ",
+      "think": "The observed history mixes rock-era archival material, holiday music, Beatles and Springsteen Audio CDs, and oldies or rockabilly collections. The format pattern is mostly physical CD, with one music documentary DVD.",
+      "answer": "A physical CD release tied to rock-and-roll oldies, legacy rock artists, or archival pop-rock material fits this history."
+    }
+  ]
+}
