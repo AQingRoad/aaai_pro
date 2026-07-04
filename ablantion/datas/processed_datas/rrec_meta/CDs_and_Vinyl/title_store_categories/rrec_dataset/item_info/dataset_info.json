@@ -1,0 +1,73 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "main_category": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "title": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "average_rating": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "rating_number": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "features": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "description": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "price": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "store": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "categories": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "details": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "parent_asin": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "subtitle": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "item_id": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "__index_level_0__": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
