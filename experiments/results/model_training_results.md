@@ -464,6 +464,37 @@
 
 对比结论：`title + store + categories` best 比 RRec 图中结果高 `N@20=0.034258`，相对增加 `74.96%`；`H@20` 高 `0.118051`，相对增加 `144.32%`。`title only` 的 `N@20` 低于 RRec `0.013111`，说明只用历史标题不能复现 RRec 图中指标；加入 `store` 后，artist/format 信号使 `N@20` 超过 RRec `0.033053`。
 
+## CDs query 消融：title + store + categories seen item mask 重评
+
+### 基本信息
+| 字段 | 内容 |
+|---|---|
+| 实验日期 | 2026-07-04 |
+| 任务 | 只重评 `title + store + categories` 普通 5 epoch checkpoint |
+| checkpoint root | `/home/user/aaai_pro/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_query_ablation/title_store_categories` |
+| eval dir | `/home/user/aaai_pro/outputs/rrec_amazon/eval/CDs_and_Vinyl/cds_query_ablation_masked_seen/title_store_categories` |
+| 测试数据 | `/home/user/aaai_pro/ablantion/datas/processed_datas/cds_query_ablation_test/cds_test_query_title_store_categories.jsonl` |
+| 候选 item | `/home/user/aaai_pro/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl` |
+| 测试样本数 | `1341` |
+| 候选物品数 | `12000` |
+| query 构造 | 直接读取测试 JSONL 的 `user_history` |
+| seen item mask | `history_item_id` 分数置为 `-inf`，同时屏蔽 pad item；`target_in_history_count=0` |
+| 本次范围 | 不重评其他 query 消融；不重评 `cds_query_ablation_lr1e-5_epoch10/title_store_categories` |
+
+### checkpoint 指标
+| checkpoint | H@5 | N@5 | H@10 | N@10 | H@20 | N@20 | mean rank | median rank | ΔN@20 vs no mask |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `checkpoint-83` | 0.118568 | 0.082696 | 0.158837 | 0.095637 | 0.204325 | 0.107257 | 1956.7189 | 609 | 0.030760 |
+| `checkpoint-166` | 0.125280 | 0.084704 | 0.167040 | 0.098158 | 0.202834 | 0.107202 | 1787.5638 | 487 | 0.029532 |
+| `checkpoint-249` | 0.129754 | 0.087361 | 0.172260 | 0.101046 | 0.206562 | 0.109667 | 1769.9776 | 485 | 0.030263 |
+| `checkpoint-332` | 0.128262 | 0.087555 | 0.170768 | 0.101381 | 0.210291 | 0.111288 | 1765.4899 | 481 | 0.031329 |
+| `checkpoint-415` | 0.129008 | 0.087341 | 0.173005 | 0.101516 | 0.208799 | 0.110460 | 1766.0738 | 480 | 0.031483 |
+
+### 结论
+- seen item mask 后最佳 checkpoint 仍为 `checkpoint-332`，`N@20=0.111288`，`H@20=0.210291`。
+- 与未 mask 的同 checkpoint 相比，`checkpoint-332` 的 `N@20` 从 `0.079958` 增加到 `0.111288`，差值 `0.031329`；`H@20` 从 `0.199851` 增加到 `0.210291`，差值 `0.010440`。
+- 每条样本平均屏蔽 `4.9679` 个历史 item，等于测试集平均历史长度；`target_in_history_count=0`，所以本次变化来自移除历史已交互候选和 pad item。
+
 ## 记录模板
 
 ### 基本信息
