@@ -1,6 +1,7 @@
 {
   "query_side": "title_store_categories",
   "target_side": "train examples keep original target_item_text; valid/test examples rebuild target_item_text from item_info; native rows keep original RRec target fields.",
+  "rrec_dataset_id_mode": "zero_based_no_pad",
   "timestamp_source": "data/rrec_amazon/CDs_and_Vinyl_0_2022-10-2023-10",
   "inputs": {
     "train_examples": "data/rrec_amazon/CDs_and_Vinyl/examples.jsonl",
@@ -89,6 +90,6 @@
     "train": 10722,
     "valid": 1340,
     "test": 1341,
-    "item_info": 12001
+    "item_info": 12000
   }
 }

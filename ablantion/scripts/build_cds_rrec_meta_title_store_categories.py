@@ -225,6 +225,43 @@ def native_row_with_meta(row: dict[str, Any], items: dict[int, dict[str, Any]], 
     return out
 
 
+def is_pad_item(row: dict[str, Any]) -> bool:
+    return (
+        int(row.get("item_id", -1)) == 0
+        or str(row.get("title", "")).strip() == "pad_title"
+        or str(row.get("parent_asin", "")).strip() == "pad_asin"
+    )
+
+
+def zero_base_item_info(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for row in rows:
+        if is_pad_item(row):
+            continue
+        item_id = int(row["item_id"])
+        if item_id <= 0:
+            raise ValueError(f"Unexpected non-positive real item_id: {item_id}")
+        new_row = dict(row)
+        new_row["item_id"] = item_id - 1
+        out.append(new_row)
+    for idx, row in enumerate(out):
+        if int(row["item_id"]) != idx:
+            raise ValueError(f"Non-contiguous zero-based item_info at index {idx}: {row['item_id']}")
+    return out
+
+
+def zero_base_rrec_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for row in rows:
+        new_row = dict(row)
+        new_row["item_id"] = int(row["item_id"]) - 1
+        new_row["history_item_id"] = [int(item_id) - 1 for item_id in row.get("history_item_id", [])]
+        if new_row["item_id"] < 0 or any(item_id < 0 for item_id in new_row["history_item_id"]):
+            raise ValueError(f"Unexpected pad id inside train/valid/test row: {row}")
+        out.append(new_row)
+    return out
+
+
 def audit_examples(
     source_rows: list[dict[str, Any]],
     output_rows: list[dict[str, Any]],
@@ -324,17 +361,20 @@ def main() -> None:
         split: [native_row_with_meta(row, items, keep_audit_cols=False) for row in rows]
         for split, rows in native_src.items()
     }
+    rrec_dataset_rows = {split: zero_base_rrec_rows(rows) for split, rows in rrec_dataset_rows.items()}
+    rrec_item_info = zero_base_item_info(native_item_info)
 
     for split, rows in examples.items():
         write_jsonl(args.output_dir / "examples" / f"{split}.jsonl", rows)
     for split, rows in native_jsonl.items():
         write_jsonl(args.output_dir / "native_jsonl" / f"{split}.jsonl", rows)
     write_jsonl(args.output_dir / "native_jsonl" / "item_info.jsonl", native_item_info)
-    save_rrec_dataset(args.output_dir / "rrec_dataset", rrec_dataset_rows, native_item_info)
+    save_rrec_dataset(args.output_dir / "rrec_dataset", rrec_dataset_rows, rrec_item_info)
 
     audit = {
         "query_side": "title_store_categories",
         "target_side": "train examples keep original target_item_text; valid/test examples rebuild target_item_text from item_info; native rows keep original RRec target fields.",
+        "rrec_dataset_id_mode": "zero_based_no_pad",
         "timestamp_source": display_path(args.native_dataset_dir),
         "inputs": {
             "train_examples": display_path(args.train_examples),
@@ -360,7 +400,7 @@ def main() -> None:
             "train": len(rrec_dataset_rows["train"]),
             "valid": len(rrec_dataset_rows["valid"]),
             "test": len(rrec_dataset_rows["test"]),
-            "item_info": len(native_item_info),
+            "item_info": len(rrec_item_info),
         },
     }
     (args.output_dir / "audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
