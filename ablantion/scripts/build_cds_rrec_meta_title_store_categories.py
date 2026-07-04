@@ -51,6 +51,13 @@ def save_rrec_dataset(path: Path, native_rows: dict[str, list[dict[str, Any]]], 
             "item_info": Dataset.from_list(item_info),
         }
     ).save_to_disk(str(path))
+    make_dataset_info_legacy_compatible(path)
+
+
+def make_dataset_info_legacy_compatible(path: Path) -> None:
+    for info_path in path.glob("*/dataset_info.json"):
+        text = info_path.read_text(encoding="utf-8")
+        info_path.write_text(text.replace('"_type": "List"', '"_type": "Sequence"'), encoding="utf-8")
 
 
 def item_map(rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:

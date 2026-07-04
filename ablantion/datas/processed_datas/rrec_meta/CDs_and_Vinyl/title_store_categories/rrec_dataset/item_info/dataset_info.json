@@ -23,14 +23,14 @@
         "dtype": "string",
         "_type": "Value"
       },
-      "_type": "List"
+      "_type": "Sequence"
     },
     "description": {
       "feature": {
         "dtype": "string",
         "_type": "Value"
       },
-      "_type": "List"
+      "_type": "Sequence"
     },
     "price": {
       "dtype": "float64",
@@ -45,7 +45,7 @@
         "dtype": "string",
         "_type": "Value"
       },
-      "_type": "List"
+      "_type": "Sequence"
     },
     "details": {
       "dtype": "string",
