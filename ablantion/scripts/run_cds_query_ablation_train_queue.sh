@@ -15,7 +15,14 @@ ITEM_INFO=${ITEM_INFO:-$ROOT/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.
 TRAIN_DATA_DIR=${TRAIN_DATA_DIR:-$ROOT/ablantion/datas/processed_datas/cds_query_ablation}
 TEST_DATA_DIR=${TEST_DATA_DIR:-$ROOT/ablantion/datas/processed_datas/cds_query_ablation_test}
 RUN_ROOT=${RUN_ROOT:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_query_ablation}
-EVAL_ROOT=${EVAL_ROOT:-$ROOT/outputs/rrec_amazon/eval/CDs_and_Vinyl/cds_query_ablation}
+EVAL_MASK_HISTORY_ITEMS=${EVAL_MASK_HISTORY_ITEMS:-1}
+EVAL_MASK_PAD_ITEM=${EVAL_MASK_PAD_ITEM:-1}
+EVAL_KEEP_TARGET_UNMASKED=${EVAL_KEEP_TARGET_UNMASKED:-0}
+eval_mask_suffix=""
+if [[ "$EVAL_MASK_HISTORY_ITEMS" == "1" || "$EVAL_MASK_HISTORY_ITEMS" == "true" ]]; then
+  eval_mask_suffix="_masked_seen"
+fi
+EVAL_ROOT=${EVAL_ROOT:-$ROOT/outputs/rrec_amazon/eval/CDs_and_Vinyl/cds_query_ablation${eval_mask_suffix}}
 LOG_DIR=${LOG_DIR:-$ROOT/ablantion/outputs/cds_query_ablation_train_queue/logs}
 
 ABLATIONS=${ABLATIONS:-all}
@@ -198,6 +205,9 @@ print_plan() {
   print_param "EVAL_QUERY_MODE" "user_history" "评测直接读取测试 JSONL 内的 query，保证训推 query 消融口径一致。"
   print_param "EVAL_EMBEDDING_MAX_LENGTH" "$EVAL_EMBEDDING_MAX_LENGTH" "评测 query/item embedding 的 tokenizer 截断长度。"
   print_param "EVAL_EMBEDDING_BATCH_SIZE" "$EVAL_EMBEDDING_BATCH_SIZE" "评测 embedding batch size。"
+  print_param "EVAL_MASK_HISTORY_ITEMS" "$EVAL_MASK_HISTORY_ITEMS" "是否在最终排序前把用户历史里已经交互过的 item 分数置为最小值。"
+  print_param "EVAL_MASK_PAD_ITEM" "$EVAL_MASK_PAD_ITEM" "是否在最终排序前屏蔽 item_id=0 的 pad 候选。"
+  print_param "EVAL_KEEP_TARGET_UNMASKED" "$EVAL_KEEP_TARGET_UNMASKED" "target 若出现在历史里是否保留；0 表示按 RRec 原始评测直接 mask。"
   print_param "KS" "$KS" "评测输出的 HR/NDCG cutoff。"
   print_param "CONFIRM_RUN" "$CONFIRM_RUN" "必须为 1 才会真正启动训练队列。"
   print_param "PRINT_ARGS_ONLY" "$PRINT_ARGS_ONLY" "为 1 时只打印参数和任务列表，不启动训练。"
@@ -319,6 +329,9 @@ run_eval_one() {
     EMBEDDING_DEVICE="$EVAL_EMBEDDING_DEVICE" \
     EVAL_QUERY_MODE="user_history" \
     EVAL_REQUIRE_COT="0" \
+    EVAL_MASK_HISTORY_ITEMS="$EVAL_MASK_HISTORY_ITEMS" \
+    EVAL_MASK_PAD_ITEM="$EVAL_MASK_PAD_ITEM" \
+    EVAL_KEEP_TARGET_UNMASKED="$EVAL_KEEP_TARGET_UNMASKED" \
     KS="$KS" \
     FORCE_EVAL="$FORCE_EVAL" \
     bash scripts/embedding/run_eval_cds_embedding_checkpoints_tidal.sh

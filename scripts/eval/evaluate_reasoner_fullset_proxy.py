@@ -47,25 +47,88 @@ def cosine(left: Counter[str], left_norm: float, right: Counter[str], right_norm
     return dot / (left_norm * right_norm)
 
 
-def rank_target(query: str, item_ids: list[int], item_vecs: list[Counter[str]], item_norms: list[float], target_id: int) -> int:
+def env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def masked_item_indices(
+    history_item_ids: list[int],
+    target_id: int,
+    item_index: dict[int, int],
+    mask_history_items: bool,
+    mask_pad_item: bool,
+    keep_target_unmasked: bool,
+) -> set[int]:
+    masked_item_ids: set[int] = set()
+    if mask_history_items:
+        masked_item_ids.update(history_item_ids)
+    if mask_pad_item:
+        masked_item_ids.add(0)
+    if keep_target_unmasked:
+        masked_item_ids.discard(target_id)
+    return {item_index[item_id] for item_id in masked_item_ids if item_id in item_index}
+
+
+def rank_target(
+    query: str,
+    item_ids: list[int],
+    item_vecs: list[Counter[str]],
+    item_norms: list[float],
+    target_id: int,
+    item_index: dict[int, int] | None = None,
+    masked_indices: set[int] | None = None,
+) -> int:
+    if item_index is None:
+        item_index = {item_id: index for index, item_id in enumerate(item_ids)}
+    target_index = item_index.get(target_id)
+    if target_index is None:
+        return len(item_ids) + 1
+    masked_indices = masked_indices or set()
+
     query_vec = counts(query)
     query_norm = norm(query_vec)
     scores = [
-        (cosine(query_vec, query_norm, item_vec, item_norm), item_id)
-        for item_id, item_vec, item_norm in zip(item_ids, item_vecs, item_norms)
+        cosine(query_vec, query_norm, item_vec, item_norm)
+        for item_vec, item_norm in zip(item_vecs, item_norms)
     ]
-    scores.sort(reverse=True)
-    return next((idx for idx, (_, item_id) in enumerate(scores, start=1) if item_id == target_id), len(scores) + 1)
+    target_score = -float("inf") if target_index in masked_indices else scores[target_index]
+    return 1 + sum(
+        1
+        for index, score in enumerate(scores)
+        if index not in masked_indices and score > target_score
+    )
 
 
-def rank_target_embedding(query: str, item_ids: list[int], item_embs: torch.Tensor, target_id: int, embedder: Qwen3TextEmbedder) -> int:
+def rank_target_embedding(
+    query: str,
+    item_ids: list[int],
+    item_embs: torch.Tensor,
+    target_id: int,
+    embedder: Qwen3TextEmbedder,
+    item_index: dict[int, int] | None = None,
+    masked_indices: set[int] | None = None,
+) -> int:
     query_emb = embedder.encode_queries([query])[0]
-    target_index = item_ids.index(target_id)
-    return rank_target_embedding_from_emb(query_emb, item_embs, target_index)
+    if item_index is None:
+        item_index = {item_id: index for index, item_id in enumerate(item_ids)}
+    target_index = item_index.get(target_id)
+    if target_index is None:
+        return len(item_ids) + 1
+    return rank_target_embedding_from_emb(query_emb, item_embs, target_index, masked_indices)
 
 
-def rank_target_embedding_from_emb(query_emb: torch.Tensor, item_embs: torch.Tensor, target_index: int) -> int:
-    scores = torch.mv(item_embs, query_emb)
+def rank_target_embedding_from_emb(
+    query_emb: torch.Tensor,
+    item_embs: torch.Tensor,
+    target_index: int,
+    masked_indices: set[int] | None = None,
+) -> int:
+    scores = torch.mv(item_embs, query_emb).clone()
+    if masked_indices:
+        scores[list(masked_indices)] = -float("inf")
     target_score = scores[target_index]
     return int((scores > target_score).sum().item()) + 1
 
@@ -199,6 +262,11 @@ def main() -> None:
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--embedding-torch-dtype", default="bfloat16")
     parser.add_argument("--embedding-device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
+    parser.add_argument("--mask-history-items", dest="mask_history_items", action="store_true", default=env_flag("EVAL_MASK_HISTORY_ITEMS", True))
+    parser.add_argument("--no-mask-history-items", dest="mask_history_items", action="store_false")
+    parser.add_argument("--mask-pad-item", dest="mask_pad_item", action="store_true", default=env_flag("EVAL_MASK_PAD_ITEM", True))
+    parser.add_argument("--no-mask-pad-item", dest="mask_pad_item", action="store_false")
+    parser.add_argument("--keep-target-unmasked", action="store_true", default=env_flag("EVAL_KEEP_TARGET_UNMASKED", False))
     parser.add_argument("--output", default="")
     parser.add_argument("--predictions-output", default="")
     parser.add_argument("--num-shards", type=int, default=1)
@@ -267,26 +335,46 @@ def main() -> None:
     metric_keys = [f"{prefix}_{metric}@{k}" for prefix in ("baseline", "reasoner") for metric in ("HR", "NDCG") for k in ks]
     totals = {key: 0.0 for key in metric_keys}
     pred_rows: list[dict[str, Any]] = []
+    masked_score_total = 0
+    target_in_history_count = 0
 
     for batch_start in range(0, len(rows), args.generation_batch_size):
         batch_end = min(batch_start + args.generation_batch_size, len(rows))
         batch_rows = [rows[i] for i in range(batch_start, batch_end)]
         batch_indices = selected_indices[batch_start:batch_end]
+        batch_history_item_ids = [
+            [int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])]
+            for row in batch_rows
+        ]
         user_histories = [
             history_text(
                 args.category,
                 [str(x) for x in row.get("history_item_title", [])],
                 [float(x) for x in row.get("history_rating", [])],
                 args.max_history_items,
-                item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+                item_ids=batch_history_item_ids[row_pos],
                 item_map=item_map,
                 metadata_mode=args.history_metadata_mode,
                 max_item_chars=args.history_max_item_chars,
                 summary_map=summary_map,
             )
-            for row in batch_rows
+            for row_pos, row in enumerate(batch_rows)
         ]
         target_ids = [int(row["item_id"]) for row in batch_rows]
+        batch_masked_indices = []
+        for history_item_ids, target_id in zip(batch_history_item_ids, target_ids):
+            if target_id in set(history_item_ids):
+                target_in_history_count += 1
+            mask = masked_item_indices(
+                history_item_ids,
+                target_id,
+                item_id_to_index,
+                args.mask_history_items,
+                args.mask_pad_item,
+                args.keep_target_unmasked,
+            )
+            masked_score_total += len(mask)
+            batch_masked_indices.append(mask)
         cots = generate_cots(model, tokenizer, user_histories, args.category, args)
         reasoner_queries = [
             append_recommendation_reasoning(user_history, cot)
@@ -295,12 +383,12 @@ def main() -> None:
 
         if args.scorer == "lexical":
             baseline_ranks = [
-                rank_target(user_history, item_ids, item_vecs, item_norms, target_id)
-                for user_history, target_id in zip(user_histories, target_ids)
+                rank_target(user_history, item_ids, item_vecs, item_norms, target_id, item_id_to_index, mask)
+                for user_history, target_id, mask in zip(user_histories, target_ids, batch_masked_indices)
             ]
             reasoner_ranks = [
-                rank_target(reasoner_query, item_ids, item_vecs, item_norms, target_id)
-                for reasoner_query, target_id in zip(reasoner_queries, target_ids)
+                rank_target(reasoner_query, item_ids, item_vecs, item_norms, target_id, item_id_to_index, mask)
+                for reasoner_query, target_id, mask in zip(reasoner_queries, target_ids, batch_masked_indices)
             ]
         else:
             baseline_query_embs = embedder.encode_queries(user_histories)  # type: ignore[union-attr]
@@ -314,10 +402,10 @@ def main() -> None:
                     reasoner_ranks.append(len(item_ids) + 1)
                 else:
                     baseline_ranks.append(
-                        rank_target_embedding_from_emb(baseline_query_embs[row_pos], item_embs, target_index)  # type: ignore[arg-type]
+                        rank_target_embedding_from_emb(baseline_query_embs[row_pos], item_embs, target_index, batch_masked_indices[row_pos])  # type: ignore[arg-type]
                     )
                     reasoner_ranks.append(
-                        rank_target_embedding_from_emb(reasoner_query_embs[row_pos], item_embs, target_index)  # type: ignore[arg-type]
+                        rank_target_embedding_from_emb(reasoner_query_embs[row_pos], item_embs, target_index, batch_masked_indices[row_pos])  # type: ignore[arg-type]
                     )
 
         for row_pos, row in enumerate(batch_rows):
@@ -340,6 +428,8 @@ def main() -> None:
                     "target_item_title": row.get("item_title", ""),
                     "baseline_rank": baseline_rank,
                     "reasoner_rank": reasoner_rank,
+                    "masked_score_count": len(batch_masked_indices[row_pos]),
+                    "target_in_history": target_ids[row_pos] in set(batch_history_item_ids[row_pos]),
                     "cot": cots[row_pos],
                 }
             )
@@ -370,6 +460,12 @@ def main() -> None:
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
         "item_summary": args.item_summary,
+        "mask_history_items": args.mask_history_items,
+        "mask_pad_item": args.mask_pad_item,
+        "keep_target_unmasked": args.keep_target_unmasked,
+        "masked_score_total": masked_score_total,
+        "masked_score_mean": masked_score_total / n if pred_rows else 0.0,
+        "target_in_history_count": target_in_history_count,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

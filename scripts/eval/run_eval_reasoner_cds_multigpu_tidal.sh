@@ -40,11 +40,18 @@ TEMPERATURE=${TEMPERATURE:-0.0}
 TOP_P=${TOP_P:-0.9}
 TORCH_DTYPE=${TORCH_DTYPE:-bfloat16}
 MODEL_DEVICE=${MODEL_DEVICE:-cuda:0}
+EVAL_MASK_HISTORY_ITEMS=${EVAL_MASK_HISTORY_ITEMS:-1}
+EVAL_MASK_PAD_ITEM=${EVAL_MASK_PAD_ITEM:-1}
+EVAL_KEEP_TARGET_UNMASKED=${EVAL_KEEP_TARGET_UNMASKED:-0}
 KS=${KS:-5,10,20}
 
-SHARD_DIR=${SHARD_DIR:-$OUT_DIR/${RUN_NAME}_${SPLIT}_shards}
-EVAL_OUT=${EVAL_OUT:-$OUT_DIR/eval_${RUN_NAME}_${SPLIT}.json}
-PRED_OUT=${PRED_OUT:-$OUT_DIR/pred_${RUN_NAME}_${SPLIT}.jsonl}
+mask_suffix=""
+if [[ "$EVAL_MASK_HISTORY_ITEMS" == "1" || "$EVAL_MASK_HISTORY_ITEMS" == "true" ]]; then
+  mask_suffix="_masked_seen"
+fi
+SHARD_DIR=${SHARD_DIR:-$OUT_DIR/${RUN_NAME}_${SPLIT}${mask_suffix}_shards}
+EVAL_OUT=${EVAL_OUT:-$OUT_DIR/eval_${RUN_NAME}_${SPLIT}${mask_suffix}.json}
+PRED_OUT=${PRED_OUT:-$OUT_DIR/pred_${RUN_NAME}_${SPLIT}${mask_suffix}.jsonl}
 
 latest_checkpoint() {
   local dir="$1"
@@ -115,8 +122,24 @@ echo "HISTORY_METADATA_MODE=$HISTORY_METADATA_MODE"
 echo "HISTORY_MAX_ITEM_CHARS=$HISTORY_MAX_ITEM_CHARS"
 echo "ITEM_METADATA_SUMMARY=$ITEM_METADATA_SUMMARY"
 echo "MODEL_DEVICE=$MODEL_DEVICE"
+echo "EVAL_MASK_HISTORY_ITEMS=$EVAL_MASK_HISTORY_ITEMS"
+echo "EVAL_MASK_PAD_ITEM=$EVAL_MASK_PAD_ITEM"
+echo "EVAL_KEEP_TARGET_UNMASKED=$EVAL_KEEP_TARGET_UNMASKED"
 echo "EVAL_OUT=$EVAL_OUT"
 echo "PRED_OUT=$PRED_OUT"
+
+mask_history_arg="--no-mask-history-items"
+if [[ "$EVAL_MASK_HISTORY_ITEMS" == "1" || "$EVAL_MASK_HISTORY_ITEMS" == "true" ]]; then
+  mask_history_arg="--mask-history-items"
+fi
+mask_pad_arg="--no-mask-pad-item"
+if [[ "$EVAL_MASK_PAD_ITEM" == "1" || "$EVAL_MASK_PAD_ITEM" == "true" ]]; then
+  mask_pad_arg="--mask-pad-item"
+fi
+keep_target_arg=""
+if [[ "$EVAL_KEEP_TARGET_UNMASKED" == "1" || "$EVAL_KEEP_TARGET_UNMASKED" == "true" ]]; then
+  keep_target_arg="--keep-target-unmasked"
+fi
 
 pids=()
 for shard in $(seq 0 $((NUM_SHARDS - 1))); do
@@ -154,6 +177,9 @@ for shard in $(seq 0 $((NUM_SHARDS - 1))); do
       --embedding-batch-size "$EMBEDDING_BATCH_SIZE" \
       --embedding-torch-dtype "$EMBEDDING_TORCH_DTYPE" \
       --embedding-device cuda:0 \
+      "$mask_history_arg" \
+      "$mask_pad_arg" \
+      $keep_target_arg \
       --ks "$KS" \
       --num-shards "$NUM_SHARDS" \
       --shard-index "$shard" \

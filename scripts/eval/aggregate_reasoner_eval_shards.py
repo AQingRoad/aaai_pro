@@ -67,6 +67,8 @@ def main() -> None:
         metrics[f"delta_NDCG@{k}"] = metrics[f"reasoner_NDCG@{k}"] - metrics[f"baseline_NDCG@{k}"]
         metrics[f"delta_HR@{k}"] = metrics[f"reasoner_HR@{k}"] - metrics[f"baseline_HR@{k}"]
 
+    masked_score_total = sum(int(row.get("masked_score_count", 0) or 0) for row in rows)
+    target_in_history_count = sum(1 for row in rows if row.get("target_in_history"))
     result = {
         "category": args.category or (rows[0].get("category") if rows else ""),
         "split": args.split or (rows[0].get("split") if rows else ""),
@@ -78,6 +80,9 @@ def main() -> None:
         "metrics": metrics,
         "scorer": args.scorer,
         "embedding_model": args.embedding_model or None,
+        "masked_score_total": masked_score_total,
+        "masked_score_mean": masked_score_total / n if rows else 0.0,
+        "target_in_history_count": target_in_history_count,
     }
 
     output_path = Path(args.output)

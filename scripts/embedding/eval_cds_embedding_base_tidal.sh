@@ -22,13 +22,20 @@ EMBEDDING_MAX_LENGTH=${EMBEDDING_MAX_LENGTH:-2048}
 EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-8}
 EMBEDDING_TORCH_DTYPE=${EMBEDDING_TORCH_DTYPE:-bfloat16}
 EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cuda:0}
+EVAL_MASK_HISTORY_ITEMS=${EVAL_MASK_HISTORY_ITEMS:-1}
+EVAL_MASK_PAD_ITEM=${EVAL_MASK_PAD_ITEM:-1}
+EVAL_KEEP_TARGET_UNMASKED=${EVAL_KEEP_TARGET_UNMASKED:-0}
 KS=${KS:-5,10,20}
 EVAL_OUT=${EVAL_OUT:-}
 
 if [[ "${SMOKE:-0}" == "1" && "$MAX_EXAMPLES" == "0" ]]; then
   MAX_EXAMPLES=100
 fi
-EVAL_OUT=${EVAL_OUT:-$ROOT/outputs/rrec_amazon/eval/$CATEGORY/CDs_and_Vinyl_embedding_base_${SPLIT}_max${MAX_EXAMPLES}.json}
+mask_suffix=""
+if [[ "$EVAL_MASK_HISTORY_ITEMS" == "1" || "$EVAL_MASK_HISTORY_ITEMS" == "true" ]]; then
+  mask_suffix="_masked_seen"
+fi
+EVAL_OUT=${EVAL_OUT:-$ROOT/outputs/rrec_amazon/eval/$CATEGORY/CDs_and_Vinyl_embedding_base_${SPLIT}${mask_suffix}_max${MAX_EXAMPLES}.json}
 
 require_path() {
   local label="$1"
@@ -60,6 +67,22 @@ echo "SPLIT=$SPLIT"
 echo "MAX_EXAMPLES=$MAX_EXAMPLES"
 echo "EVAL_OUT=$EVAL_OUT"
 echo "EMBEDDING_DEVICE=$EMBEDDING_DEVICE"
+echo "EVAL_MASK_HISTORY_ITEMS=$EVAL_MASK_HISTORY_ITEMS"
+echo "EVAL_MASK_PAD_ITEM=$EVAL_MASK_PAD_ITEM"
+echo "EVAL_KEEP_TARGET_UNMASKED=$EVAL_KEEP_TARGET_UNMASKED"
+
+mask_history_arg="--no-mask-history-items"
+if [[ "$EVAL_MASK_HISTORY_ITEMS" == "1" || "$EVAL_MASK_HISTORY_ITEMS" == "true" ]]; then
+  mask_history_arg="--mask-history-items"
+fi
+mask_pad_arg="--no-mask-pad-item"
+if [[ "$EVAL_MASK_PAD_ITEM" == "1" || "$EVAL_MASK_PAD_ITEM" == "true" ]]; then
+  mask_pad_arg="--mask-pad-item"
+fi
+keep_target_arg=""
+if [[ "$EVAL_KEEP_TARGET_UNMASKED" == "1" || "$EVAL_KEEP_TARGET_UNMASKED" == "true" ]]; then
+  keep_target_arg="--keep-target-unmasked"
+fi
 
 "$PYTHON_BIN" scripts/eval/evaluate_rrec_jsonl_fullset.py \
   --examples "$EVAL_EXAMPLES" \
@@ -67,6 +90,9 @@ echo "EMBEDDING_DEVICE=$EMBEDDING_DEVICE"
   --category "$CATEGORY" \
   --split "$SPLIT" \
   --max-examples "$MAX_EXAMPLES" \
+  "$mask_history_arg" \
+  "$mask_pad_arg" \
+  $keep_target_arg \
   --ks "$KS" \
   --scorer qwen3_embedding \
   --embedding-model "$BASE_EMBEDDING_MODEL" \

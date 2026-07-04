@@ -24,6 +24,7 @@ from rubric_cot_pipeline.item_metadata import build_item_summary_map, build_item
 from rubric_cot_pipeline.prompts import COT_SYSTEM, build_user_prompt
 from scripts.eval.evaluate_reasoner_fullset_proxy import (
     counts,
+    masked_item_indices,
     norm,
     rank_target,
     rank_target_embedding_from_emb,
@@ -243,6 +244,11 @@ def main() -> None:
     parser.add_argument("--embedding-device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
     parser.add_argument("--embedding-torch-dtype", default="bfloat16")
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
+    parser.add_argument("--mask-history-items", dest="mask_history_items", action="store_true", default=env_flag("EVAL_MASK_HISTORY_ITEMS", True))
+    parser.add_argument("--no-mask-history-items", dest="mask_history_items", action="store_false")
+    parser.add_argument("--mask-pad-item", dest="mask_pad_item", action="store_true", default=env_flag("EVAL_MASK_PAD_ITEM", True))
+    parser.add_argument("--no-mask-pad-item", dest="mask_pad_item", action="store_false")
+    parser.add_argument("--keep-target-unmasked", action="store_true", default=env_flag("EVAL_KEEP_TARGET_UNMASKED", False))
     parser.add_argument("--output", required=True)
     parser.add_argument("--predictions-output", required=True)
     args = parser.parse_args()
@@ -282,21 +288,41 @@ def main() -> None:
             item_vecs.append(vec)
             item_norms.append(norm(vec))
 
+    history_item_ids = [
+        [int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])]
+        for row in all_rows
+    ]
     user_histories = [
         history_text(
             args.category,
             [str(x) for x in row.get("history_item_title", [])],
             [float(x) for x in row.get("history_rating", [])],
             args.max_history_items,
-            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+            item_ids=history_item_ids[row_pos],
             item_map=item_map,
             metadata_mode=args.history_metadata_mode,
             max_item_chars=args.history_max_item_chars,
             summary_map=summary_map,
         )
-        for row in all_rows
+        for row_pos, row in enumerate(all_rows)
     ]
     target_ids = [int(row["item_id"]) for row in all_rows]
+    masked_indices_by_row: list[set[int]] = []
+    masked_score_total = 0
+    target_in_history_count = 0
+    for row_history_item_ids, target_id in zip(history_item_ids, target_ids):
+        if target_id in set(row_history_item_ids):
+            target_in_history_count += 1
+        mask = masked_item_indices(
+            row_history_item_ids,
+            target_id,
+            item_id_to_index,
+            args.mask_history_items,
+            args.mask_pad_item,
+            args.keep_target_unmasked,
+        )
+        masked_score_total += len(mask)
+        masked_indices_by_row.append(mask)
     cots = generate_with_vllm(args, user_histories)
     if len(cots) != len(all_rows):
         raise RuntimeError(f"Generated CoT count mismatch: cots={len(cots)} rows={len(all_rows)}")
@@ -330,17 +356,18 @@ def main() -> None:
     with pred_path.open("w", encoding="utf-8") as f:
         for index, row in enumerate(all_rows, start=1):
             target_id = target_ids[index - 1]
+            masked_indices = masked_indices_by_row[index - 1]
             if args.scorer == "lexical":
-                baseline_rank = rank_target(user_histories[index - 1], item_ids, item_vecs, item_norms, target_id)
-                reasoner_rank = rank_target(reasoner_queries[index - 1], item_ids, item_vecs, item_norms, target_id)
+                baseline_rank = rank_target(user_histories[index - 1], item_ids, item_vecs, item_norms, target_id, item_id_to_index, masked_indices)
+                reasoner_rank = rank_target(reasoner_queries[index - 1], item_ids, item_vecs, item_norms, target_id, item_id_to_index, masked_indices)
             else:
                 target_index = item_id_to_index.get(target_id)
                 if target_index is None:
                     baseline_rank = len(item_ids) + 1
                     reasoner_rank = len(item_ids) + 1
                 else:
-                    baseline_rank = rank_target_embedding_from_emb(baseline_query_embs[index - 1], item_embs, target_index)  # type: ignore[arg-type]
-                    reasoner_rank = rank_target_embedding_from_emb(reasoner_query_embs[index - 1], item_embs, target_index)  # type: ignore[arg-type]
+                    baseline_rank = rank_target_embedding_from_emb(baseline_query_embs[index - 1], item_embs, target_index, masked_indices)  # type: ignore[arg-type]
+                    reasoner_rank = rank_target_embedding_from_emb(reasoner_query_embs[index - 1], item_embs, target_index, masked_indices)  # type: ignore[arg-type]
 
             update_metrics(totals, "baseline", baseline_rank, ks)
             update_metrics(totals, "reasoner", reasoner_rank, ks)
@@ -356,6 +383,8 @@ def main() -> None:
                         "target_item_title": row.get("item_title", ""),
                         "baseline_rank": baseline_rank,
                         "reasoner_rank": reasoner_rank,
+                        "masked_score_count": len(masked_indices),
+                        "target_in_history": target_id in set(history_item_ids[index - 1]),
                         "cot": cots[index - 1],
                     },
                     ensure_ascii=False,
@@ -387,6 +416,12 @@ def main() -> None:
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
         "item_summary": args.item_summary,
+        "mask_history_items": args.mask_history_items,
+        "mask_pad_item": args.mask_pad_item,
+        "keep_target_unmasked": args.keep_target_unmasked,
+        "masked_score_total": masked_score_total,
+        "masked_score_mean": masked_score_total / n if all_rows else 0.0,
+        "target_in_history_count": target_in_history_count,
         "vllm": {
             "tensor_parallel_size": args.tensor_parallel_size,
             "dtype": args.vllm_dtype,

@@ -41,24 +41,77 @@ def cosine(left: Counter[str], left_norm: float, right: Counter[str], right_norm
     return dot / (left_norm * right_norm)
 
 
-def rank_target_lexical(query: str, item_ids: list[int], item_vecs: list[Counter[str]], item_norms: list[float], target_id: int) -> int:
+def env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def masked_item_indices(
+    history_item_ids: list[int],
+    target_id: int,
+    item_index: dict[int, int],
+    mask_history_items: bool,
+    mask_pad_item: bool,
+    keep_target_unmasked: bool,
+) -> set[int]:
+    masked_item_ids: set[int] = set()
+    if mask_history_items:
+        masked_item_ids.update(history_item_ids)
+    if mask_pad_item:
+        masked_item_ids.add(0)
+    if keep_target_unmasked:
+        masked_item_ids.discard(target_id)
+    return {item_index[item_id] for item_id in masked_item_ids if item_id in item_index}
+
+
+def rank_target_lexical(
+    query: str,
+    item_ids: list[int],
+    item_vecs: list[Counter[str]],
+    item_norms: list[float],
+    target_id: int,
+    item_index: dict[int, int],
+    masked_indices: set[int],
+) -> int:
+    target_index = item_index.get(target_id)
+    if target_index is None:
+        return len(item_ids) + 1
+
     query_vec = counts(query)
     query_norm = norm(query_vec)
     scores = [
-        (cosine(query_vec, query_norm, item_vec, item_norm), item_id)
-        for item_id, item_vec, item_norm in zip(item_ids, item_vecs, item_norms)
+        cosine(query_vec, query_norm, item_vec, item_norm)
+        for item_vec, item_norm in zip(item_vecs, item_norms)
     ]
-    scores.sort(reverse=True)
-    return next((idx for idx, (_, item_id) in enumerate(scores, start=1) if item_id == target_id), len(scores) + 1)
+    target_score = -float("inf") if target_index in masked_indices else scores[target_index]
+    return 1 + sum(
+        1
+        for index, score in enumerate(scores)
+        if index not in masked_indices and score > target_score
+    )
 
 
-def rank_target_embedding(query: str, item_ids: list[int], item_embs: torch.Tensor, target_id: int, embedder: Qwen3TextEmbedder) -> int:
+def rank_target_embedding(
+    query: str,
+    item_ids: list[int],
+    item_embs: torch.Tensor,
+    target_id: int,
+    embedder: Qwen3TextEmbedder,
+    item_index: dict[int, int],
+    masked_indices: set[int],
+) -> int:
+    target_index = item_index.get(target_id)
+    if target_index is None:
+        return len(item_ids) + 1
+
     query_emb = embedder.encode_queries([query])[0]
-    scores = torch.mv(item_embs, query_emb)
-    order = torch.argsort(scores, descending=True)
-    target_index = item_ids.index(target_id)
-    matches = (order == target_index).nonzero(as_tuple=False)
-    return int(matches[0].item()) + 1 if len(matches) else len(item_ids) + 1
+    scores = torch.mv(item_embs, query_emb).clone()
+    if masked_indices:
+        scores[list(masked_indices)] = -float("inf")
+    target_score = scores[target_index]
+    return int((scores > target_score).sum().item()) + 1
 
 
 def metrics_at_rank(rank: int, ks: list[int]) -> dict[str, float]:
@@ -95,6 +148,11 @@ def main() -> None:
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--torch-dtype", default="bfloat16")
     parser.add_argument("--device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
+    parser.add_argument("--mask-history-items", dest="mask_history_items", action="store_true", default=env_flag("EVAL_MASK_HISTORY_ITEMS", True))
+    parser.add_argument("--no-mask-history-items", dest="mask_history_items", action="store_false")
+    parser.add_argument("--mask-pad-item", dest="mask_pad_item", action="store_true", default=env_flag("EVAL_MASK_PAD_ITEM", True))
+    parser.add_argument("--no-mask-pad-item", dest="mask_pad_item", action="store_false")
+    parser.add_argument("--keep-target-unmasked", action="store_true", default=env_flag("EVAL_KEEP_TARGET_UNMASKED", False))
     parser.add_argument("--output", default="")
     args = parser.parse_args()
 
@@ -116,6 +174,7 @@ def main() -> None:
             vec = counts(text)
             item_vecs.append(vec)
             item_norms.append(norm(vec))
+    item_index = {item_id: index for index, item_id in enumerate(item_ids)}
 
     embedder = None
     item_embs = None
@@ -137,23 +196,37 @@ def main() -> None:
 
     totals = {f"HR@{k}": 0.0 for k in ks} | {f"NDCG@{k}": 0.0 for k in ks}
     ranks: list[int] = []
+    masked_score_total = 0
+    target_in_history_count = 0
     for row in rows:
+        history_item_ids = [int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])]
         prompt = history_text(
             args.category,
             [str(x) for x in row.get("history_item_title", [])],
             [float(x) for x in row.get("history_rating", [])],
             args.max_history_items,
-            item_ids=[int(x) for x in (row.get("history_item_id") or row.get("history_item_ids") or [])],
+            item_ids=history_item_ids,
             item_map=item_map,
             metadata_mode=args.history_metadata_mode,
             max_item_chars=args.history_max_item_chars,
             summary_map=summary_map,
         )
         target_id = int(row["item_id"])
+        if target_id in set(history_item_ids):
+            target_in_history_count += 1
+        masked_indices = masked_item_indices(
+            history_item_ids,
+            target_id,
+            item_index,
+            args.mask_history_items,
+            args.mask_pad_item,
+            args.keep_target_unmasked,
+        )
+        masked_score_total += len(masked_indices)
         if args.scorer == "lexical":
-            rank = rank_target_lexical(prompt, item_ids, item_vecs, item_norms, target_id)
+            rank = rank_target_lexical(prompt, item_ids, item_vecs, item_norms, target_id, item_index, masked_indices)
         else:
-            rank = rank_target_embedding(prompt, item_ids, item_embs, target_id, embedder)  # type: ignore[arg-type]
+            rank = rank_target_embedding(prompt, item_ids, item_embs, target_id, embedder, item_index, masked_indices)  # type: ignore[arg-type]
         ranks.append(rank)
         row_metrics = metrics_at_rank(rank, ks)
         for key, value in row_metrics.items():
@@ -174,6 +247,12 @@ def main() -> None:
         "history_metadata_mode": args.history_metadata_mode,
         "history_max_item_chars": args.history_max_item_chars,
         "item_summary": args.item_summary,
+        "mask_history_items": args.mask_history_items,
+        "mask_pad_item": args.mask_pad_item,
+        "keep_target_unmasked": args.keep_target_unmasked,
+        "masked_score_total": masked_score_total,
+        "masked_score_mean": masked_score_total / n if ranks else 0.0,
+        "target_in_history_count": target_in_history_count,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if args.output:
