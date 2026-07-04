@@ -51,13 +51,37 @@ def save_rrec_dataset(path: Path, native_rows: dict[str, list[dict[str, Any]]], 
             "item_info": Dataset.from_list(item_info),
         }
     ).save_to_disk(str(path))
-    make_dataset_info_legacy_compatible(path)
+    make_saved_dataset_legacy_compatible(path)
 
 
-def make_dataset_info_legacy_compatible(path: Path) -> None:
+def make_saved_dataset_legacy_compatible(path: Path) -> None:
     for info_path in path.glob("*/dataset_info.json"):
         text = info_path.read_text(encoding="utf-8")
         info_path.write_text(text.replace('"_type": "List"', '"_type": "Sequence"'), encoding="utf-8")
+    for arrow_path in path.glob("*/*.arrow"):
+        make_arrow_metadata_legacy_compatible(arrow_path)
+
+
+def make_arrow_metadata_legacy_compatible(path: Path) -> None:
+    import pyarrow.ipc as arrow_ipc
+
+    with path.open("rb") as f:
+        reader = arrow_ipc.RecordBatchStreamReader(f)
+        schema = reader.schema
+        batches = list(reader)
+
+    metadata = dict(schema.metadata or {})
+    hf_metadata = metadata.get(b"huggingface")
+    if not hf_metadata or b'"_type": "List"' not in hf_metadata:
+        return
+
+    metadata[b"huggingface"] = hf_metadata.replace(b'"_type": "List"', b'"_type": "Sequence"')
+    tmp_path = path.with_suffix(".arrow.tmp")
+    with tmp_path.open("wb") as f:
+        with arrow_ipc.RecordBatchStreamWriter(f, schema.with_metadata(metadata)) as writer:
+            for batch in batches:
+                writer.write_batch(batch)
+    tmp_path.replace(path)
 
 
 def item_map(rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
