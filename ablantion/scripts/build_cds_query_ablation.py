@@ -296,7 +296,10 @@ def selected_ablations(raw: str) -> list[tuple[str, tuple[str, ...]]]:
     missing = sorted(wanted - set(known))
     if missing:
         raise ValueError(f"Unknown ablation name(s): {', '.join(missing)}")
-    return [(name, known[name]) for name in ABLATIONS if name in wanted]
+    selected = [(name, fields) for name, fields in ABLATIONS if name in wanted]
+    if not selected:
+        raise ValueError("No ablations selected")
+    return selected
 
 
 def main() -> None:
