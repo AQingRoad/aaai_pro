@@ -14,9 +14,9 @@ COMPLETIONS=${COMPLETIONS:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen25_3b
 COMPONENTS=${COMPONENTS:-$ROOT/checkpoints/rrec_amazon_CDs_and_Vinyl/qwen25_3b_lora_grpo_ref_soft_ndcg20_100_1000_equal_refbonus1p0_t0p7_vllm016_oomsafe_from_sft354_rejected80_lr1e-5_g4_b16_acc1_c512_len2048_ep3/rubric_ref_soft_ndcg_components.jsonl}
 SOURCE_SCORED=${SOURCE_SCORED:-$ROOT/outputs/rrec_amazon/$CATEGORY/sft_quality/cot_scored_glm47_tsc_no_trunc_rubric_gain_top20_ndcg100.jsonl}
 DATA_DIR=${DATA_DIR:-$ROOT/outputs/rrec_amazon/$CATEGORY/preference_v2}
-GROUPS=${GROUPS:-$DATA_DIR/grpo993_glm47_corruption_groups.jsonl}
+GROUPS_FILE=${GROUPS_FILE:-$DATA_DIR/grpo993_glm47_corruption_groups.jsonl}
 GROUP_SUMMARY=${GROUP_SUMMARY:-$DATA_DIR/grpo993_glm47_corruption_groups.summary.json}
-JUDGMENTS=${JUDGMENTS:-$DATA_DIR/grpo993_glm47_corruption_groups.glm52_pilot200.jsonl}
+JUDGMENTS_FILE=${JUDGMENTS_FILE:-$DATA_DIR/grpo993_glm47_corruption_groups.glm52_pilot200.jsonl}
 
 EMBEDDING_MODEL=${EMBEDDING_MODEL:-/home/user/models_hf/Qwen3-Embedding-0.6B}
 RUN_NAME=${RUN_NAME:-cot_preference_v2_glm52_pilot200_fold0_20260710}
@@ -106,12 +106,12 @@ print_plan() {
   print_param "COMPLETIONS" "$COMPLETIONS" "已停止 GRPO 的 993 step completion 日志，每组包含 4 条 policy CoT。"
   print_param "COMPONENTS" "$COMPONENTS" "与 completion 逐行对齐的 rank、q_new、q_ref 元数据。"
   print_param "SOURCE_SCORED" "$SOURCE_SCORED" "外部 GLM CoT、无评分 history 和 baseline/cot rank 来源。"
-  print_param "GROUPS" "$GROUPS" "同 history 多 CoT 分组输出；每组由 policy、external GLM 和扰动负例组成。"
+  print_param "GROUPS_FILE" "$GROUPS_FILE" "同 history 多 CoT 分组输出；每组由 policy、external GLM 和扰动负例组成。"
   print_param "GROUP_SUMMARY" "$GROUP_SUMMARY" "候选来源、fold 和数据完整性统计。"
   print_param "NUM_FOLDS" "$NUM_FOLDS" "按 example_id hash 划分的 fold 数，保证同一 history 不跨 fold。"
   print_param "BUILD_MAX_GROUPS" "$BUILD_MAX_GROUPS" "最多构建多少组；0 表示使用日志中的全部 3972 组。"
   print_param "MIN_CANDIDATES" "$MIN_CANDIDATES" "去重后保留一个 history 组所需的最少候选数。"
-  print_param "JUDGMENTS" "$JUDGMENTS" "GLM-5.2 listwise judge 输出，按 example_id 可恢复。"
+  print_param "JUDGMENTS_FILE" "$JUDGMENTS_FILE" "GLM-5.2 listwise judge 输出，按 example_id 可恢复。"
   print_param "JUDGE_MAX_GROUPS" "$JUDGE_MAX_GROUPS" "pilot 最多 judge 200 个随机 history 组，约 200 次 API 请求。"
   print_param "JUDGE_BASE_URL" "$JUDGE_BASE_URL" "OpenAI-compatible GLM API 地址。"
   print_param "JUDGE_MODEL" "$JUDGE_MODEL" "listwise judge 模型。"
@@ -180,18 +180,18 @@ main() {
   export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
   export PYTORCH_CUDA_ALLOC_CONF
 
-  if enabled "$RUN_BUILD" && (enabled "$FORCE_BUILD" || [[ ! -s "$GROUPS" ]]); then
+  if enabled "$RUN_BUILD" && (enabled "$FORCE_BUILD" || [[ ! -s "$GROUPS_FILE" ]]); then
     "$PYTHON_BIN" scripts/datasets/build_cot_preference_groups_v2.py \
       --completions "$COMPLETIONS" \
       --components "$COMPONENTS" \
       --source-scored "$SOURCE_SCORED" \
-      --output "$GROUPS" \
+      --output "$GROUPS_FILE" \
       --summary-output "$GROUP_SUMMARY" \
       --num-folds "$NUM_FOLDS" \
       --max-groups "$BUILD_MAX_GROUPS" \
       --min-candidates "$MIN_CANDIDATES"
   fi
-  require_file "preference groups" "$GROUPS"
+  require_file "preference groups" "$GROUPS_FILE"
 
   if enabled "$RUN_JUDGE"; then
     judge_raw_arg=--no-save-raw
@@ -199,8 +199,8 @@ main() {
       judge_raw_arg=--save-raw
     fi
     "$PYTHON_BIN" scripts/cot/judge_cot_preference_groups_v2.py \
-      --input "$GROUPS" \
-      --output "$JUDGMENTS" \
+      --input "$GROUPS_FILE" \
+      --output "$JUDGMENTS_FILE" \
       --base-url "$JUDGE_BASE_URL" \
       --api-key "$JUDGE_API_KEY" \
       --judge-model "$JUDGE_MODEL" \
@@ -215,7 +215,7 @@ main() {
       --seed "$SEED" \
       "$judge_raw_arg"
   fi
-  require_file "listwise judgments" "$JUDGMENTS"
+  require_file "listwise judgments" "$JUDGMENTS_FILE"
 
   if enabled "$RUN_TRAIN"; then
     force_reencode_arg=()
@@ -223,8 +223,8 @@ main() {
       force_reencode_arg=(--force-reencode)
     fi
     "$PYTHON_BIN" scripts/train/train_cot_preference_scorer_v2.py \
-      --groups "$GROUPS" \
-      --judgments "$JUDGMENTS" \
+      --groups "$GROUPS_FILE" \
+      --judgments "$JUDGMENTS_FILE" \
       --embedding-model "$EMBEDDING_MODEL" \
       --embedding-cache "$EMBEDDING_CACHE" \
       --output-dir "$OUTPUT_DIR" \
