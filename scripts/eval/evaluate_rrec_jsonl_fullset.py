@@ -314,6 +314,7 @@ def main() -> None:
     parser.add_argument("--embedding-max-length", type=int, default=2048)
     parser.add_argument("--embedding-batch-size", type=int, default=8)
     parser.add_argument("--embedding-output-dim", type=int, default=0)
+    parser.add_argument("--max-item-chars", type=int, default=int(os.getenv("MAX_ITEM_CHARS", "0")))
     parser.add_argument("--query-instruction", default=DEFAULT_RECOMMENDATION_QUERY_INSTRUCTION)
     parser.add_argument("--torch-dtype", default="bfloat16")
     parser.add_argument("--device", default=os.getenv("QWEN3_EMBEDDING_DEVICE", "cuda:0"))
@@ -339,7 +340,7 @@ def main() -> None:
     item_vecs: list[Counter[str]] = []
     item_norms: list[float] = []
     for item_id, item in sorted(item_map.items()):
-        text = metadata_build_item_text(item, str(item.get("title", "")), max_chars=1200)
+        text = metadata_build_item_text(item, str(item.get("title", "")), max_chars=args.max_item_chars)
         item_ids.append(item_id)
         item_texts.append(text)
         if args.scorer == "lexical":
@@ -409,6 +410,7 @@ def main() -> None:
         "metrics": {key: value / n for key, value in totals.items()},
         "scorer": args.scorer,
         "embedding_model": args.embedding_model if args.scorer == "qwen3_embedding" else None,
+        "max_item_chars": args.max_item_chars,
         "query_mode": args.query_mode,
         "cot_text_mode": args.cot_text_mode if args.query_mode == "history_plus_cot" else None,
         "candidate_index": args.candidate_index if args.query_mode == "history_plus_cot" else None,

@@ -104,8 +104,8 @@ def get_target_id(example: dict[str, Any]) -> int:
 def get_target_title(example: dict[str, Any], item: dict[str, Any] | None) -> str:
     title = example.get("target_item_title") or example.get("item_title")
     if title:
-        return compact(title, 300)
-    return compact(item.get("title") if item else "", 300)
+        return compact(title, 0)
+    return compact(item.get("title") if item else "", 0)
 
 
 def parse_details(value: Any) -> dict[str, Any]:
@@ -184,28 +184,28 @@ def target_text(item: dict[str, Any] | None, title: str) -> str:
     return " ".join(parts) if parts else compact(title, 0)
 
 
-def metadata_text(item: dict[str, Any] | None, fields: tuple[str, ...]) -> str:
+def metadata_text(item: dict[str, Any] | None, fields: tuple[str, ...], max_item_chars: int) -> str:
     if not item or not fields:
         return ""
 
     parts = []
     if "store" in fields:
-        store = compact(item.get("store"), 180)
+        store = compact(item.get("store"), max_item_chars)
         if store:
             parts.append(f"Store/artist/format: {store}")
 
     if "categories" in fields:
-        categories = " > ".join(as_list(item.get("categories"), limit=4))
+        categories = " > ".join(as_list(item.get("categories"), limit=4, max_chars=max_item_chars))
         if categories:
             parts.append(f"Categories: {categories}")
 
     if "features" in fields:
-        features = "; ".join(as_list(item.get("features"), limit=3))
+        features = "; ".join(as_list(item.get("features"), limit=3, max_chars=max_item_chars))
         if features:
             parts.append(f"Features: {features}")
 
     if "description" in fields:
-        description = " ".join(as_list(item.get("description"), limit=1))
+        description = " ".join(as_list(item.get("description"), limit=1, max_chars=max_item_chars))
         if description:
             parts.append(f"Description: {description}")
 
@@ -217,7 +217,12 @@ def metadata_text(item: dict[str, Any] | None, fields: tuple[str, ...]) -> str:
     return "; ".join(parts)
 
 
-def build_query(example: dict[str, Any], items: dict[int, dict[str, Any]], fields: tuple[str, ...]) -> str:
+def build_query(
+    example: dict[str, Any],
+    items: dict[int, dict[str, Any]],
+    fields: tuple[str, ...],
+    max_item_chars: int,
+) -> str:
     history_ids = get_history_ids(example)
     history_titles = [str(x) for x in example.get("history_item_title", [])]
     lines = ["This user's Amazon CDs and Vinyl interaction history over time is listed below."]
@@ -225,9 +230,9 @@ def build_query(example: dict[str, Any], items: dict[int, dict[str, Any]], field
     for pos, item_id in enumerate(history_ids, start=1):
         item = items.get(item_id)
         fallback_title = history_titles[pos - 1] if pos - 1 < len(history_titles) else f"item_{item_id}"
-        title = compact(item.get("title") if item else fallback_title, 240)
+        title = compact(item.get("title") if item else fallback_title, max_item_chars)
         entry = f"{pos}. {title}" if title else f"{pos}. [missing title]"
-        meta = metadata_text(item, fields)
+        meta = metadata_text(item, fields, max_item_chars)
         if meta:
             entry = f"{entry}; {meta}"
         lines.append(entry)
@@ -274,10 +279,11 @@ def build_one(
     items: dict[int, dict[str, Any]],
     ablation_name: str,
     fields: tuple[str, ...],
+    max_item_chars: int,
 ) -> list[dict[str, Any]]:
     rows = []
     for example in examples:
-        query = build_query(example, items, fields)
+        query = build_query(example, items, fields, max_item_chars)
         rows.append(output_row(example, items, query, ablation_name, fields))
     return rows
 
@@ -301,6 +307,7 @@ def main() -> None:
     parser.add_argument("--output-prefix", default="cds_query")
     parser.add_argument("--ablations", default="all")
     parser.add_argument("--max-rows", type=int, default=0)
+    parser.add_argument("--max-item-chars", type=int, default=0)
     args = parser.parse_args()
 
     examples = read_jsonl(args.examples, max_rows=args.max_rows)
@@ -308,7 +315,7 @@ def main() -> None:
     runs = selected_ablations(args.ablations)
 
     for name, fields in runs:
-        rows = build_one(examples, items, name, fields)
+        rows = build_one(examples, items, name, fields, args.max_item_chars)
         output = args.output_dir / f"{args.output_prefix}_{name}.jsonl"
         write_jsonl(output, rows)
         print(json.dumps({"ablation": name, "rows": len(rows), "output": str(output)}, ensure_ascii=False))

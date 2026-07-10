@@ -46,6 +46,7 @@ class PairDataset(Dataset):
                 "query": str(row.get("query") or ""),
                 "positive": str(row.get("positive") or ""),
                 "negatives": as_text_list(row.get("negatives") or row.get("negative")),
+                "target_item_id": row.get("target_item_id"),
             }
             for row in read_jsonl(path, limit=limit)
             if row.get("query") and row.get("positive")
@@ -56,16 +57,37 @@ class PairDataset(Dataset):
     def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, idx: int) -> dict[str, str]:
+    def __getitem__(self, idx: int) -> dict[str, object]:
         return self.rows[idx]
 
 
-def collate(rows: list[dict[str, str]]) -> dict[str, list[str]]:
+def collate(rows: list[dict[str, object]]) -> dict[str, list[object]]:
     return {
         "queries": [row["query"] for row in rows],
         "positives": [row["positive"] for row in rows],
         "negatives": [row["negatives"] for row in rows],
+        "target_item_ids": [row["target_item_id"] for row in rows],
     }
+
+
+def multi_positive_info_nce(
+    logits: torch.Tensor,
+    query_target_ids: torch.Tensor,
+    document_target_ids: torch.Tensor,
+) -> torch.Tensor:
+    positive_mask = query_target_ids[:, None].eq(document_target_ids[None, :])
+    if not bool(positive_mask.any(dim=1).all()):
+        raise RuntimeError("Every query must have at least one positive document in multi-positive InfoNCE.")
+    positive_logits = logits.masked_fill(~positive_mask, -torch.inf)
+    return (torch.logsumexp(logits, dim=1) - torch.logsumexp(positive_logits, dim=1)).mean()
+
+
+def gather_without_grad(tensor: torch.Tensor, world_size: int) -> torch.Tensor:
+    if world_size == 1:
+        return tensor
+    gathered = [torch.empty_like(tensor) for _ in range(world_size)]
+    dist.all_gather(gathered, tensor.contiguous())
+    return torch.cat(gathered, dim=0)
 
 
 def encode_texts(model, tokenizer, texts: list[str], max_length: int):
@@ -160,6 +182,7 @@ def main() -> None:
     parser.add_argument("--gradient-checkpointing", choices=["auto", "on", "off", "non_reentrant"], default="auto")
     parser.add_argument("--attn-implementation", default="")
     parser.add_argument("--cross-gpu-negatives", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--multi-positive-targets", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--sync-barriers", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--preview-cases", type=int, default=2)
     args = parser.parse_args()
@@ -175,6 +198,13 @@ def main() -> None:
     maybe_barrier(distributed, args.sync_barriers)
 
     dataset = PairDataset(args.dataset, limit=args.max_rows)
+    if args.multi_positive_targets:
+        missing_target_ids = sum(row["target_item_id"] is None for row in dataset.rows)
+        if missing_target_ids:
+            raise ValueError(
+                "--multi-positive-targets requires target_item_id on every row; "
+                f"missing={missing_target_ids}."
+            )
     if is_main_process(rank):
         for index in range(min(args.preview_cases, len(dataset))):
             row = dataset[index]
@@ -275,6 +305,7 @@ def main() -> None:
             "gradient_checkpointing_mode": args.gradient_checkpointing,
             "gradient_checkpointing_use_reentrant": False if use_non_reentrant_checkpointing else None,
             "cross_gpu_negatives": use_cross_gpu_negatives,
+            "multi_positive_targets": args.multi_positive_targets,
         }
         args_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     maybe_barrier(distributed, args.sync_barriers)
@@ -295,11 +326,40 @@ def main() -> None:
             if use_cross_gpu_negatives:
                 doc_emb = all_gather_same_shape(doc_emb, rank=rank, world_size=world_size)
             logits = query_emb @ doc_emb.T / args.temperature
-            if use_cross_gpu_negatives:
-                labels = rank * local_doc_count + torch.arange(len(doc_texts), device=logits.device)
+            if args.multi_positive_targets:
+                query_target_ids = torch.tensor(
+                    [int(target_id) for target_id in batch["target_item_ids"]],
+                    device=logits.device,
+                    dtype=torch.long,
+                )
+                local_document_target_ids = torch.cat(
+                    [
+                        query_target_ids,
+                        torch.full(
+                            (len(explicit_negative_texts),),
+                            -1,
+                            device=logits.device,
+                            dtype=torch.long,
+                        ),
+                    ]
+                )
+                document_target_ids = (
+                    gather_without_grad(local_document_target_ids, world_size)
+                    if use_cross_gpu_negatives
+                    else local_document_target_ids
+                )
+                loss = multi_positive_info_nce(logits, query_target_ids, document_target_ids)
+                with torch.no_grad():
+                    predicted_target_ids = document_target_ids[logits.argmax(dim=1)]
+                    acc = predicted_target_ids.eq(query_target_ids).float().mean().item()
             else:
-                labels = torch.arange(len(doc_texts), device=logits.device)
-            loss = F.cross_entropy(logits, labels)
+                if use_cross_gpu_negatives:
+                    labels = rank * local_doc_count + torch.arange(len(doc_texts), device=logits.device)
+                else:
+                    labels = torch.arange(len(doc_texts), device=logits.device)
+                loss = F.cross_entropy(logits, labels)
+                with torch.no_grad():
+                    acc = (logits.argmax(dim=1) == labels).float().mean().item()
             (loss / args.grad_accum).backward()
 
             if batch_idx % args.grad_accum != 0:
@@ -311,8 +371,6 @@ def main() -> None:
             optimizer.zero_grad(set_to_none=True)
             global_step += 1
 
-            with torch.no_grad():
-                acc = (logits.argmax(dim=1) == labels).float().mean().item()
             if is_main_process(rank):
                 print(
                     json.dumps(
@@ -325,6 +383,7 @@ def main() -> None:
                             "world_size": world_size,
                             "global_batch_size": args.batch_size * world_size * max(1, args.grad_accum),
                             "cross_gpu_negatives": use_cross_gpu_negatives,
+                            "multi_positive_targets": args.multi_positive_targets,
                             "candidate_docs": int(doc_emb.shape[0]),
                             "explicit_negatives": len(explicit_negative_texts),
                         }
