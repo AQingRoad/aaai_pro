@@ -24,6 +24,7 @@
 4. 默认拒绝超长文本；复现旧实验时显式开启 allow-query-truncation 和 allow-item-truncation，并记录截断数量；
 5. test 不参与标签阈值、checkpoint 和训练参数选择；
 6. scorer checkpoint、query instruction、item-info 哈希和数据 split 写入产物元数据。
+7. 数据划分、模型初始化、DataLoader 和训练评测随机种子统一固定为 42。
 
 ## 执行门禁
 

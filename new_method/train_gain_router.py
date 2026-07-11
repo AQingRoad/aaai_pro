@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--split-seed", type=int, default=20260711)
+    parser.add_argument("--split-seed", type=int, default=42)
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
 
