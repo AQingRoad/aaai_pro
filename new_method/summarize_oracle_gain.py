@@ -73,6 +73,7 @@ def budget_curve(rows: list[dict[str, Any]], rates: tuple[float, ...]) -> list[d
 
 def summarize(rows: list[dict[str, Any]], metadata: dict[str, Any] | None) -> dict[str, Any]:
     n = len(rows)
+    ndcg_k = int(rows[0]["ndcg_k"])
     baseline_ndcg = mean(rows, "baseline_ndcg")
     cot_ndcg = mean(rows, "cot_ndcg")
     oracle_ndcg = fmean(
@@ -118,11 +119,24 @@ def summarize(rows: list[dict[str, Any]], metadata: dict[str, Any] | None) -> di
         overlength_items = metadata.get("overlength_item_count")
     return {
         "sample_count": n,
-        "ndcg_k": int(rows[0]["ndcg_k"]),
-        "baseline": {"mean_ndcg": baseline_ndcg, "mean_rank": baseline_rank},
-        "cot": {"mean_ndcg": cot_ndcg, "mean_rank": cot_rank},
+        "ndcg_k": ndcg_k,
+        "baseline": {
+            "mean_ndcg": baseline_ndcg,
+            "hit_rate": sum(int(row["baseline_rank"]) <= ndcg_k for row in rows) / n,
+            "mean_rank": baseline_rank,
+        },
+        "cot": {
+            "mean_ndcg": cot_ndcg,
+            "hit_rate": sum(int(row["cot_rank"]) <= ndcg_k for row in rows) / n,
+            "mean_rank": cot_rank,
+        },
         "oracle": {
             "mean_ndcg": oracle_ndcg,
+            "hit_rate": sum(
+                min(int(row["baseline_rank"]), int(row["cot_rank"])) <= ndcg_k
+                for row in rows
+            )
+            / n,
             "absolute_ndcg_gain": oracle_ndcg - baseline_ndcg,
             "relative_ndcg_gain": (
                 (oracle_ndcg - baseline_ndcg) / baseline_ndcg if baseline_ndcg else None
@@ -170,11 +184,11 @@ def markdown(summary: dict[str, Any], input_path: Path) -> str:
         "",
         f"样本数为 {summary['sample_count']}，评价指标为 NDCG@{summary['ndcg_k']}。",
         "",
-        "| 路径 | 平均 NDCG | 平均 rank |",
-        "|---|---:|---:|",
-        f"| history | {baseline['mean_ndcg']:.6f} | {baseline['mean_rank']:.3f} |",
-        f"| history+CoT | {cot['mean_ndcg']:.6f} | {cot['mean_rank']:.3f} |",
-        f"| 逐样本 Oracle | {oracle['mean_ndcg']:.6f} | {oracle['mean_rank']:.3f} |",
+        "| 路径 | 平均 NDCG | HR | 平均 rank |",
+        "|---|---:|---:|---:|",
+        f"| history | {baseline['mean_ndcg']:.6f} | {baseline['hit_rate']:.6f} | {baseline['mean_rank']:.3f} |",
+        f"| history+CoT | {cot['mean_ndcg']:.6f} | {cot['hit_rate']:.6f} | {cot['mean_rank']:.3f} |",
+        f"| 逐样本 Oracle | {oracle['mean_ndcg']:.6f} | {oracle['hit_rate']:.6f} | {oracle['mean_rank']:.3f} |",
         "",
         f"Oracle 的 NDCG 绝对增量为 {oracle['absolute_ndcg_gain']:.6f}，相对增量为 {pct(oracle['relative_ndcg_gain'])}。"
         f" Oracle 在 {oracle['cot_route_count']} 个样本上选择 CoT 路径。",
