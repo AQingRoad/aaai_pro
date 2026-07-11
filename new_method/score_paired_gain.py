@@ -212,7 +212,8 @@ def main() -> None:
     parser.add_argument("--item-info", required=True)
     parser.add_argument("--embedding-model", required=True)
     parser.add_argument("--max-examples", type=int, default=0)
-    parser.add_argument("--max-length", type=int, default=4096)
+    parser.add_argument("--query-max-length", type=int, default=4096)
+    parser.add_argument("--item-max-length", type=int, default=8192)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--item-batch-size", type=int, default=32)
     parser.add_argument("--torch-dtype", default="bfloat16")
@@ -226,8 +227,8 @@ def main() -> None:
     parser.add_argument("--mask-pad-item", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
-    if args.max_length <= 0:
-        raise ValueError("--max-length must be positive")
+    if args.query_max_length <= 0 or args.item_max_length <= 0:
+        raise ValueError("--query-max-length and --item-max-length must be positive")
     if args.ndcg_k <= 0:
         raise ValueError("--ndcg-k must be positive")
     if args.margin_temperature <= 0:
@@ -236,7 +237,7 @@ def main() -> None:
     item_ids, item_texts, item_index = load_items(args.item_info)
     embedder = Qwen3TextEmbedder(
         args.embedding_model,
-        max_length=args.max_length,
+        max_length=args.item_max_length,
         batch_size=args.item_batch_size,
         torch_dtype=args.torch_dtype,
         device=args.device,
@@ -246,7 +247,7 @@ def main() -> None:
     item_lengths = check_lengths(
         embedder.tokenizer,
         item_texts,
-        max_length=args.max_length,
+        max_length=args.item_max_length,
         label="item-info",
     )
     score_device = torch.device(
@@ -255,6 +256,7 @@ def main() -> None:
         else ("cuda:0" if torch.cuda.is_available() else "cpu")
     )
     item_embeddings = embedder.encode_documents(item_texts).to(score_device)
+    embedder.max_length = args.query_max_length
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -288,13 +290,13 @@ def main() -> None:
         history_lengths = check_lengths(
             embedder.tokenizer,
             formatted_histories,
-            max_length=args.max_length,
+            max_length=args.query_max_length,
             label="history queries",
         )
         cot_lengths = check_lengths(
             embedder.tokenizer,
             formatted_cot_queries,
-            max_length=args.max_length,
+            max_length=args.query_max_length,
             label="history+think queries",
         )
         history_embeddings = embedder.encode_queries(histories).to(score_device)
@@ -368,7 +370,8 @@ def main() -> None:
                 "scorer_checkpoint": args.embedding_model,
                 "query_mode": "history_plus_think_only",
                 "query_instruction": args.query_instruction,
-                "max_length": args.max_length,
+                "query_max_length": args.query_max_length,
+                "item_max_length": args.item_max_length,
                 "masked_history_items": args.mask_history_items,
                 "masked_pad_item": args.mask_pad_item,
             }

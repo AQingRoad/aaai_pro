@@ -295,7 +295,8 @@ def main() -> None:
                 "query_mode": "history_plus_think_only",
                 "scorer_checkpoint": base.get("scorer_checkpoint"),
                 "query_instruction": base.get("query_instruction"),
-                "max_length": base.get("max_length"),
+                "query_max_length": base.get("query_max_length", base.get("max_length")),
+                "item_max_length": base.get("item_max_length"),
             }
         )
 

@@ -16,7 +16,7 @@
 1. embedding query 只拼接 think 内容；
 2. history 与 history+think 使用相同 target、候选集合和 seen-item mask；
 3. target、positive、CoT 和 history 不允许出现 [TRUNCATED]；
-4. 超过 max_length 的文本由 scorer、audit 和 trainer 拒绝，不静默截断；
+4. query 超过 query_max_length、item 超过 item_max_length 时由 scorer 拒绝，不静默截断；
 5. test 不参与标签阈值、checkpoint 和训练参数选择；
 6. scorer checkpoint、query instruction、item-info 哈希和数据 split 写入产物元数据。
 
