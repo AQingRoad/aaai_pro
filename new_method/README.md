@@ -9,6 +9,11 @@
 - audit_paired_dataset.py：训练前数据门禁；
 - paired_loss.py：multi-positive InfoNCE 与 good/bad 顺序损失；
 - train_paired_retriever.py：单卡 A100 三视图训练入口；
+- summarize_oracle_gain.py：汇总逐样本增益、Oracle 上限和截断统计；
+- extract_router_features.py：抽取 history embedding 与无 target 的初始检索置信度特征；
+- router_model.py：路由模型、用户分组划分、阈值选择与路由指标；
+- train_gain_router.py：在 train 内部 user-group valid 上训练 Logistic 或两层 MLP；
+- eval_gain_router.py：冻结模型和阈值后评测 test；
 - tests/：纯函数和损失测试。
 
 ## 固定口径
