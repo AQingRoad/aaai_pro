@@ -126,10 +126,11 @@ def check_lengths(
     *,
     max_length: int,
     label: str,
+    allow_truncation: bool,
 ) -> list[int]:
     lengths = token_lengths(tokenizer, texts)
     over = [(index, length) for index, length in enumerate(lengths) if length > max_length]
-    if over:
+    if over and not allow_truncation:
         first_index, first_length = over[0]
         raise ValueError(
             f"{label} contains {len(over)} texts longer than max_length={max_length}; "
@@ -213,7 +214,9 @@ def main() -> None:
     parser.add_argument("--embedding-model", required=True)
     parser.add_argument("--max-examples", type=int, default=0)
     parser.add_argument("--query-max-length", type=int, default=4096)
-    parser.add_argument("--item-max-length", type=int, default=8192)
+    parser.add_argument("--item-max-length", type=int, default=4096)
+    parser.add_argument("--allow-query-truncation", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--allow-item-truncation", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--item-batch-size", type=int, default=32)
     parser.add_argument("--torch-dtype", default="bfloat16")
@@ -249,6 +252,7 @@ def main() -> None:
         item_texts,
         max_length=args.item_max_length,
         label="item-info",
+        allow_truncation=args.allow_item_truncation,
     )
     score_device = torch.device(
         args.device
@@ -292,12 +296,14 @@ def main() -> None:
             formatted_histories,
             max_length=args.query_max_length,
             label="history queries",
+            allow_truncation=args.allow_query_truncation,
         )
         cot_lengths = check_lengths(
             embedder.tokenizer,
             formatted_cot_queries,
             max_length=args.query_max_length,
             label="history+think queries",
+            allow_truncation=args.allow_query_truncation,
         )
         history_embeddings = embedder.encode_queries(histories).to(score_device)
         cot_embeddings = embedder.encode_queries(cot_queries).to(score_device)
@@ -364,7 +370,12 @@ def main() -> None:
                 "cot_hard_negative_item_ids": cot["hard_negative_item_ids"],
                 "history_tokens": history_lengths[index],
                 "history_cot_tokens": cot_lengths[index],
-                "history_truncated_tokens": 0,
+                "history_truncated_tokens": max(
+                    0, history_lengths[index] - args.query_max_length
+                ),
+                "history_cot_truncated_tokens": max(
+                    0, cot_lengths[index] - args.query_max_length
+                ),
                 "ndcg_k": args.ndcg_k,
                 "margin_temperature": args.margin_temperature,
                 "scorer_checkpoint": args.embedding_model,
@@ -405,6 +416,9 @@ def main() -> None:
         "item_info_sha256": file_sha256(args.item_info),
         "item_count": len(item_ids),
         "item_token_max": max(item_lengths),
+        "overlength_item_count": sum(
+            length > args.item_max_length for length in item_lengths
+        ),
         "score_device": str(score_device),
         "scored_rows": written,
         "parameters": vars(args),
