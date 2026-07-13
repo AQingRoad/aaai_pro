@@ -110,8 +110,8 @@ N. Time: <相对目标交互的时间差>;
    Title: <标题>;
    Store/artist/format: <店铺、艺人或格式>;
    Categories: <完整类别路径>;
-   Description: <最多400字符>;
-   Details: <最多400字符>
+   Description: <最多256字符>;
+   Details: <最多256字符>
 ```
 
 脚本会清理 history 中显式 `Amazon ASIN` 和裸露的十位 ASIN，并拒绝包含 `[TRUNCATED]` 标记的 query。输出样本包含 `example_id`，格式为：
@@ -140,7 +140,7 @@ Description
 Details
 ```
 
-当前代码将 Description 的全部段落先拼接，再保留前 400 个字符；Details 的全部键值按原始顺序拼接，再保留前 400 个字符。输入文件和输出文件不能使用同一路径。
+当前代码将 Description 的全部段落先拼接，再保留前 256 个字符；Details 的全部键值按原始顺序拼接，再保留前 256 个字符。输入文件和输出文件不能使用同一路径。
 
 ```bash
 python3 manu_src/scripts/pre_datas/format_positive.py \

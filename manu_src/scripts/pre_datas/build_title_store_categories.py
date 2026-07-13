@@ -63,10 +63,10 @@ def history_item_text(item: dict, fallback_title: str) -> str:
     # 保留 item_info 中全部类别层级，不设置最大层数。
     if categories := " > ".join(texts(item.get("categories"))):
         parts.append(f"Categories: {categories}")
-    # 拼接该历史物品的全部 Description 段落，再限制为最多 400 个字符。
+    # 拼接该历史物品的全部 Description 段落，再限制为最多 256 个字符。
     if description := limit_description(item.get("description")):
         parts.append(f"Description: {description}")
-    # 解析并拼接该历史物品的全部 Details 键值，再限制为最多 400 个字符。
+    # 解析并拼接该历史物品的全部 Details 键值，再限制为最多 256 个字符。
     if details := format_details(item.get("details")):
         parts.append(f"Details: {details}")
 

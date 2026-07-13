@@ -11,10 +11,10 @@ import re
 from pathlib import Path
 
 
-# query 和 positive 中每个 item 的 Description 最多保留 400 个字符。
-DESCRIPTION_MAX_CHARS = 400
-# query 和 positive 中每个 item 的 Details 最多保留 400 个字符。
-DETAILS_MAX_CHARS = 400
+# query 和 positive 中每个 item 的 Description 最多保留 256 个字符。
+DESCRIPTION_MAX_CHARS = 256
+# query 和 positive 中每个 item 的 Details 最多保留 256 个字符。
+DETAILS_MAX_CHARS = 256
 
 
 # 清理单个 metadata 字段，避免换行和连续空格破坏 positive 格式。
@@ -90,10 +90,10 @@ def format_positive(item: dict, fallback_title: str = "") -> str:
     # 商品特征最多保留 8 项，内容不做字符截断。
     if features := "; ".join(texts(item.get("features"), 8)):
         parts.append(f"Features: {features}")
-    # 拼接全部 Description 段落，再统一限制为最多 400 个字符。
+    # 拼接全部 Description 段落，再统一限制为最多 256 个字符。
     if description := limit_description(item.get("description")):
         parts.append(f"Description: {description}")
-    # Details 中的全部键值先按原始顺序拼接，再限制为最多 400 个字符。
+    # Details 中的全部键值先按原始顺序拼接，再限制为最多 256 个字符。
     if details := format_details(item.get("details")):
         parts.append(f"Details: {details}")
     # 使用分号分隔字段，让 Title、类别、格式和描述的边界清晰可见。
