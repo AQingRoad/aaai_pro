@@ -1,0 +1,71 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "user_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "item_asins": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "item_asin": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "history_item_id": {
+      "feature": {
+        "dtype": "int64",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "item_id": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "history_item_title": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "item_title": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "history_rating": {
+      "feature": {
+        "dtype": "float64",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "rating": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "history_timestamp": {
+      "feature": {
+        "dtype": "int64",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "timestamp": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "interaction_id": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
