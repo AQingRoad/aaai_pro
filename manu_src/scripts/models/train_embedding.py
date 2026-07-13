@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""用 query-positive pair 微调 Qwen3 Embedding，并用 validation loss 选模。"""
+"""用 query-positive pair 微调 Qwen3 Embedding，保存每轮模型并在末轮后测试。"""
 
 from __future__ import annotations
 
@@ -147,8 +147,8 @@ def token_length_audit(tokenizer, dataset: PairDataset, max_length: int, split: 
 
 
 @torch.no_grad()
-def validate(model, tokenizer, loader: DataLoader, device: torch.device, temperature: float) -> dict:
-    """计算固定 validation 集合上的 multi-positive loss 和 batch accuracy。"""
+def evaluate(model, tokenizer, loader: DataLoader, device: torch.device, temperature: float) -> dict:
+    """计算给定数据集上的 multi-positive loss 和 batch accuracy。"""
     model.eval()
     loss_sum = 0.0
     accuracy_sum = 0.0
@@ -166,7 +166,7 @@ def validate(model, tokenizer, loader: DataLoader, device: torch.device, tempera
         examples += batch_size
 
     model.train()
-    return {"val_loss": loss_sum / examples, "val_batch_accuracy": accuracy_sum / examples}
+    return {"test_loss": loss_sum / examples, "test_batch_accuracy": accuracy_sum / examples}
 
 
 def save_checkpoint(model, tokenizer, output_dir: Path, name: str) -> Path:
@@ -188,7 +188,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="微调 Qwen3 Embedding 检索模型。")
     parser.add_argument("--model", default="/home/user/models_hf/Qwen3-Embedding-0.6B")
     parser.add_argument("--train-file", type=Path, required=True)
-    parser.add_argument("--val-file", type=Path, required=True)
+    parser.add_argument("--test-file", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-length", type=int, default=4096)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -200,7 +200,6 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--attn-implementation", default="flash_attention_2")
-    parser.add_argument("--save-every-epoch", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
     if args.seed != 42:
@@ -215,7 +214,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset = PairDataset(args.train_file, expected_split="train")
-    val_dataset = PairDataset(args.val_file, expected_split="valid")
+    test_dataset = PairDataset(args.test_file, expected_split="test")
     tokenizer = AutoTokenizer.from_pretrained(
         args.model,
         trust_remote_code=True,
@@ -225,10 +224,12 @@ def main() -> None:
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    audits = [
-        token_length_audit(tokenizer, train_dataset, args.max_length, "train"),
-        token_length_audit(tokenizer, val_dataset, args.max_length, "valid"),
-    ]
+    # 测试集不参与训练前选模；这里只先审计训练集长度。
+    audits = [token_length_audit(tokenizer, train_dataset, args.max_length, "train")]
+    (args.output_dir / "token_audit.json").write_text(
+        json.dumps(audits, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps({"token_audit": audits}, ensure_ascii=False, indent=2), flush=True)
 
     generator = torch.Generator().manual_seed(args.seed)
@@ -240,14 +241,6 @@ def main() -> None:
         collate_fn=collate,
         num_workers=0,
     )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate,
-        num_workers=0,
-    )
-
     model = AutoModel.from_pretrained(
         args.model,
         trust_remote_code=True,
@@ -267,7 +260,7 @@ def main() -> None:
     run_config = {
         **vars(args),
         "train_rows": len(train_dataset),
-        "val_rows": len(val_dataset),
+        "test_rows": len(test_dataset),
         "global_batch_size": args.batch_size * args.grad_accum,
         "updates_per_epoch": updates_per_epoch,
         "total_updates": total_updates,
@@ -276,15 +269,14 @@ def main() -> None:
         "token_audit": audits,
     }
     run_config["train_file"] = str(args.train_file)
-    run_config["val_file"] = str(args.val_file)
+    run_config["test_file"] = str(args.test_file)
     run_config["output_dir"] = str(args.output_dir)
     (args.output_dir / "run_config.json").write_text(
         json.dumps(run_config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
-    metrics_path = args.output_dir / "metrics.jsonl"
-    best_val_loss = float("inf")
+    metrics_path = args.output_dir / "train_metrics.jsonl"
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
 
@@ -330,20 +322,33 @@ def main() -> None:
             "train_batch_accuracy": epoch_accuracy / epoch_examples,
             "learning_rate": scheduler.get_last_lr()[0],
         }
-        val_metrics = validate(model, tokenizer, val_loader, device, args.temperature)
-        metrics = {**train_metrics, **val_metrics}
-        print(json.dumps(metrics, ensure_ascii=False), flush=True)
+        print(json.dumps(train_metrics, ensure_ascii=False), flush=True)
         with metrics_path.open("a", encoding="utf-8") as file:
-            file.write(json.dumps(metrics, ensure_ascii=False) + "\n")
+            file.write(json.dumps(train_metrics, ensure_ascii=False) + "\n")
 
-        if args.save_every_epoch:
-            save_checkpoint(model, tokenizer, args.output_dir, f"checkpoint-epoch-{epoch}")
-        if val_metrics["val_loss"] < best_val_loss:
-            best_val_loss = val_metrics["val_loss"]
-            save_checkpoint(model, tokenizer, args.output_dir, "checkpoint-best")
+        save_checkpoint(model, tokenizer, args.output_dir, f"checkpoint-epoch-{epoch:02d}")
 
-    final_path = save_checkpoint(model, tokenizer, args.output_dir, "checkpoint-last")
-    print(json.dumps({"checkpoint": str(final_path), "best_val_loss": best_val_loss}, ensure_ascii=False), flush=True)
+    # 所有 epoch 完成后才审计并读取测试集，不用测试指标选择 checkpoint。
+    test_audit = token_length_audit(tokenizer, test_dataset, args.max_length, "test")
+    audits.append(test_audit)
+    (args.output_dir / "token_audit.json").write_text(
+        json.dumps(audits, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate,
+        num_workers=0,
+    )
+    test_metrics = evaluate(model, tokenizer, test_loader, device, args.temperature)
+    test_metrics.update({"epoch": args.epochs, "checkpoint": f"checkpoint-epoch-{args.epochs:02d}"})
+    (args.output_dir / "test_metrics.json").write_text(
+        json.dumps(test_metrics, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(test_metrics, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":
