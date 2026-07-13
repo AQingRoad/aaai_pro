@@ -79,9 +79,44 @@ def last_token_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor) -
     return hidden_states[torch.arange(hidden_states.shape[0], device=hidden_states.device), sequence_lengths]
 
 
-def encode(model, tokenizer, texts: list[str], device: torch.device) -> torch.Tensor:
-    """数据已在训练前完成长度审计，因此此处禁止静默截断。"""
-    batch = tokenizer(texts, padding=True, truncation=False, return_tensors="pt")
+def tokenize_for_embedding(tokenizer, texts: list[str], max_length: int, is_query: bool) -> dict:
+    """query 保留 instruction 和最近历史；positive 保持完整。"""
+    if not is_query:
+        batch = tokenizer(texts, padding=True, truncation=False, return_tensors="pt")
+        if batch["input_ids"].shape[1] > max_length:
+            raise ValueError("positive 超过 max_length，禁止截断")
+        return batch
+
+    prefix = f"Instruct: {QUERY_INSTRUCTION}\nQuery: "
+    prefix_ids = tokenizer(prefix, add_special_tokens=False)["input_ids"]
+    if len(prefix_ids) >= max_length:
+        raise ValueError("query instruction 已占满 max_length")
+
+    input_ids = []
+    recent_history_budget = max_length - len(prefix_ids)
+    for text in texts:
+        if not text.startswith(prefix):
+            raise ValueError("query 缺少统一 instruction 前缀")
+        full_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+        if len(full_ids) <= max_length:
+            input_ids.append(full_ids)
+        else:
+            # 从左侧移除最旧历史，保留 instruction 和靠近目标交互的最近历史。
+            history_ids = tokenizer(text[len(prefix) :], add_special_tokens=False)["input_ids"]
+            input_ids.append(prefix_ids + history_ids[-recent_history_budget:])
+    return tokenizer.pad({"input_ids": input_ids}, padding=True, return_tensors="pt")
+
+
+def encode(
+    model,
+    tokenizer,
+    texts: list[str],
+    device: torch.device,
+    max_length: int,
+    is_query: bool,
+) -> torch.Tensor:
+    """按统一长度口径编码 query 或 positive。"""
+    batch = tokenize_for_embedding(tokenizer, texts, max_length, is_query)
     batch = {key: value.to(device, non_blocking=True) for key, value in batch.items()}
     outputs = model(**batch)
     embeddings = last_token_pool(outputs.last_hidden_state, batch["attention_mask"])
@@ -141,13 +176,21 @@ def token_length_audit(tokenizer, dataset: PairDataset, max_length: int, split: 
         "positive_over_limit": sum(length > max_length for length in positive_lengths),
         "max_length": max_length,
     }
-    if audit["query_over_limit"] or audit["positive_over_limit"]:
+    audit["query_truncation"] = "keep_instruction_and_most_recent_history_tokens"
+    if audit["positive_over_limit"]:
         raise ValueError(f"token 长度超过 max_length：{json.dumps(audit, ensure_ascii=False)}")
     return audit
 
 
 @torch.no_grad()
-def evaluate(model, tokenizer, loader: DataLoader, device: torch.device, temperature: float) -> dict:
+def evaluate(
+    model,
+    tokenizer,
+    loader: DataLoader,
+    device: torch.device,
+    temperature: float,
+    max_length: int,
+) -> dict:
     """计算给定数据集上的 multi-positive loss 和 batch accuracy。"""
     model.eval()
     loss_sum = 0.0
@@ -157,8 +200,10 @@ def evaluate(model, tokenizer, loader: DataLoader, device: torch.device, tempera
     for batch in loader:
         query_texts = [format_query(text) for text in batch["queries"]]
         target_ids = torch.tensor(batch["target_item_ids"], dtype=torch.long, device=device)
-        query_embeddings = encode(model, tokenizer, query_texts, device)
-        document_embeddings = encode(model, tokenizer, batch["positives"], device)
+        query_embeddings = encode(model, tokenizer, query_texts, device, max_length, is_query=True)
+        document_embeddings = encode(
+            model, tokenizer, batch["positives"], device, max_length, is_query=False
+        )
         loss, accuracy = multi_positive_info_nce(query_embeddings, document_embeddings, target_ids, temperature)
         batch_size = len(query_texts)
         loss_sum += loss.item() * batch_size
@@ -292,8 +337,12 @@ def main() -> None:
             query_texts = [format_query(text) for text in batch["queries"]]
             target_ids = torch.tensor(batch["target_item_ids"], dtype=torch.long, device=device)
 
-            query_embeddings = encode(model, tokenizer, query_texts, device)
-            document_embeddings = encode(model, tokenizer, batch["positives"], device)
+            query_embeddings = encode(
+                model, tokenizer, query_texts, device, args.max_length, is_query=True
+            )
+            document_embeddings = encode(
+                model, tokenizer, batch["positives"], device, args.max_length, is_query=False
+            )
             loss, accuracy = multi_positive_info_nce(
                 query_embeddings,
                 document_embeddings,
@@ -342,7 +391,9 @@ def main() -> None:
         collate_fn=collate,
         num_workers=0,
     )
-    test_metrics = evaluate(model, tokenizer, test_loader, device, args.temperature)
+    test_metrics = evaluate(
+        model, tokenizer, test_loader, device, args.temperature, args.max_length
+    )
     test_metrics.update({"epoch": args.epochs, "checkpoint": f"checkpoint-epoch-{args.epochs:02d}"})
     (args.output_dir / "test_metrics.json").write_text(
         json.dumps(test_metrics, ensure_ascii=False, indent=2) + "\n",

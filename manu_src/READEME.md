@@ -161,7 +161,7 @@ s_{ij}=\frac{q_i^\top d_j}{\tau},\qquad
 \log\sum_{j:y_j=y_i}e^{s_{ij}}
 \]
 
-同一 batch 内 `target_item_id` 相同的文档都算正例，避免把同一目标物品误作负例。脚本采用 Qwen3 最后一个有效 token 的 hidden state 作为 embedding，并在训练前审计 query 和 positive 的真实 token 长度；任何样本超过 `max_length` 时直接停止，不做静默截断。
+同一 batch 内 `target_item_id` 相同的文档都算正例，避免把同一目标物品误作负例。脚本采用 Qwen3 最后一个有效 token 的 hidden state 作为 embedding，并在训练前审计 query 和 positive 的真实 token 长度。query 超过 `max_length` 时保留完整 instruction 和最近历史 token，移除最旧历史 token；positive 超限时直接停止，禁止截断。
 
 当前版本只要求 `--train-file` 和 `--test-file`。训练过程不读取 validation，不根据测试指标选模；脚本保存每轮 checkpoint，并在最后一轮训练结束后测试一次。
 
