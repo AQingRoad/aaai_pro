@@ -20,6 +20,8 @@ from query_only_cot_student import PROMPT_NAME, PROMPT_VERSION, build_messages  
 # history 的每个物品以“编号. ”开头；删除物品时保留剩余物品的原编号。
 ITEM_START_RE = re.compile(r"^\s*(\d+)\.\s+", re.MULTILINE)
 COT_ITEM_REF_RE = re.compile(r"\bItem\s+(\d+)\b|物品\s*(\d+)", re.IGNORECASE)
+DETAILS_RE = re.compile(r";\s*Details:.*$", re.DOTALL)
+DESCRIPTION_RE = re.compile(r";\s*Description:.*?(?=;\s*Details:|$)", re.DOTALL)
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,6 +89,12 @@ def make_messages(query: str, cot: str, language: str) -> list[dict[str, str]]:
     return messages
 
 
+def remove_item_field(item_text: str, field: str) -> str:
+    """删除历史物品中信息较长的 Details 或 Description 字段。"""
+    pattern = DETAILS_RE if field == "details" else DESCRIPTION_RE
+    return pattern.sub("", item_text).rstrip("; ").strip()
+
+
 def shorten_last_item(
     tokenizer: Any,
     header: str,
@@ -126,24 +134,64 @@ def fit_messages(
     cot: str,
     language: str,
     max_length: int,
+    protected_item_numbers: set[int] | None = None,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
-    """优先整条移除最早物品；必要时缩短最后一个物品的尾部。"""
+    """从最早物品开始缩短，并优先保留 CoT 明确引用的历史证据。"""
     header, items = extract_history_parts(query)
     original_numbers = [number for number, _ in items]
     original_messages = make_messages(query, cot, language)
     original_tokens = token_count(tokenizer, original_messages)
+    protected_item_numbers = protected_item_numbers or set()
     removed_numbers: list[int] = []
+    details_removed_numbers: list[int] = []
+    description_removed_numbers: list[int] = []
 
-    while len(items) > 1:
-        messages = make_messages(compose_query(header, items), cot, language)
-        if token_count(tokenizer, messages) <= max_length:
+    def current_messages() -> list[dict[str, str]]:
+        return make_messages(compose_query(header, items), cot, language)
+
+    def fits() -> bool:
+        return token_count(tokenizer, current_messages()) <= max_length
+
+    # 先处理未被 CoT 引用的物品；每组内部保持从最早到最近的顺序。
+    processing_order = [
+        number for number in original_numbers if number not in protected_item_numbers
+    ] + [number for number in original_numbers if number in protected_item_numbers]
+
+    for item_number in processing_order:
+        if fits():
             break
-        removed_numbers.append(items.pop(0)[0])
+        item_index = next(
+            (index for index, (number, _) in enumerate(items) if number == item_number),
+            None,
+        )
+        if item_index is None:
+            continue
+
+        for field, changed_numbers in (
+            ("details", details_removed_numbers),
+            ("description", description_removed_numbers),
+        ):
+            number, old_text = items[item_index]
+            new_text = remove_item_field(old_text, field)
+            if new_text != old_text:
+                items[item_index] = (number, new_text)
+                changed_numbers.append(number)
+                if fits():
+                    break
+        if fits():
+            break
+
+        # 引用物品只压缩长字段；整条删除仅用于未引用物品。
+        if item_number not in protected_item_numbers and len(items) > 1:
+            removed_numbers.append(items.pop(item_index)[0])
 
     fitted_query = compose_query(header, items)
     messages = make_messages(fitted_query, cot, language)
     tail_tokens_removed = 0
     if token_count(tokenizer, messages) > max_length:
+        # 极端情况下保留最后一条历史的开头，教师 CoT 仍保持完整。
+        if len(items) != 1:
+            raise ValueError("压缩长字段后仍超长，且剩余多个 CoT 引用物品")
         fitted_query, tail_tokens_removed = shorten_last_item(
             tokenizer, header, items[0], cot, language, max_length
         )
@@ -159,6 +207,8 @@ def fit_messages(
         "removed_history_item_count": len(removed_numbers),
         "removed_history_item_numbers": removed_numbers,
         "retained_history_item_numbers": [number for number in original_numbers if number not in removed_numbers],
+        "details_removed_item_numbers": details_removed_numbers,
+        "description_removed_item_numbers": description_removed_numbers,
         "oldest_retained_item_tail_tokens_removed": tail_tokens_removed,
     }
     return messages, truncation
@@ -178,6 +228,7 @@ def main() -> None:
     row_count = 0
     shortened_count = 0
     removed_reference_count = 0
+    modified_reference_count = 0
     with args.input.open("r", encoding="utf-8") as source, args.output.open(
         "w", encoding="utf-8"
     ) as target:
@@ -189,17 +240,24 @@ def main() -> None:
                 raise ValueError(f"第 {line_number} 行 status 不是 success")
 
             cot = format_cot(row)
+            cot_references = extract_cot_item_references(cot)
             messages, truncation = fit_messages(
                 tokenizer,
                 str(row.get("query") or "").strip(),
                 cot,
                 args.language,
                 args.max_length,
+                set(cot_references),
             )
-            cot_references = extract_cot_item_references(cot)
             removed_references = sorted(
                 set(cot_references) & set(truncation["removed_history_item_numbers"])
             )
+            modified_item_numbers = set(truncation["details_removed_item_numbers"]) | set(
+                truncation["description_removed_item_numbers"]
+            )
+            if truncation["oldest_retained_item_tail_tokens_removed"]:
+                modified_item_numbers.add(truncation["retained_history_item_numbers"][0])
+            modified_references = sorted(set(cot_references) & modified_item_numbers)
             output = {
                 "example_id": row.get("example_id"),
                 "source_line_index": row.get("source_line_index"),
@@ -211,11 +269,13 @@ def main() -> None:
                 "truncation": truncation,
                 "cot_referenced_item_numbers": cot_references,
                 "removed_cot_referenced_item_numbers": removed_references,
+                "modified_cot_referenced_item_numbers": modified_references,
             }
             target.write(json.dumps(output, ensure_ascii=False) + "\n")
             row_count += 1
             shortened_count += int(truncation["original_token_count"] > args.max_length)
             removed_reference_count += int(bool(removed_references))
+            modified_reference_count += int(bool(modified_references))
 
     print(
         json.dumps(
@@ -223,6 +283,7 @@ def main() -> None:
                 "rows": row_count,
                 "shortened_rows": shortened_count,
                 "rows_with_removed_cot_references": removed_reference_count,
+                "rows_with_modified_cot_references": modified_reference_count,
                 "max_length": args.max_length,
                 "output": str(args.output),
             },
