@@ -30,8 +30,10 @@ manu_src/
 │   │   ├── build_title_store_categories.py
 │   │   │                                  # 从交互记录和 item_info 构建训练 pair
 │   │   └── format_positive.py           # 按 item_info 重建带字段标签的 positive
-│   └── models/
-│       └── train_embedding.py           # Qwen3 Embedding 对比学习训练入口
+│   ├── models/
+│   │   └── train_embedding.py           # Qwen3 Embedding 对比学习训练入口
+│   └── eval/
+│       └── evaluate_embedding_fullset.py # 12000候选物品全量检索评测
 ├── model_outputs/
 │   └── CDs_and_Vinyl/
 │       ├── embedding/                   # Embedding 模型 checkpoint 和训练日志
@@ -164,6 +166,10 @@ s_{ij}=\frac{q_i^\top d_j}{\tau},\qquad
 同一 batch 内 `target_item_id` 相同的文档都算正例，避免把同一目标物品误作负例。脚本采用 Qwen3 最后一个有效 token 的 hidden state 作为 embedding，并在训练前审计 query 和 positive 的真实 token 长度。query 超过 `max_length` 时保留完整 instruction 和最近历史 token，移除最旧历史 token；positive 超限时直接停止，禁止截断。
 
 当前版本只要求 `--train-file` 和 `--test-file`。训练过程不读取 validation，不根据测试指标选模；脚本保存每轮 checkpoint，并在最后一轮训练结束后测试一次。
+
+### 4.5 `evaluate_embedding_fullset.py`
+
+该脚本直接读取处理后的 test query，并用 `format_positive.py` 构造12000个候选物品文本。评测沿用训练时的 query instruction、4096 token 裁剪规则和256字符 Description/Details口径；计算排名前会屏蔽历史中已经交互的物品，但保留监督目标。
 
 ## 5. 模型输出命名规范
 
