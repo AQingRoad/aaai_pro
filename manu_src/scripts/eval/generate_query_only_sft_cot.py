@@ -213,13 +213,13 @@ def fit_query(
 
 
 def parse_tagged_cot(raw: str) -> tuple[str, str, str]:
-    """严格解析模型输出，防止把缺标签文本静默送入检索模型。"""
+    """优先规范标签；标签不完整时保留原始生成文本用于真实评测。"""
     think_match = THINK_RE.search(raw)
     answer_match = ANSWER_RE.search(raw)
     think = think_match.group(1).strip() if think_match else ""
     answer = answer_match.group(1).strip() if answer_match else ""
     if not think or not answer:
-        return think, answer, ""
+        return think, answer, raw.strip()
     cot = f"<think>\n{think}\n</think>\n<answer>\n{answer}\n</answer>"
     return think, answer, cot
 
@@ -320,7 +320,8 @@ def build_output_row(
 
 def build_audit(rows: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
     truncations = [row["generation_truncation"] for row in rows]
-    cots = [str((row.get("candidates") or [{}])[0].get("cot") or "") for row in rows]
+    candidates = [(row.get("candidates") or [{}])[0] for row in rows]
+    cots = [str(candidate.get("cot") or "") for candidate in candidates]
     return {
         "generation_input": str(args.generation_input),
         "generation_input_sha256": hashlib.sha256(
@@ -338,8 +339,17 @@ def build_audit(rows: list[dict[str, Any]], args: argparse.Namespace) -> dict[st
         "seed": args.seed,
         "decode": "greedy",
         "empty_cot": sum(not cot.strip() for cot in cots),
-        "missing_think": sum("<think>" not in cot for cot in cots),
-        "missing_answer": sum("<answer>" not in cot for cot in cots),
+        "missing_parsed_think": sum(
+            not str(candidate.get("think") or "").strip() for candidate in candidates
+        ),
+        "missing_parsed_answer": sum(
+            not str(candidate.get("answer") or "").strip() for candidate in candidates
+        ),
+        "raw_fallback_rows": sum(
+            not str(candidate.get("think") or "").strip()
+            or not str(candidate.get("answer") or "").strip()
+            for candidate in candidates
+        ),
         "raw_asin_in_generation_query_or_cot": sum(
             bool(RAW_ASIN_RE.search(f"{row['generation_query']}\n{cot}"))
             for row, cot in zip(rows, cots)
@@ -477,8 +487,8 @@ def main() -> None:
         json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(audit, ensure_ascii=False, indent=2), flush=True)
-    if audit["empty_cot"] or audit["missing_think"] or audit["missing_answer"]:
-        raise ValueError("存在缺失 think/answer 标签的生成结果，停止排序评测")
+    if audit["empty_cot"]:
+        raise ValueError("存在空生成结果，停止排序评测")
 
 
 if __name__ == "__main__":
