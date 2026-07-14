@@ -40,3 +40,4 @@ data_gen_scripts.txt
 AGENTS.md
 clotho_data_key.txt
 /manu_src/model_outputs/
+/manu_src/eval_results/**/eval.log

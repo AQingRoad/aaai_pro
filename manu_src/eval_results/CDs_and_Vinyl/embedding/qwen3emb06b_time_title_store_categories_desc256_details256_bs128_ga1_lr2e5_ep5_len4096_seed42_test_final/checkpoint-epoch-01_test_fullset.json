@@ -1,0 +1,42 @@
+{
+  "checkpoint": "/home/user/aaai_pro/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_time_title_store_categories_desc256_details256_bs128_ga1_lr2e5_ep5_len4096_seed42_test_final/checkpoint-epoch-01",
+  "test_file": "manu_src/datas/CDs_and_Vinyl/train_datas/test.jsonl",
+  "item_info": "manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl",
+  "evaluated": 1341,
+  "num_candidates": 12000,
+  "max_length": 4096,
+  "query_truncation": "keep_instruction_and_most_recent_history_tokens",
+  "item_text": "format_positive_desc256_details256",
+  "mask_history_items": true,
+  "seed": 42,
+  "token_audit": [
+    {
+      "name": "items",
+      "count": 12000,
+      "max_tokens": 1270,
+      "over_limit": 0,
+      "max_length": 4096
+    },
+    {
+      "name": "queries",
+      "count": 1341,
+      "max_tokens": 4122,
+      "over_limit": 3,
+      "max_length": 4096
+    }
+  ],
+  "metrics": {
+    "MRR": 0.09883243349256005,
+    "mean_rank": 1531.7882177479494,
+    "median_rank": 410.0,
+    "HR@5": 0.14168530947054436,
+    "NDCG@5": 0.0999136123697468,
+    "HR@10": 0.19239373601789708,
+    "NDCG@10": 0.11610244866944326,
+    "HR@20": 0.22595078299776286,
+    "NDCG@20": 0.12459397486014205
+  },
+  "masked_score_total": 6662,
+  "masked_score_mean": 4.967934377330351,
+  "target_in_history_count": 0
+}
