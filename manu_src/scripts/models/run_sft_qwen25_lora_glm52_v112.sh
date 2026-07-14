@@ -9,7 +9,7 @@ MODEL=${MODEL:-/home/user/models_hf/Qwen2.5-3B-Instruct}
 MODEL_TYPE=${MODEL_TYPE:-qwen2_5}
 TEMPLATE=${TEMPLATE:-qwen2_5}
 DATASET=${DATASET:-$MANU_ROOT/datas/CDs_and_Vinyl/sft_datas/sft_glm52_v1.12_train_head20_query_only_seed42_n2144_len4096.jsonl}
-OUT=${OUT:-$MANU_ROOT/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_lora_glm52_v1p12_train_head20_metadata_rich_len4096_bs16_ga1_lr1e5_ep3_seed42}
+OUT=${OUT:-$MANU_ROOT/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_lora_glm52_v1p12_train_head20_metadata_rich_len4096_bs16_ga1_paddingfree_lr1e5_ep3_seed42}
 
 TRAIN_TYPE=${TRAIN_TYPE:-lora}
 TARGET_MODULES=${TARGET_MODULES:-all-linear}
@@ -19,6 +19,7 @@ EPOCHS=${EPOCHS:-3}
 BATCH_SIZE=${BATCH_SIZE:-16}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
 MAX_LENGTH=${MAX_LENGTH:-4096}
+PADDING_FREE=${PADDING_FREE:-true}
 LEARNING_RATE=${LEARNING_RATE:-1e-5}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.1}
 WARMUP_RATIO=${WARMUP_RATIO:-0.03}
@@ -88,6 +89,7 @@ print_param "EPOCHS" "$EPOCHS" "完整遍历训练数据的轮数。"
 print_param "BATCH_SIZE" "$BATCH_SIZE" "单卡每次前向和反向使用的样本数。"
 print_param "GRAD_ACCUM" "$GRAD_ACCUM" "累计多少个 micro batch 后更新一次参数；有效 batch 为 $((BATCH_SIZE * GRAD_ACCUM))。"
 print_param "MAX_LENGTH" "$MAX_LENGTH" "system、query 和完整 CoT 合计允许的最大 token 数。"
+print_param "PADDING_FREE" "$PADDING_FREE" "移除 batch 内补齐 token，同时用位置编号保持不同样本的因果隔离。"
 print_param "LEARNING_RATE" "$LEARNING_RATE" "AdamW 对 LoRA 参数使用的初始学习率。"
 print_param "WEIGHT_DECAY" "$WEIGHT_DECAY" "AdamW 权重衰减系数。"
 print_param "WARMUP_RATIO" "$WARMUP_RATIO" "总更新步数中用于学习率预热的比例。"
@@ -132,6 +134,7 @@ swift sft \
   --per_device_train_batch_size "$BATCH_SIZE" \
   --gradient_accumulation_steps "$GRAD_ACCUM" \
   --max_length "$MAX_LENGTH" \
+  --padding_free "$PADDING_FREE" \
   --learning_rate "$LEARNING_RATE" \
   --weight_decay "$WEIGHT_DECAY" \
   --warmup_ratio "$WARMUP_RATIO" \
