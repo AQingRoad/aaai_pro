@@ -51,6 +51,9 @@ def load_candidates(path: Path) -> tuple[list[int], list[str]]:
         if item_id == 0:
             continue
         fallback_title = str(row.get("title") or "").strip() or f"item_{item_id}"
+        # item_id=2134 的原始标题只有空格；覆盖为空白标题后再调用统一 formatter。
+        if not str(row.get("title") or "").strip():
+            row = {**row, "title": fallback_title}
         item_ids.append(item_id)
         item_texts.append(format_positive(row, fallback_title))
     if len(item_ids) != 12000 or len(set(item_ids)) != 12000:
