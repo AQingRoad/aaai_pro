@@ -324,6 +324,7 @@ def main() -> None:
     parser.add_argument("--no-mask-pad-item", dest="mask_pad_item", action="store_false")
     parser.add_argument("--keep-target-unmasked", action="store_true", default=env_flag("EVAL_KEEP_TARGET_UNMASKED", False))
     parser.add_argument("--output", default="")
+    parser.add_argument("--ranks-output", default="", help="Optional JSONL output with one rank per evaluated example.")
     args = parser.parse_args()
 
     ks = [int(x.strip()) for x in args.ks.split(",") if x.strip()]
@@ -367,6 +368,7 @@ def main() -> None:
 
     totals = {f"HR@{k}": 0.0 for k in ks} | {f"NDCG@{k}": 0.0 for k in ks}
     ranks: list[int] = []
+    rank_rows: list[dict[str, Any]] = []
     cot_queries = 0
     masked_score_total = 0
     target_in_history_count = 0
@@ -392,6 +394,19 @@ def main() -> None:
         else:
             rank = rank_target_embedding(prompt, item_ids, item_embs, target_id, embedder, item_index, masked_indices)  # type: ignore[arg-type]
         ranks.append(rank)
+        rank_rows.append(
+            {
+                "example_id": row.get("example_id"),
+                "interaction_id": row.get("interaction_id"),
+                "pilot_index": row.get("pilot_index"),
+                "target_item_id": target_id,
+                "target_item_title": row.get("target_item_title"),
+                "codex_mode": row.get("codex_mode"),
+                "codex_confidence": row.get("codex_confidence"),
+                "used_cot": used_cot,
+                "rank": rank,
+            }
+        )
         row_metrics = metrics_at_rank(rank, ks)
         for key, value in row_metrics.items():
             totals[key] += value
@@ -431,6 +446,13 @@ def main() -> None:
         path = Path(args.output)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if args.ranks_output:
+        path = Path(args.ranks_output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rank_rows),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":

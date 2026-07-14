@@ -110,7 +110,7 @@ for step in $CHECKPOINT_STEPS; do
     --seed "$SEED"
 
   echo "开始计算 $checkpoint 的 12000-item 排名。"
-  "$PYTHON_BIN" "$RETRIEVAL_ROOT/scripts/eval/evaluate_rrec_jsonl_fullset.py" \
+  "$PYTHON_BIN" "$PROJECT_ROOT/scripts/eval/evaluate_rrec_jsonl_fullset.py" \
     --examples "$run_dir/generated_cot.jsonl" \
     --item-info "$ITEM_INFO" \
     --category CDs_and_Vinyl \
