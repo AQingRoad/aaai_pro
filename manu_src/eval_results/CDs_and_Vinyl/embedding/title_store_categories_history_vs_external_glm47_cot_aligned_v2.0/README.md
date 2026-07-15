@@ -2,12 +2,14 @@
 
 ## 当前状态
 
-实验正在 A100 clean worktree 中运行。下表只接收 valid 选出的 checkpoint 在 test 上运行一次所得的真实指标；运行完成前保留 `TBD`。
+History-only 已完成训练、valid 选模和冻结 checkpoint 的一次 test。External GLM CoT 正在生成，相关结果完成前保留 `TBD`。
 
 | 模型 | Train query | Valid 选中 checkpoint | Test NDCG@20 | Test HR@20 |
 |---|---|---:|---:|---:|
-| History-only | `H` | TBD | TBD | TBD |
+| History-only | `H` | 249 | 0.118548 | 0.228188 |
 | External GLM CoT | `H + tagged C` | TBD | TBD | TBD |
+
+History-only 的四个 valid `NDCG@20` 分别为 checkpoint-83 `0.087604`、checkpoint-166 `0.088790`、checkpoint-249 `0.089020`、checkpoint-332 `0.088918`。选模规则据此冻结 checkpoint-249。该 checkpoint 在 1,341 条 test 样本和 12,000 个候选物品上得到 `NDCG@20=0.118548`、`HR@20=0.228188`。
 
 ## 唯一实验变量
 
