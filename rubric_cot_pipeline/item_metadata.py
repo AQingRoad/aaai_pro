@@ -202,6 +202,9 @@ def build_history_item_metadata(
     if categories:
         parts.append(f"Categories: {categories}")
 
+    if metadata_mode == "title_store_categories":
+        return compact("; ".join(parts), max_chars)
+
     if metadata_mode == "summary":
         summary = compact(description_summary, max_chars=0)
         if summary:

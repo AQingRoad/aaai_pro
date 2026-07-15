@@ -294,7 +294,7 @@ def main() -> None:
     parser.add_argument("--max-history-items", type=int, default=20)
     parser.add_argument(
         "--history-metadata-mode",
-        choices=["none", "compact", "summary"],
+        choices=["none", "compact", "summary", "title_store_categories"],
         default=os.getenv("HISTORY_METADATA_MODE", "none"),
     )
     parser.add_argument("--history-max-item-chars", type=int, default=int(os.getenv("HISTORY_MAX_ITEM_CHARS", "320")))
