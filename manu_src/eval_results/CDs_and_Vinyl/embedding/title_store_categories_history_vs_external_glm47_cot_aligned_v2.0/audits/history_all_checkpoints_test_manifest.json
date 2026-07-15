@@ -1,0 +1,30 @@
+{
+  "run_id": "cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1",
+  "side": "history",
+  "purpose": "test_all_checkpoints_diagnostic_only",
+  "path_base": "manifest_directory",
+  "selection_changed": false,
+  "formal_selected_checkpoint_step": 249,
+  "files": [
+    {
+      "path": "../test_all_checkpoints/history/checkpoint-83_test.json",
+      "bytes": 1364,
+      "sha256": "5071126035865f08093d6a80e09d25a49481cad8090d9e79825165bb54ef8b88"
+    },
+    {
+      "path": "../test_all_checkpoints/history/checkpoint-166_test.json",
+      "bytes": 1366,
+      "sha256": "10126361276950772779138c9612a08fdb1338b0a45e0674e95a36e5f35ba6db"
+    },
+    {
+      "path": "../test_all_checkpoints/history/checkpoint-249_test.json",
+      "bytes": 1366,
+      "sha256": "356e56dfb9cd0354b965e49c37b22ad90267e85cadfe70e1cc7ce03d58a462ca"
+    },
+    {
+      "path": "../test_all_checkpoints/history/checkpoint-332_test.json",
+      "bytes": 1366,
+      "sha256": "049c604d79b06a63bdf1d9cb17672432b8b950b1f60fa64ae7c9b9ebba6541f9"
+    }
+  ]
+}
