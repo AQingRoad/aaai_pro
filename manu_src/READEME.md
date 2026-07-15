@@ -169,7 +169,7 @@ s_{ij}=\frac{q_i^\top d_j}{\tau},\qquad
 
 ### 4.5 `evaluate_embedding_fullset.py`
 
-该脚本直接读取处理后的 test query，并用 `format_positive.py` 构造12000个候选物品文本。评测沿用训练时的 query instruction、4096 token 裁剪规则和256字符 Description/Details口径；计算排名前会屏蔽历史中已经交互的物品，但保留监督目标。
+该脚本直接读取处理后的 test query，并用 `format_positive.py` 构造12000个候选物品文本。评测沿用训练时的 query instruction 和256字符 Description/Details口径。query 超过4096 tokens 时完整保留 instruction 与推理后缀，沿用 SFT 数据构建策略，从最早历史开始依次删除 Details、Description 和未被 CoT 引用的整条物品；只剩一条历史仍超长时缩短该物品尾部。评测结果记录压缩前后 token 数和被删除的历史编号。计算排名前会屏蔽历史中已经交互的物品，但保留监督目标。
 
 ## 5. 模型输出命名规范
 
