@@ -57,6 +57,7 @@
 3. CoT pair 中 `base_query` 必须逐字等于对应 history query；query 的唯一增量为固定标签和完整 tagged CoT。
 4. Qwen tokenizer 对全部 query、positive 和 12,000 个候选 item 进行不截断计数。任一文本超过 4,096 token 时停止训练。
 5. GLM 生成缺失任意一行时停止 pair 构建；不使用手工补写 CoT。
+6. 全量报告 CoT 与 held-out target title 的偶然文本重叠。该报告只作诊断，不按 target overlap 筛选或重生成 CoT，避免把 held-out target 引入 CoT 选择阶段。
 
 ## 选模和测试
 

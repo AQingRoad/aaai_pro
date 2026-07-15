@@ -300,6 +300,11 @@ build_cot_pair_split() {
     --cot "$output" \
     --expected-split "$split" \
     --output "$AUDIT_DIR/${split}_pair_alignment.json"
+  "$PYTHON_BIN" scripts/data/audit_target_overlap_in_cot.py \
+    --history "$history" \
+    --cot "$output" \
+    --expected-split "$split" \
+    --output "$AUDIT_DIR/${split}_target_overlap_diagnostic.json"
 }
 
 audit_tokens() {
