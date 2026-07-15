@@ -140,6 +140,16 @@ def paired_summary(rows: list[dict]) -> dict:
     return summary
 
 
+def comparison(rows: list[dict]) -> dict:
+    """计算指定样本子集的两种输入指标和配对变化。"""
+    by_mode = {mode: metrics([row[f"rank_{mode}"] for row in rows]) for mode in MODES}
+    delta = {
+        name: by_mode[RREC_MODE][name] - by_mode[BASE_MODE][name]
+        for name in ("mean_rank", "median_rank", *METRIC_NAMES)
+    }
+    return {"metrics": by_mode, "rrec_minus_history": delta, "paired": paired_summary(rows)}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="分析 history-only 与完整 RRec 输出的配对 rank。")
     parser.add_argument("--input", type=Path, required=True)
@@ -192,13 +202,28 @@ def main() -> None:
         row["rank_gain_history_minus_rrec"] = gain
         row["outcome"] = "improved" if gain > 0 else "regressed" if gain < 0 else "tied"
 
-    by_mode = {mode: metrics([row[f"rank_{mode}"] for row in rows]) for mode in MODES}
-    delta = {
-        name: by_mode[RREC_MODE][name] - by_mode[BASE_MODE][name]
-        for name in ("mean_rank", "median_rank", *METRIC_NAMES)
-    }
+    main_comparison = comparison(rows)
+    by_mode = main_comparison["metrics"]
+    delta = main_comparison["rrec_minus_history"]
     eval_summary = json.loads(args.eval_summary.read_text(encoding="utf-8"))
     input_audit = json.loads(args.input_audit.read_text(encoding="utf-8"))
+    title_match_ids = {
+        str(row["example_id"])
+        for row in input_audit.get("target_title_string_in_reasoning_rows", [])
+    }
+    content_filter_retry_ids = {
+        str(row["example_id"])
+        for row in input_audit.get("content_filter_retry_rows", [])
+    }
+
+    def sensitivity(excluded_ids: set[str]) -> dict:
+        remaining = [row for row in rows if row["example_id"] not in excluded_ids]
+        return {
+            "excluded_count": len(rows) - len(remaining),
+            "remaining_count": len(remaining),
+            "result": comparison(remaining),
+        }
+
     result = {
         "seed": args.seed,
         "sample_count": len(rows),
@@ -207,7 +232,7 @@ def main() -> None:
         "max_length": int(eval_summary["max_length"]),
         "metrics": by_mode,
         "rrec_minus_history": delta,
-        "paired": paired_summary(rows),
+        "paired": main_comparison["paired"],
         "sample_paired_bootstrap": sample_bootstrap(rows, args.seed, args.bootstrap_repetitions),
         "user_cluster_bootstrap": user_cluster_bootstrap(rows, args.seed, args.bootstrap_repetitions),
         "compression": {
@@ -217,6 +242,11 @@ def main() -> None:
                 "max_final_tokens": max(row[f"query_final_tokens_{mode}"] for row in rows),
             }
             for mode in MODES
+        },
+        "sensitivity": {
+            "exclude_target_title_string_matches": sensitivity(title_match_ids),
+            "exclude_content_filter_retry": sensitivity(content_filter_retry_ids),
+            "exclude_both": sensitivity(title_match_ids | content_filter_retry_ids),
         },
         "input_audit": input_audit,
         "eval_summary": eval_summary,
@@ -237,6 +267,10 @@ def main() -> None:
     pair = result["paired"]
     cluster_ci = result["user_cluster_bootstrap"]["confidence_intervals_95"]
     top20 = pair["top20_transition"]
+    conservative = result["sensitivity"]["exclude_target_title_string_matches"]
+    conservative_base = conservative["result"]["metrics"][BASE_MODE]
+    conservative_rrec = conservative["result"]["metrics"][RREC_MODE]
+    conservative_delta = conservative["result"]["rrec_minus_history"]
     report = f"""# RRec v1.3 完整输出的全测试集检索对比
 
 ## 结论
@@ -260,6 +294,8 @@ Top-20 状态迁移：未命中转为命中 {top20['miss_to_hit']} 条，命中�
 仅 query 压缩 {result['compression'][BASE_MODE]['count']} 条，RRec 完整输出压缩 {result['compression'][RREC_MODE]['count']} 条。压缩脚本完整保留推理后缀，并从最早历史开始按物品粒度缩短输入。输入中 target 位于 history、positive 全文进入 API request、positive 全文进入评测 query、裸 ASIN 和 `[TRUNCATED]` 的计数依次为 {input_audit['target_in_history_count']}、{input_audit['positive_exact_in_api_request_count']}、{input_audit['positive_exact_in_full_query_count']}、{input_audit['raw_asin_count']}、{input_audit['truncated_marker_count']}。
 
 目标标题字符串在生成推理中命中 {input_audit['target_title_string_in_reasoning_count']} 条。该计数包含通用短标题和模型先验生成的同名文本，需要结合审计明细判断；API 请求只读取 query，未传入 positive。
+
+排除全部 {conservative['excluded_count']} 条标题字符串命中样本后，剩余 {conservative['remaining_count']} 条：NDCG@20 从 {conservative_base['NDCG@20']:.6f} 变为 {conservative_rrec['NDCG@20']:.6f}，差值 {conservative_delta['NDCG@20']:+.6f}；HR@20 差值 {conservative_delta['HR@20']:+.6f}；平均 rank 变化 {conservative_delta['mean_rank']:+.2f}。
 
 ## 评测口径
 
