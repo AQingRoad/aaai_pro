@@ -93,7 +93,9 @@ def main() -> None:
     positive_in_full_query_rows = []
     target_title_in_reasoning_rows = []
     raw_asin_rows = []
+    generated_asin_removed_rows = []
     truncated_rows = []
+    content_filter_retry_rows = []
     format_attempt_histogram: dict[str, int] = {}
     output_rows = []
 
@@ -118,12 +120,31 @@ def main() -> None:
         attempts = len(api.get("response_attempts") or [])
         format_attempt_histogram[str(attempts)] = format_attempt_histogram.get(str(attempts), 0) + 1
 
+        raw_generated_text = f"{think}\n{answer}"
+        generated_asins = ASIN_RE.findall(raw_generated_text)
+        if generated_asins:
+            generated_asin_removed_rows.append(
+                {"example_id": example_id, "removed_asins": generated_asins}
+            )
+            think = ASIN_RE.sub("", think)
+            answer = ASIN_RE.sub("", answer)
+
         query = str(source["query"])
         positive = str(source.get("positive") or "")
         full_query = build_full_query(query, think, answer)
         reasoning = full_query[len(query.rstrip()) :]
         request = request_text(api)
         target_title = str(source.get("target_item_title") or "").strip()
+
+        if (retry := api.get("content_filter_retry")) and retry.get("applied"):
+            content_filter_retry_rows.append(
+                {
+                    "example_id": example_id,
+                    "reason": retry.get("reason"),
+                    "transformation": retry.get("transformation"),
+                    "positive_used": bool(retry.get("positive_used")),
+                }
+            )
 
         if int(source["target_item_id"]) in {int(value) for value in source.get("history_item_ids", [])}:
             target_in_history_rows.append(example_id)
@@ -196,7 +217,11 @@ def main() -> None:
         "target_title_string_in_reasoning_count": len(target_title_in_reasoning_rows),
         "target_title_string_in_reasoning_rows": target_title_in_reasoning_rows,
         "raw_asin_count": len(raw_asin_rows),
+        "generated_asin_removed_count": len(generated_asin_removed_rows),
+        "generated_asin_removed_rows": generated_asin_removed_rows,
         "truncated_marker_count": len(truncated_rows),
+        "content_filter_retry_count": len(content_filter_retry_rows),
+        "content_filter_retry_rows": content_filter_retry_rows,
     }
     args.audit_output.parent.mkdir(parents=True, exist_ok=True)
     args.audit_output.write_text(
