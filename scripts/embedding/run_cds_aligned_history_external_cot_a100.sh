@@ -60,6 +60,7 @@ API_MODEL=${API_MODEL:-glm-4.7}
 API_THINKING=${API_THINKING:-disabled}
 API_TIMEOUT=${API_TIMEOUT:-180}
 API_MAX_RETRIES=${API_MAX_RETRIES:-3}
+MAX_GENERATION_RECOVERY_PASSES=${MAX_GENERATION_RECOVERY_PASSES:-20}
 API_MAX_WORKERS=${API_MAX_WORKERS:-4}
 API_MIN_INTERVAL=${API_MIN_INTERVAL:-0}
 COT_OUTPUT_FORMAT=${COT_OUTPUT_FORMAT:-tagged}
@@ -165,6 +166,7 @@ print_plan() {
   print_param API_MODEL "$API_MODEL" "train、valid、test 共用的 external CoT 生成模型。"
   print_param API_KEY_CONFIGURED "$( [[ -n "${COT_GENERATION_API_KEY:-}" || -n "${BIGMODEL_API_KEY:-}" || -n "${ZAI_API_KEY:-}" ]] && echo yes || echo no )" "只显示密钥是否存在，不打印密钥内容。"
   print_param API_THINKING "$API_THINKING" "关闭 API 内置 thinking，只读取显式 tagged 输出。"
+  print_param MAX_GENERATION_RECOVERY_PASSES "$MAX_GENERATION_RECOVERY_PASSES" "单个 split 缺行时按相同参数执行 resume 的最大恢复轮数。"
   print_param COT_OUTPUT_FORMAT "$COT_OUTPUT_FORMAT" "生成 <think>/<answer> 规范化 CoT。"
   print_param RATING_CONTEXT "$RATING_CONTEXT" "所有 split 都按无评分 observed history 生成。"
   print_param TEMPERATURE "$TEMPERATURE" "每条 history 的唯一 CoT 采样温度。"
@@ -251,31 +253,46 @@ generate_cot_split() {
   if enabled "$RECORD_API_RAW"; then
     raw_arg=--record-api-raw
   fi
-  "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
-    --input "$input" \
-    --output "$output" \
-    --num-candidates "$NUM_CANDIDATES" \
-    --temperatures "$TEMPERATURE" \
-    --max-workers "$API_MAX_WORKERS" \
-    --aggregate-every 100 \
-    --resume \
-    --api-provider "$API_PROVIDER" \
-    --api-base-url "$API_BASE_URL" \
-    --api-model "$API_MODEL" \
-    --api-timeout "$API_TIMEOUT" \
-    --api-max-retries "$API_MAX_RETRIES" \
-    --api-min-interval "$API_MIN_INTERVAL" \
-    --api-thinking "$API_THINKING" \
-    --cot-output-format "$COT_OUTPUT_FORMAT" \
-    --max-output-words "$MAX_OUTPUT_WORDS" \
-    --rating-context "$RATING_CONTEXT" \
-    --require-literal-tags \
-    --max-new-tokens "$MAX_NEW_TOKENS" \
-    --max-prompt-tokens 0 \
-    --top-p "$TOP_P" \
-    --seed "$SEED" \
-    "$raw_arg"
-  require_file "$split generated CoT raw" "$output"
+  local expected_rows output_rows pass
+  expected_rows=$(wc -l < "$input")
+  for ((pass = 1; pass <= MAX_GENERATION_RECOVERY_PASSES; pass++)); do
+    echo "$split CoT 生成或恢复轮次 $pass/$MAX_GENERATION_RECOVERY_PASSES。"
+    "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
+      --input "$input" \
+      --output "$output" \
+      --num-candidates "$NUM_CANDIDATES" \
+      --temperatures "$TEMPERATURE" \
+      --max-workers "$API_MAX_WORKERS" \
+      --aggregate-every 100 \
+      --resume \
+      --api-provider "$API_PROVIDER" \
+      --api-base-url "$API_BASE_URL" \
+      --api-model "$API_MODEL" \
+      --api-timeout "$API_TIMEOUT" \
+      --api-max-retries "$API_MAX_RETRIES" \
+      --api-min-interval "$API_MIN_INTERVAL" \
+      --api-thinking "$API_THINKING" \
+      --cot-output-format "$COT_OUTPUT_FORMAT" \
+      --max-output-words "$MAX_OUTPUT_WORDS" \
+      --rating-context "$RATING_CONTEXT" \
+      --require-literal-tags \
+      --max-new-tokens "$MAX_NEW_TOKENS" \
+      --max-prompt-tokens 0 \
+      --top-p "$TOP_P" \
+      --seed "$SEED" \
+      "$raw_arg"
+    output_rows=0
+    if [[ -s "$output" ]]; then
+      output_rows=$(wc -l < "$output")
+    fi
+    echo "$split CoT 完整性：$output_rows/$expected_rows。"
+    if [[ "$output_rows" -eq "$expected_rows" ]]; then
+      require_file "$split generated CoT raw" "$output"
+      return
+    fi
+  done
+  echo "$split CoT 在 $MAX_GENERATION_RECOVERY_PASSES 个恢复轮次后仍缺行：$output_rows/$expected_rows。" >&2
+  exit 1
 }
 
 build_cot_pair_split() {
@@ -406,6 +423,10 @@ main() {
   fi
   if [[ "$SEED" != "42" ]]; then
     echo "SEED 必须为 42。" >&2
+    exit 2
+  fi
+  if ! [[ "$MAX_GENERATION_RECOVERY_PASSES" =~ ^[1-9][0-9]*$ ]]; then
+    echo "MAX_GENERATION_RECOVERY_PASSES 必须为正整数。" >&2
     exit 2
   fi
   if enabled "$MULTI_POSITIVE_TARGETS" || enabled "$CROSS_GPU_NEGATIVES"; then

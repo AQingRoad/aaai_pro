@@ -58,6 +58,7 @@
 4. Qwen tokenizer 对全部 query、positive 和 12,000 个候选 item 进行不截断计数。任一文本超过 4,096 token 时停止训练。
 5. GLM 生成缺失任意一行时停止 pair 构建；不使用手工补写 CoT。
 6. 全量报告 CoT 与 held-out target title 的偶然文本重叠。该报告只作诊断，不按 target overlap 筛选或重生成 CoT，避免把 held-out target 引入 CoT 选择阶段。
+7. 每个 split 完成首轮生成后比较输入与聚合输出行数。缺失行使用相同 prompt、模型、temperature、top-p、seed 和输出格式执行 `--resume`，最多恢复 20 轮；仍缺行时退出。
 
 ## 选模和测试
 
