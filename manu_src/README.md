@@ -37,6 +37,8 @@ qwen3emb06b_time_title_store_categories_desc256_details256_bs128_ga1_lr2e5_ep5_l
 
 `datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/` 保存新增评分的严格配对版本。它只在每条历史物品中加入 `Rating: x.x star`；移除评分片段后，query 与无评分版本逐字节一致，positive 和其它字段也保持一致。
 
+该目录中的 `token_length_distribution_qwen3_embedding_0p6b.json` 保存 Qwen3-Embedding-0.6B tokenizer 的全量长度审计。审计关闭 truncation，并同时统计无评分 query、评分 query、positive 和 12000 个候选 item。评分版超过 4096 tokens 的 query 数量为 train 117、valid 14、test 8；无评分版对应为 4、1、3。训练前需明确这些样本的截断口径。
+
 ## 保留代码
 
 ```text
@@ -44,6 +46,7 @@ scripts/pre_datas/arrow_to_jsonl.py
 scripts/pre_datas/format_positive.py
 scripts/pre_datas/build_title_store_categories.py
 scripts/models/train_embedding.py
+scripts/eval/audit_embedding_token_lengths.py
 scripts/eval/evaluate_embedding_fullset.py
 ```
 
