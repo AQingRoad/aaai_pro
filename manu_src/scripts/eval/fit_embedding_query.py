@@ -6,16 +6,48 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
-from build_sft_from_teacher_cot import (
-    compose_query,
-    extract_cot_item_references,
-    extract_history_parts,
-    remove_item_field,
-)
-
 
 RECOMMENDATION_SEPARATOR = "\n\nRecommendation reasoning:\n"
 TAGGED_COT_START_RE = re.compile(r"\n\n(?=<think>\s*)", re.IGNORECASE)
+ITEM_START_RE = re.compile(r"^\s*(\d+)\.\s+", re.MULTILINE)
+COT_ITEM_REF_RE = re.compile(r"\bItem\s+(\d+)\b|物品\s*(\d+)", re.IGNORECASE)
+DETAILS_RE = re.compile(r";\s*Details:.*$", re.DOTALL)
+DESCRIPTION_RE = re.compile(r";\s*Description:.*?(?=;\s*Details:|$)", re.DOTALL)
+
+
+def extract_history_parts(query: str) -> tuple[str, list[tuple[int, str]]]:
+    """拆分 query 头部和编号历史物品。"""
+    matches = list(ITEM_START_RE.finditer(query))
+    if not matches:
+        raise ValueError("query 中没有识别到历史物品编号")
+    header = query[: matches[0].start()].rstrip()
+    items = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(query)
+        items.append((int(match.group(1)), query[match.start() : end].strip()))
+    return header, items
+
+
+def compose_query(header: str, items: list[tuple[int, str]]) -> str:
+    """保持原始编号并重新拼接历史。"""
+    return "\n".join(part for part in (header, *(text for _, text in items)) if part).strip()
+
+
+def extract_cot_item_references(cot: str) -> list[int]:
+    """提取推理文本中显式引用的历史物品编号。"""
+    return sorted(
+        {
+            int(first or second)
+            for first, second in COT_ITEM_REF_RE.findall(cot)
+            if first or second
+        }
+    )
+
+
+def remove_item_field(item_text: str, field: str) -> str:
+    """删除历史物品中的 Details 或 Description 字段。"""
+    pattern = DETAILS_RE if field == "details" else DESCRIPTION_RE
+    return pattern.sub("", item_text).rstrip("; ").strip()
 
 
 def split_history_and_suffix(query: str) -> tuple[str, str]:

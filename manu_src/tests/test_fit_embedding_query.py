@@ -11,13 +11,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "manu_src" / "scripts" / "eval"))
-sys.path.insert(0, str(ROOT / "manu_src" / "scripts" / "pre_datas"))
-sys.path.insert(0, str(ROOT / "manu_src" / "scripts" / "prompts"))
 
-from build_sft_from_teacher_cot import remove_item_field  # noqa: E402
 from fit_embedding_query import (  # noqa: E402
     fit_embedding_query,
     query_token_count,
+    remove_item_field,
 )
 
 
