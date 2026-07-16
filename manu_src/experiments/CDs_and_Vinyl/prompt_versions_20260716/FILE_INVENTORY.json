@@ -2,7 +2,7 @@
   "archive_date": "2026-07-16",
   "scope": "CDs_and_Vinyl existing data, prompts, reports, audits and frozen aligned run",
   "file_count": 2469,
-  "total_bytes": 2704613621,
+  "total_bytes": 2704613639,
   "files": [
     {
       "path": "datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/cds_glm47_meta_compact_no_all_ratings_observed_one_train_full_target.jsonl",
@@ -14532,9 +14532,9 @@
     },
     {
       "path": "experiments/CDs_and_Vinyl/prompt_versions_20260716/DATA_PROMPT_MAP.json",
-      "bytes": 5718,
+      "bytes": 5736,
       "lines": null,
-      "sha256": "b1d9f8c14358fb28ca9911e1948ba8b7646ff5fb28fab17df8e88e3425c22e5b"
+      "sha256": "3fd04690864a02778d80849664c453fff6496b1278fa421be1c843b7fc177553"
     },
     {
       "path": "experiments/CDs_and_Vinyl/prompt_versions_20260716/README.md",

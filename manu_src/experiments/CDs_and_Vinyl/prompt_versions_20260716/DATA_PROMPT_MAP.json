@@ -62,8 +62,8 @@
       "prompt_fidelity": "exact",
       "prompt": "prompts/target_aware_history_grounded_cot_teacher.py",
       "data_globs": [
-        "../../../datas/CDs_and_Vinyl/cot_datas/glm52_teacher_cot_v1.12_CDs_and_Vinyl_train_head_seed42_n2144/**",
-        "../../../datas/CDs_and_Vinyl/train_datas/target_aware_history_grounded_cot_teacher_v1.12/**"
+        "../../../datas/CDs_and_Vinyl/cot_datas/glm52_teacher_cot_v1.12_CDs_and_Vinyl_train_head_seed42_n2144/**/*",
+        "../../../datas/CDs_and_Vinyl/train_datas/target_aware_history_grounded_cot_teacher_v1.12/**/*"
       ]
     },
     {
@@ -71,7 +71,7 @@
       "prompt_fidelity": "exact",
       "prompt": "prompts/history_cot_prompt_en.txt",
       "data_globs": [
-        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/glm52_user_english_prompt_seed42_n20/**"
+        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/glm52_user_english_prompt_seed42_n20/**/*"
       ]
     },
     {
@@ -79,7 +79,7 @@
       "prompt_fidelity": "exact",
       "prompt": "prompts/history_cot_prompt_en_concise.txt",
       "data_globs": [
-        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/glm52_user_english_prompt_concise_seed42_n20/**"
+        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/glm52_user_english_prompt_concise_seed42_n20/**/*"
       ]
     },
     {
@@ -88,7 +88,7 @@
       "prompt": "prompts/archive/codex_gated_history_cot_pilot_20260713.txt",
       "schema": "prompts/archive/codex_gated_history_cot_pilot_20260713.schema.json",
       "data_globs": [
-        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/codex_gpt55_concise_prompt_regeneration_seed42/**"
+        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/codex_gpt55_concise_prompt_regeneration_seed42/**/*"
       ]
     },
     {
@@ -104,7 +104,7 @@
       "prompt_fidelity": "partial",
       "prompt": "reports/cds_general_prompt_regeneration_pilot_20260713.md",
       "data_globs": [
-        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/general_prompt_regeneration_seed42/**"
+        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/general_prompt_regeneration_seed42/**/*"
       ]
     },
     {
@@ -112,7 +112,7 @@
       "prompt_fidelity": "partial",
       "prompt": "reports/cds_concise_general_prompt_regeneration_pilot_20260713.md",
       "data_globs": [
-        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/concise_general_prompt_regeneration_seed42/**"
+        "../../../eval_results/CDs_and_Vinyl/prompt_versions_20260716/concise_general_prompt_regeneration_seed42/**/*"
       ]
     },
     {
@@ -121,8 +121,8 @@
       "prompt": null,
       "data_globs": [
         "../../../datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/*deepseek*",
-        "../../../datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/oracle_pilot/**",
-        "../../../datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/target_aware_teacher/**"
+        "../../../datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/oracle_pilot/**/*",
+        "../../../datas/CDs_and_Vinyl/archived_outputs_20260716/CDs_and_Vinyl/cot/api/target_aware_teacher/**/*"
       ],
       "notes": "保留全部文件；部分数据只能确认 generation_mode 和模型，逐字提示词未留存"
     }
