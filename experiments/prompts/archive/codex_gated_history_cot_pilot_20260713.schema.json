@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cases"],
+  "properties": {
+    "cases": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "mode", "confidence", "think", "answer"],
+        "properties": {
+          "index": {"type": "integer"},
+          "mode": {"type": "string", "enum": ["history_only", "cot"]},
+          "confidence": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+          "think": {"type": "string"},
+          "answer": {"type": "string"}
+        }
+      }
+    }
+  }
+}

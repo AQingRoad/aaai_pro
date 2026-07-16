@@ -1,0 +1,34 @@
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl",
+  "rows": 1341,
+  "expected_split": "test",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 1228,
+  "excess_target_rows": 113,
+  "excess_target_row_rate": 0.0842654735272185,
+  "rows_in_repeated_target_groups": 193,
+  "repeated_target_group_row_rate": 0.14392244593586875,
+  "targets_with_multiple_rows": 80,
+  "max_rows_per_target": 20,
+  "duplicate_query_positive_rows": 0,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 2.7772724743174506,
+  "query_chars": {
+    "min": 168,
+    "median": 515,
+    "p95": 2504,
+    "max": 3431
+  },
+  "positive_chars": {
+    "min": 76,
+    "median": 408,
+    "p95": 1381,
+    "max": 5102
+  }
+}

@@ -59,7 +59,7 @@
 5. GLM 生成缺失任意一行时停止 pair 构建。先按相同参数恢复；持续失败项允许使用 Codex 兜底，Codex 只接收 `slot`、category 和脱敏 `user_history`，不得接收 user、interaction、target 或 positive 字段。兜底候选必须标记 `generation_mode=codex_cli_fallback` 和 `target_fields_exposed=false`。
 6. 全量报告 CoT 与 held-out target title 的偶然文本重叠。该报告只作诊断，不按 target overlap 筛选或重生成 CoT，避免把 held-out target 引入 CoT 选择阶段。
 7. 每个 split 完成首轮生成后比较输入与聚合输出行数。缺失行使用相同 prompt、模型、temperature、top-p、seed 和输出格式执行 `--resume`，最多恢复 20 轮；仍缺行时退出。
-8. Codex 兜底使用 `experiments/prompts/codex_target_free_cot_fallback_v1.txt` 和对应 JSON schema。`scripts/cot/generate_codex_fallback.py` 只生成 GLM 候选文件中缺失的 example ID；`scripts/cot/merge_cot_candidate_sources.py` 拒绝跨来源重复 ID，要求合并后行数逐 split 等于输入行数，并记录各生成模型的行数和 SHA-256。
+8. Codex 兜底直接复用 `rubric_cot_pipeline.prompts.COT_SYSTEM` 和 `build_history_analysis_prompt(..., output_format="tagged", rating_context="no_rating")`，不另写内容提示词。`experiments/prompts/codex_target_free_cot_fallback_transport_v2.txt` 只定义批量 JSON 传输，模型在每个 `cot` 字段中返回原提示词要求的完整 tagged 响应。`scripts/cot/generate_codex_fallback.py` 只生成 GLM 候选文件中缺失的 example ID；`scripts/cot/merge_cot_candidate_sources.py` 拒绝跨来源重复 ID，要求合并后行数逐 split 等于输入行数，并记录各生成模型的行数和 SHA-256。
 
 ## 选模和测试
 

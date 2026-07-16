@@ -1,0 +1,1705 @@
+CDs history 与 external-CoT 严格对齐实验参数：
+ROOT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6 # 项目根目录；运行前必须读取 AGENTS.md。
+VENV=/home/user/.conda/envs/aaai_pro # A100 Conda 环境。
+BASE_MODEL=/home/user/models_hf/Qwen3-Embedding-0.6B # 两组共同的 Qwen3-Embedding-0.6B 初始权重。
+CONFIG_FILE=/home/user/aaai_pro/configs/glm_codeplan.env # GLM API 密钥配置文件；只读取，不输出密钥。
+TRAIN_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/data/rrec_amazon/CDs_and_Vinyl/examples.jsonl # 官方 train split，10722 条。
+VALID_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/valid.jsonl # 官方 valid split，1340 条，只用于选模。
+TEST_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/test.jsonl # 官方 test split，1341 条；方案冻结后评测一次。
+ITEM_INFO=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl # 历史字段、完整 positive 和 12000 个候选物品来源。
+DATA_ROOT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1 # 严格配对数据、CoT raw 和审计文件目录。
+QUERY_FIELDS=title,store,categories # 两组共同的 history 字段。
+HISTORY_MAX_ITEM_CHARS=0 # history item 文本不做字符截断。
+MAX_TARGET_CHARS=0 # positive 目标文本不做字符截断。
+MAX_ITEM_CHARS=0 # 评测候选 item 文本不做字符截断。
+HISTORY_TRAIN=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl # history-only train pair。
+HISTORY_VALID=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/valid.jsonl # history-only valid pair。
+HISTORY_TEST=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl # history-only test pair。
+COT_TRAIN=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/train.jsonl # query 只比 HISTORY_TRAIN 多完整 tagged CoT。
+COT_VALID=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/valid.jsonl # query 只比 HISTORY_VALID 多完整 tagged CoT。
+COT_TEST=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/test.jsonl # query 只比 HISTORY_TEST 多完整 tagged CoT。
+API_PROVIDER=glm_codeplan # GLM OpenAI-compatible API provider。
+API_BASE_URL=https://open.bigmodel.cn/api/coding/paas/v4 # GLM API 地址。
+API_MODEL=glm-4.7 # train、valid、test 共用的 external CoT 生成模型。
+API_KEY_CONFIGURED=yes # 只显示密钥是否存在，不打印密钥内容。
+API_THINKING=disabled # 关闭 API 内置 thinking，只读取显式 tagged 输出。
+COT_OUTPUT_FORMAT=tagged # 生成 <think>/<answer> 规范化 CoT。
+RATING_CONTEXT=no_rating # 所有 split 都按无评分 observed history 生成。
+TEMPERATURE=0.6 # 每条 history 的唯一 CoT 采样温度。
+TOP_P=0.9 # GLM nucleus sampling 参数。
+NUM_CANDIDATES=1 # 每条 history 只生成一条 CoT。
+MAX_OUTPUT_WORDS=1024 # tagged think 与 answer 的总词数上限。
+MAX_NEW_TOKENS=2048 # API 最大输出 token 数。
+RECORD_API_RAW=0 # 默认不保存完整 API raw response。
+HISTORY_OUT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1_history # clean history-only checkpoint 输出。
+COT_OUT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1_external_cot # 严格配对 external-CoT checkpoint 输出。
+LOSS=single-positive InfoNCE # 两组每行只把同位置 positive 作为正例。
+MULTI_POSITIVE_TARGETS=0 # 固定为 0，保持 single-positive。
+BATCH_SIZE=128 # 两组共同的单卡 batch size。
+GRAD_ACCUM=1 # 两组共同的梯度累积步数。
+GLOBAL_BATCH_SIZE=128 # 每次更新覆盖的 query 数。
+MAX_LENGTH=4096 # 训练 query 和 positive 的 token 上限；预审计要求超限数为 0。
+EPOCHS=4 # 两组都训练 4 轮。
+LEARNING_RATE=2e-5 # 两组共同的 AdamW 学习率。
+WEIGHT_DECAY=0.01 # 两组共同的权重衰减。
+WARMUP_RATIO=0.03 # 两组共同的 warmup 比例。
+TEMPERATURE_LOSS=0.05 # InfoNCE 相似度温度。
+SAVE_STEPS=83 # 每 83 step 保存一次，约每轮一个 checkpoint。
+SEED=42 # 数据顺序、DataLoader、初始化、训练和评测统一随机种子。
+ATTN_IMPLEMENTATION=flash_attention_2 # 两组共同使用 FlashAttention 2。
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True # 减少长序列显存碎片。
+CUDA_DEVICES=0 # 训练和评测使用的 A100 GPU。
+EVAL_BATCH_SIZE=256 # 两组共同的评测编码 batch size。
+EVAL_MAX_LENGTH=4096 # 评测 token 上限，与训练一致。
+CANDIDATE_ITEMS=12000 # 两组使用相同 item_info 和候选顺序。
+SEEN_ITEM_MASK=1 # 两组排序前屏蔽 history item 和 pad item。
+SELECTION_METRIC=NDCG@20 # 两组分别只按 valid 指标选 checkpoint。
+RUN_TEST=1 # valid 选模并冻结后是否各运行一次 development test。
+RUN_GENERATION=1 # 是否调用 GLM 生成 train、valid、test CoT。
+RUN_TRAIN=1 # 是否训练并评测两组 retriever。
+CONFIRM_RUN=1 # 必须为 1 才执行数据生成、API、训练或评测。
+PRINT_ARGS_ONLY=0 # 为 1 时只打印本参数表。
+{"ablation": "title_store_categories", "rows": 10722, "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/cds_train_query_title_store_categories.jsonl"}
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl",
+  "rows": 10722,
+  "expected_split": "train",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 7385,
+  "excess_target_rows": 3337,
+  "excess_target_row_rate": 0.31122924827457565,
+  "rows_in_repeated_target_groups": 5053,
+  "repeated_target_group_row_rate": 0.47127401604178326,
+  "targets_with_multiple_rows": 1716,
+  "max_rows_per_target": 41,
+  "duplicate_query_positive_rows": 9,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 1.2209971100445771,
+  "query_chars": {
+    "min": 159,
+    "median": 475.0,
+    "p95": 2797,
+    "max": 4789
+  },
+  "positive_chars": {
+    "min": 69,
+    "median": 433.0,
+    "p95": 1357,
+    "max": 10508
+  }
+}
+{"ablation": "title_store_categories", "rows": 1340, "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/cds_valid_query_title_store_categories.jsonl"}
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/valid.jsonl",
+  "rows": 1340,
+  "expected_split": "valid",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 1217,
+  "excess_target_rows": 123,
+  "excess_target_row_rate": 0.09179104477611941,
+  "rows_in_repeated_target_groups": 213,
+  "repeated_target_group_row_rate": 0.15895522388059702,
+  "targets_with_multiple_rows": 90,
+  "max_rows_per_target": 8,
+  "duplicate_query_positive_rows": 0,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 1.7032804610257153,
+  "query_chars": {
+    "min": 168,
+    "median": 547.5,
+    "p95": 2749,
+    "max": 5089
+  },
+  "positive_chars": {
+    "min": 81,
+    "median": 426.5,
+    "p95": 1441,
+    "max": 4920
+  }
+}
+{"ablation": "title_store_categories", "rows": 1341, "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/cds_test_query_title_store_categories.jsonl"}
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl",
+  "rows": 1341,
+  "expected_split": "test",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 1228,
+  "excess_target_rows": 113,
+  "excess_target_row_rate": 0.0842654735272185,
+  "rows_in_repeated_target_groups": 193,
+  "repeated_target_group_row_rate": 0.14392244593586875,
+  "targets_with_multiple_rows": 80,
+  "max_rows_per_target": 20,
+  "duplicate_query_positive_rows": 0,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 2.7772724743174506,
+  "query_chars": {
+    "min": 168,
+    "median": 515,
+    "p95": 2504,
+    "max": 3431
+  },
+  "positive_chars": {
+    "min": 76,
+    "median": 408,
+    "p95": 1381,
+    "max": 5102
+  }
+}
+{
+  "input": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl",
+  "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot_generation_inputs/train.jsonl",
+  "expected_split": "train",
+  "rows": 10722,
+  "unique_example_ids": 10722,
+  "prompt_content_fields": [
+    "user_history",
+    "category"
+  ],
+  "target_fields_rendered_in_prompt": [],
+  "matching_keys_not_rendered_in_prompt": [
+    "target_item_id"
+  ],
+  "query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "history_include_ratings": false,
+  "history_include_catalog_stats": false,
+  "history_max_item_chars": 0,
+  "failures": {}
+}
+{
+  "input": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/valid.jsonl",
+  "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot_generation_inputs/valid.jsonl",
+  "expected_split": "valid",
+  "rows": 1340,
+  "unique_example_ids": 1340,
+  "prompt_content_fields": [
+    "user_history",
+    "category"
+  ],
+  "target_fields_rendered_in_prompt": [],
+  "matching_keys_not_rendered_in_prompt": [
+    "target_item_id"
+  ],
+  "query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "history_include_ratings": false,
+  "history_include_catalog_stats": false,
+  "history_max_item_chars": 0,
+  "failures": {}
+}
+{
+  "input": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl",
+  "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot_generation_inputs/test.jsonl",
+  "expected_split": "test",
+  "rows": 1341,
+  "unique_example_ids": 1341,
+  "prompt_content_fields": [
+    "user_history",
+    "category"
+  ],
+  "target_fields_rendered_in_prompt": [],
+  "matching_keys_not_rendered_in_prompt": [
+    "target_item_id"
+  ],
+  "query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "history_include_ratings": false,
+  "history_include_catalog_stats": false,
+  "history_max_item_chars": 0,
+  "failures": {}
+}
+loaded_examples=10722 existing_candidates=0 sorted_checkpoint_candidates=0 pending_candidates=10722 checkpoint=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.candidates.jsonl output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1/10722 example=CDs_and_Vinyl:train:0:AEZABCJM45UYN3XSNYH3Z2PAMSLA cand=0
+completed_candidates=10/10722 example=CDs_and_Vinyl:train:7:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=20/10722 example=CDs_and_Vinyl:train:20:AHWB4IIHMNA7O3KMVA42REGTJ7MQ cand=0
+completed_candidates=30/10722 example=CDs_and_Vinyl:train:30:AEL5DUF6V2C3X6G2X62UHYMOKEGQ cand=0
+completed_candidates=40/10722 example=CDs_and_Vinyl:train:40:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ cand=0
+completed_candidates=50/10722 example=CDs_and_Vinyl:train:51:AHC4YZN4VZMRC2XZEBUVEFYNEEFQ cand=0
+completed_candidates=60/10722 example=CDs_and_Vinyl:train:60:AGPWTOM67Z5IAYBJSC3CQFKFWHFQ cand=0
+completed_candidates=70/10722 example=CDs_and_Vinyl:train:70:AFUUXMMMEKXCJGKMX6CH7N7YMEQQ cand=0
+completed_candidates=80/10722 example=CDs_and_Vinyl:train:80:AFI5XUDFJ5GZNL2TV3BOCD6NDBZQ cand=0
+completed_candidates=90/10722 example=CDs_and_Vinyl:train:90:AHNVK2UYESZKI4W43ZL6Y4A7FS7Q cand=0
+completed_candidates=100/10722 example=CDs_and_Vinyl:train:102:AFBMY6UMS3QK2CBV5XLBUWRII7CQ cand=0
+periodic_aggregate completed_candidates=100 aggregated_rows=100 complete_examples=100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=110/10722 example=CDs_and_Vinyl:train:100:AE4PBRQDTKXXSENWID6BBYHUYAJA cand=0
+completed_candidates=120/10722 example=CDs_and_Vinyl:train:121:AFQAJGPWN3MAVAC3Z2TC7OD2ZXMA cand=0
+failed example=CDs_and_Vinyl:train:111:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=130/10722 example=CDs_and_Vinyl:train:131:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=140/10722 example=CDs_and_Vinyl:train:142:AEQO7AVTLPI4UMQIOLHKBMIMH6QQ cand=0
+completed_candidates=150/10722 example=CDs_and_Vinyl:train:152:AGE2LEIBC2QVXPA4KWCIYFY3HZWQ cand=0
+completed_candidates=160/10722 example=CDs_and_Vinyl:train:160:AFQTROBTLTNW2APKMA5K3UVU2KJA cand=0
+completed_candidates=170/10722 example=CDs_and_Vinyl:train:170:AGE2LEIBC2QVXPA4KWCIYFY3HZWQ cand=0
+completed_candidates=180/10722 example=CDs_and_Vinyl:train:181:AGPHAF5C47HKB3IWGILDULQWBIIQ cand=0
+completed_candidates=190/10722 example=CDs_and_Vinyl:train:191:AEXGAZNP73PCYEZKL7XSSMN2Z6SA cand=0
+completed_candidates=200/10722 example=CDs_and_Vinyl:train:201:AHM34M35VLYMDNMJF7N7YJBOWKOQ cand=0
+periodic_aggregate completed_candidates=200 aggregated_rows=200 complete_examples=200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=210/10722 example=CDs_and_Vinyl:train:213:AGSSMESBM73NKW4GSV2LE6OT7TSA cand=0
+completed_candidates=220/10722 example=CDs_and_Vinyl:train:223:AE2XZ5JNCISRFAE2PC527NZ73YHQ cand=0
+completed_candidates=230/10722 example=CDs_and_Vinyl:train:232:AGLFM25IA7WWBDBVMUTWWGCUF4IA cand=0
+completed_candidates=240/10722 example=CDs_and_Vinyl:train:242:AGHBL2GCQMG32VLWHD3V75ZLSFMA cand=0
+completed_candidates=250/10722 example=CDs_and_Vinyl:train:251:AEA6EC4Q4NZVCH6EXKJPAFDPS56Q cand=0
+completed_candidates=260/10722 example=CDs_and_Vinyl:train:262:AFB55SBKDN36XHL5TRZ6GL37TXDA cand=0
+completed_candidates=270/10722 example=CDs_and_Vinyl:train:270:AHIDMAI3D3H3KO36C7KH42RCOEAQ cand=0
+completed_candidates=280/10722 example=CDs_and_Vinyl:train:281:AEXBCQF53CU6Y4PYMRUZWM43X6BA cand=0
+completed_candidates=290/10722 example=CDs_and_Vinyl:train:292:AGPNSWSMJVP6552IAMGUGCHYVRKA cand=0
+completed_candidates=300/10722 example=CDs_and_Vinyl:train:302:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+periodic_aggregate completed_candidates=300 aggregated_rows=300 complete_examples=300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=310/10722 example=CDs_and_Vinyl:train:311:AHM4V65O6O4IHFCYW5ONPWCIFRSQ cand=0
+completed_candidates=320/10722 example=CDs_and_Vinyl:train:320:AFUBRO3KC6HQ6CH3EH24SCDVZN3A cand=0
+completed_candidates=330/10722 example=CDs_and_Vinyl:train:331:AGH7XDMD54FENUX4W7FBKI7GKUVA cand=0
+completed_candidates=340/10722 example=CDs_and_Vinyl:train:342:AFM4DQKDBHZZWZXXRDIZPZ5AAO4Q cand=0
+completed_candidates=350/10722 example=CDs_and_Vinyl:train:351:AFJDLDYIDCW4NM7UNHZ7NT7GIQRA cand=0
+completed_candidates=360/10722 example=CDs_and_Vinyl:train:360:AHYMAA5CV6NQUEKBRSIHEUDQ3CAQ cand=0
+completed_candidates=370/10722 example=CDs_and_Vinyl:train:372:AHVKYRTR5MU5SXM4VHRX53HAOWTQ cand=0
+completed_candidates=380/10722 example=CDs_and_Vinyl:train:380:AGSXX7UBBTKJBO3MJL2KJ5B3B2AQ cand=0
+completed_candidates=390/10722 example=CDs_and_Vinyl:train:387:AGLZ5MLBBVQON3WPW5H7M6GJ7HPQ cand=0
+completed_candidates=400/10722 example=CDs_and_Vinyl:train:402:AECMF3THZVQB4CER7DXKTNJ67A4Q cand=0
+periodic_aggregate completed_candidates=400 aggregated_rows=400 complete_examples=400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=410/10722 example=CDs_and_Vinyl:train:410:AEMDXZHTRPBTIFVCWU5SJKCJJ2YA cand=0
+completed_candidates=420/10722 example=CDs_and_Vinyl:train:422:AFBZRJQDR4ZANQEWMTMHLRD5QSHA cand=0
+completed_candidates=430/10722 example=CDs_and_Vinyl:train:431:AFBZRJQDR4ZANQEWMTMHLRD5QSHA cand=0
+completed_candidates=440/10722 example=CDs_and_Vinyl:train:441:AFBZRJQDR4ZANQEWMTMHLRD5QSHA cand=0
+completed_candidates=450/10722 example=CDs_and_Vinyl:train:449:AHL74REHOSQKERFTFULAP4Z76LQA cand=0
+completed_candidates=460/10722 example=CDs_and_Vinyl:train:461:AEIXMUAMN4TVBSJY55T4TCQGOAZA cand=0
+completed_candidates=470/10722 example=CDs_and_Vinyl:train:472:AGX5QXGZFJIW2IBU7YO6OMS2NE2A cand=0
+completed_candidates=480/10722 example=CDs_and_Vinyl:train:481:AG5UT4RZ7RZ7MCSF6FP37P4E7A3Q cand=0
+completed_candidates=490/10722 example=CDs_and_Vinyl:train:489:AHJ7E2KLNYDVHECPVDL3GUSZJLXQ cand=0
+completed_candidates=500/10722 example=CDs_and_Vinyl:train:502:AHNIKHHYKJ4P456LW3JRA5CULILA cand=0
+periodic_aggregate completed_candidates=500 aggregated_rows=500 complete_examples=500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=510/10722 example=CDs_and_Vinyl:train:509:AHNH7J5AOP66IB4I332JG3IQ75AQ cand=0
+completed_candidates=520/10722 example=CDs_and_Vinyl:train:520:AHXYCKZ63CIFUTYQ3NEK4T4FFFAQ cand=0
+completed_candidates=530/10722 example=CDs_and_Vinyl:train:530:AH7KMNO4BZJHSAYQAA3OTUU55H4A cand=0
+completed_candidates=540/10722 example=CDs_and_Vinyl:train:540:AF52FFYFGFD7C44TRW6OY7DRCKFA cand=0
+completed_candidates=550/10722 example=CDs_and_Vinyl:train:549:AG43SGYI7VZ3GNPHXRDKS5URRO2Q cand=0
+completed_candidates=560/10722 example=CDs_and_Vinyl:train:561:AEBP2TTMWELYSUH6CSQMHBGUTD4Q cand=0
+completed_candidates=570/10722 example=CDs_and_Vinyl:train:573:AFGHNKS4WBIM3TKXE6F3NCLEE4TQ cand=0
+completed_candidates=580/10722 example=CDs_and_Vinyl:train:580:AGJ3XWQI46FTJ77PQHHVT5D56FTA cand=0
+completed_candidates=590/10722 example=CDs_and_Vinyl:train:591:AEZFPYXO73YDJ2DMNQH4S4Y365NA cand=0
+completed_candidates=600/10722 example=CDs_and_Vinyl:train:602:AFNLKO5LTALJ4H7EC3EKF6RJSDLQ cand=0
+periodic_aggregate completed_candidates=600 aggregated_rows=600 complete_examples=600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=610/10722 example=CDs_and_Vinyl:train:604:AFNLKO5LTALJ4H7EC3EKF6RJSDLQ cand=0
+completed_candidates=620/10722 example=CDs_and_Vinyl:train:620:AEX4ZO24RZLLS7BE6ZUWBFFPWNHQ cand=0
+completed_candidates=630/10722 example=CDs_and_Vinyl:train:633:AF34723SYWSLE3XCZNNZY2NYQRAQ cand=0
+completed_candidates=640/10722 example=CDs_and_Vinyl:train:641:AFHXTN5ST2SU46GWCTE2FNJQKLVQ cand=0
+completed_candidates=650/10722 example=CDs_and_Vinyl:train:651:AHXX3ZKTE2DTRYND6EFM4PQ5HTBQ cand=0
+completed_candidates=660/10722 example=CDs_and_Vinyl:train:661:AE47LUTO5OVRKZROXKA3ZG4UG6CQ cand=0
+completed_candidates=670/10722 example=CDs_and_Vinyl:train:671:AEJIAVKCBKTNQ5G7L5QQWKFJQJFA cand=0
+completed_candidates=680/10722 example=CDs_and_Vinyl:train:683:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=690/10722 example=CDs_and_Vinyl:train:693:AETMLXZFG7R7BCNGFQ2JE6CMSHXQ cand=0
+completed_candidates=700/10722 example=CDs_and_Vinyl:train:700:AEYIQ377RL7OMWHWVDVYAZSCC3JQ cand=0
+periodic_aggregate completed_candidates=700 aggregated_rows=700 complete_examples=700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=710/10722 example=CDs_and_Vinyl:train:711:AE6CHAOE2U5GBCM34AUGQGEJLYSA cand=0
+failed example=CDs_and_Vinyl:train:709:AGSWI5N7JYRTBFV2F7W2BVDALGWA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=720/10722 example=CDs_and_Vinyl:train:721:AHXF7FHNBXHVSHNSXHYZXWIBFAMA cand=0
+completed_candidates=730/10722 example=CDs_and_Vinyl:train:734:AGYTIDNEOX6LBZ7WZ3FYZXKRLUIA cand=0
+completed_candidates=740/10722 example=CDs_and_Vinyl:train:743:AFDGJLR4NX4U6XXR27DJSYO2IWAA cand=0
+completed_candidates=750/10722 example=CDs_and_Vinyl:train:751:AHCBOFIWMIOR5EOJ2Z56VL24WROA cand=0
+completed_candidates=760/10722 example=CDs_and_Vinyl:train:763:AF5HV6HLRO3CNFQQBADVHIU7HYSQ cand=0
+completed_candidates=770/10722 example=CDs_and_Vinyl:train:770:AFUBURU7FJCLLT5B5AMXG3KJBRNA cand=0
+completed_candidates=780/10722 example=CDs_and_Vinyl:train:781:AFGTIXU3BMHCWG2ALITQWHF2KGYA cand=0
+completed_candidates=790/10722 example=CDs_and_Vinyl:train:791:AGNYS24FSPTMY7NRGBWUUNAUSJXQ cand=0
+completed_candidates=800/10722 example=CDs_and_Vinyl:train:802:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+periodic_aggregate completed_candidates=800 aggregated_rows=800 complete_examples=800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=810/10722 example=CDs_and_Vinyl:train:814:AESBCJUYWGD7WN3YW4565BREXSVQ cand=0
+completed_candidates=820/10722 example=CDs_and_Vinyl:train:822:AEEVOHN4KXRUL3JNA6445FDNK7XA cand=0
+completed_candidates=830/10722 example=CDs_and_Vinyl:train:831:AF3KBCDY36QF3F66OVX2B52NO4ZA cand=0
+completed_candidates=840/10722 example=CDs_and_Vinyl:train:841:AG2BAMBXJIUMZGQ7XB4XEIIU5VTA cand=0
+completed_candidates=850/10722 example=CDs_and_Vinyl:train:852:AEMSD6QR5JWRKIZ6E5FAGX6HNJKA cand=0
+completed_candidates=860/10722 example=CDs_and_Vinyl:train:862:AHDPGVZLC7DWTLBSQ5CFMNMC3HYQ cand=0
+completed_candidates=870/10722 example=CDs_and_Vinyl:train:872:AHH2A7EZ5N72KUWT2Q5G2HORH7PQ cand=0
+completed_candidates=880/10722 example=CDs_and_Vinyl:train:882:AE4EAXKWZSKEFE5HITQ6W5AKGF6Q cand=0
+completed_candidates=890/10722 example=CDs_and_Vinyl:train:893:AE6ZA366EMRPNPZLHWYWSXQM4VGA cand=0
+completed_candidates=900/10722 example=CDs_and_Vinyl:train:902:AHYG6B3CNXSKERI5LGNVXIOA6WVA cand=0
+periodic_aggregate completed_candidates=900 aggregated_rows=900 complete_examples=900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=910/10722 example=CDs_and_Vinyl:train:912:AF6LJHVR6USHTZDF3LWJR7Z4YISA cand=0
+completed_candidates=920/10722 example=CDs_and_Vinyl:train:923:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=930/10722 example=CDs_and_Vinyl:train:934:AFX6O447TWUYIFNH5SIYW3P5XPAA cand=0
+completed_candidates=940/10722 example=CDs_and_Vinyl:train:944:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+failed example=CDs_and_Vinyl:train:948:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=950/10722 example=CDs_and_Vinyl:train:945:AGGS6IKPPUPIVIAPA2QQSQ3UQKEQ cand=0
+completed_candidates=960/10722 example=CDs_and_Vinyl:train:964:AFDBZN7YA4VAVP2HS3B73XKUA4TA cand=0
+completed_candidates=970/10722 example=CDs_and_Vinyl:train:971:AG7YOMAVAHDMD2URDXSOK7JYB4ZQ cand=0
+completed_candidates=980/10722 example=CDs_and_Vinyl:train:983:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+completed_candidates=990/10722 example=CDs_and_Vinyl:train:994:AFEIFDTV3L2QB7L7FHN2TIC7UXZA cand=0
+completed_candidates=1000/10722 example=CDs_and_Vinyl:train:1005:AHYT2ENE4FA3J7M3VWUGRC3CXPOA cand=0
+periodic_aggregate completed_candidates=1000 aggregated_rows=1000 complete_examples=1000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1010/10722 example=CDs_and_Vinyl:train:1013:AH3MUZLQ6I4PHTJRJFLL2UTG5P7A cand=0
+completed_candidates=1020/10722 example=CDs_and_Vinyl:train:1015:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=1030/10722 example=CDs_and_Vinyl:train:1031:AHOP6L5LG6SQ3MLU4K4BKSLZ2DUQ cand=0
+completed_candidates=1040/10722 example=CDs_and_Vinyl:train:1044:AESBCJUYWGD7WN3YW4565BREXSVQ cand=0
+completed_candidates=1050/10722 example=CDs_and_Vinyl:train:1043:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+completed_candidates=1060/10722 example=CDs_and_Vinyl:train:1064:AFXJFQS5ETJWNNCIR6J477B7RFSA cand=0
+completed_candidates=1070/10722 example=CDs_and_Vinyl:train:1073:AGNDTIAPOBCOEEDJ2YXCD4OI7WCQ cand=0
+completed_candidates=1080/10722 example=CDs_and_Vinyl:train:1083:AFRGUTZTI4TB4OL5M5JYDVOOZSBQ cand=0
+completed_candidates=1090/10722 example=CDs_and_Vinyl:train:1094:AHJ45H37WQWKXBGEGMLYKYPJOK5Q cand=0
+completed_candidates=1100/10722 example=CDs_and_Vinyl:train:1104:AG6ZUIRWBL2QU6MRTHPWXPV76ATA cand=0
+periodic_aggregate completed_candidates=1100 aggregated_rows=1100 complete_examples=1100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1110/10722 example=CDs_and_Vinyl:train:1105:AG6ZUIRWBL2QU6MRTHPWXPV76ATA cand=0
+completed_candidates=1120/10722 example=CDs_and_Vinyl:train:1102:AGQGQO2UF5I3VHI7RKBPO3AGAISQ cand=0
+completed_candidates=1130/10722 example=CDs_and_Vinyl:train:1132:AGQD32BQGOFPX423JC2J6QA7EDXA cand=0
+completed_candidates=1140/10722 example=CDs_and_Vinyl:train:1143:AHTZP6BE5TG5SNKSXQICVS26SPKQ cand=0
+completed_candidates=1150/10722 example=CDs_and_Vinyl:train:1153:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=1160/10722 example=CDs_and_Vinyl:train:1162:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+completed_candidates=1170/10722 example=CDs_and_Vinyl:train:1170:AG2ZCYDTVOLMYY7ZI7FOWFC5AHVA cand=0
+completed_candidates=1180/10722 example=CDs_and_Vinyl:train:1183:AHXAK7V24ARXBP7Q2UJ2FVOILO6A cand=0
+completed_candidates=1190/10722 example=CDs_and_Vinyl:train:1192:AEOHAA5FR3SCTETQGL3AURA6FX6A cand=0
+completed_candidates=1200/10722 example=CDs_and_Vinyl:train:1200:AGGDSXSNEBVQWKSGIVIGKJLALJQQ cand=0
+periodic_aggregate completed_candidates=1200 aggregated_rows=1200 complete_examples=1200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1210/10722 example=CDs_and_Vinyl:train:1213:AHNUSRRR3B7U4K4ELOVTJ2VOZRVA cand=0
+completed_candidates=1220/10722 example=CDs_and_Vinyl:train:1224:AEINGBTMJIX4NMC3G35ZVF7RDRIQ cand=0
+completed_candidates=1230/10722 example=CDs_and_Vinyl:train:1230:AHXF7FHNBXHVSHNSXHYZXWIBFAMA cand=0
+completed_candidates=1240/10722 example=CDs_and_Vinyl:train:1243:AG3SQZDWBR6ZHG6GH2WTLXCHJVVQ cand=0
+completed_candidates=1250/10722 example=CDs_and_Vinyl:train:1254:AE67D2RH6FLA7CFL6NP2NAIQ56OQ cand=0
+completed_candidates=1260/10722 example=CDs_and_Vinyl:train:1264:AFCHAQFMB4QIM2XOXBJKAVCN7UZA cand=0
+failed example=CDs_and_Vinyl:train:1262:AH4VS462NMKI3CIJPKMHTH2T7HZQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1270/10722 example=CDs_and_Vinyl:train:1274:AHPMWLYV5BJHZMFYFVOIHRS5ZNSQ cand=0
+completed_candidates=1280/10722 example=CDs_and_Vinyl:train:1281:AEEMYC2D4SGLEIMC5C672P6WUGIA cand=0
+failed example=CDs_and_Vinyl:train:1287:AEEMYC2D4SGLEIMC5C672P6WUGIA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1290/10722 example=CDs_and_Vinyl:train:1294:AEEMYC2D4SGLEIMC5C672P6WUGIA cand=0
+completed_candidates=1300/10722 example=CDs_and_Vinyl:train:1306:AFDQRFTSDPSAH6PTD2ZQQQUCNTMQ cand=0
+periodic_aggregate completed_candidates=1300 aggregated_rows=1300 complete_examples=1300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1310/10722 example=CDs_and_Vinyl:train:1313:AFTLYNNU2PVYQ6FLNAWPT5NMY4EA cand=0
+completed_candidates=1320/10722 example=CDs_and_Vinyl:train:1327:AE3OAJ37FCZMAXGJRFDUOSWX74QQ cand=0
+completed_candidates=1330/10722 example=CDs_and_Vinyl:train:1335:AGUGY7A23TXU47EMWIE4CP4YYO4Q cand=0
+completed_candidates=1340/10722 example=CDs_and_Vinyl:train:1345:AGOHYPN6WXMJW6HHU2NB7SPINYFQ cand=0
+completed_candidates=1350/10722 example=CDs_and_Vinyl:train:1355:AH2RHPR52NNHUGJJKDAHHQKRY5VQ cand=0
+completed_candidates=1360/10722 example=CDs_and_Vinyl:train:1365:AEEYXEBCNLZEHRJW6YVZZ5LVPDIA cand=0
+completed_candidates=1370/10722 example=CDs_and_Vinyl:train:1374:AH7IH7E25GEHUIYJSMQJNHEAPNBQ cand=0
+completed_candidates=1380/10722 example=CDs_and_Vinyl:train:1384:AHJQPEAQ57JVQAA6FLQOB6X6PKUA cand=0
+completed_candidates=1390/10722 example=CDs_and_Vinyl:train:1393:AESTUNA2OBMOMZFOFCX5RVHTY5OQ cand=0
+completed_candidates=1400/10722 example=CDs_and_Vinyl:train:1406:AGZJG44IICDWR52SJS6BMR6DEEZA cand=0
+periodic_aggregate completed_candidates=1400 aggregated_rows=1400 complete_examples=1400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1410/10722 example=CDs_and_Vinyl:train:1415:AFUSHZT2CE3FN6X6G7JZ56Q75T3A cand=0
+completed_candidates=1420/10722 example=CDs_and_Vinyl:train:1427:AHIDMAI3D3H3KO36C7KH42RCOEAQ cand=0
+completed_candidates=1430/10722 example=CDs_and_Vinyl:train:1434:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=1440/10722 example=CDs_and_Vinyl:train:1445:AEQ6AY576K5YD7USK3JGXG2N6YEQ cand=0
+completed_candidates=1450/10722 example=CDs_and_Vinyl:train:1454:AHSQH4AMYP2YBFWSAHVFEZ5B3REQ cand=0
+completed_candidates=1460/10722 example=CDs_and_Vinyl:train:1464:AG2LXI7AFBVM4A4TU3GW2C57SYVQ cand=0
+completed_candidates=1470/10722 example=CDs_and_Vinyl:train:1473:AHUKDHJXR7NG2IQGOA5YX33B5NBQ cand=0
+completed_candidates=1480/10722 example=CDs_and_Vinyl:train:1486:AEAHPVUUNR6DY3DK7BTKAKDX4CHA cand=0
+completed_candidates=1490/10722 example=CDs_and_Vinyl:train:1493:AGWLPTWOCXDVB5OHTCR3UHKO7LIQ cand=0
+completed_candidates=1500/10722 example=CDs_and_Vinyl:train:1506:AGXWN4PAQRYVBBAI7J63QGEDX4WQ cand=0
+periodic_aggregate completed_candidates=1500 aggregated_rows=1500 complete_examples=1500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1510/10722 example=CDs_and_Vinyl:train:1514:AGWEC7SADRIYMG2RBBK4JPJLGNXA cand=0
+completed_candidates=1520/10722 example=CDs_and_Vinyl:train:1523:AGLFM25IA7WWBDBVMUTWWGCUF4IA cand=0
+completed_candidates=1530/10722 example=CDs_and_Vinyl:train:1534:AEUABHVZZA6PN6MUCGOFP7WQKMLQ cand=0
+completed_candidates=1540/10722 example=CDs_and_Vinyl:train:1544:AHLAPTG34AOAOFKAITUBX6YDBP3Q cand=0
+completed_candidates=1550/10722 example=CDs_and_Vinyl:train:1554:AG2QVE6ATYFP2JGVJDXAQZWAHOGQ cand=0
+completed_candidates=1560/10722 example=CDs_and_Vinyl:train:1565:AF5WIVIWTDG4C5IK7SND2JLIOTZA cand=0
+completed_candidates=1570/10722 example=CDs_and_Vinyl:train:1574:AHC5LN22BSQK43JO6YVWC3YG3ONQ cand=0
+completed_candidates=1580/10722 example=CDs_and_Vinyl:train:1586:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0
+completed_candidates=1590/10722 example=CDs_and_Vinyl:train:1596:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0
+completed_candidates=1600/10722 example=CDs_and_Vinyl:train:1606:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0
+periodic_aggregate completed_candidates=1600 aggregated_rows=1600 complete_examples=1600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:1598:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1610/10722 example=CDs_and_Vinyl:train:1617:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0
+failed example=CDs_and_Vinyl:train:1610:AGPUDOBM4EDZVOVW2OCSROWN42XA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1620/10722 example=CDs_and_Vinyl:train:1626:AHNSXU52753GTLC4BCECD5PCGE7Q cand=0
+completed_candidates=1630/10722 example=CDs_and_Vinyl:train:1635:AG6IIOSALXDSVTZS6GEYNOLOWCJA cand=0
+completed_candidates=1640/10722 example=CDs_and_Vinyl:train:1649:AGOFRFUO4ABCZ77MOIT3R3CJOBNQ cand=0
+completed_candidates=1650/10722 example=CDs_and_Vinyl:train:1656:AHIAD4K6VJW5ASAKQNPFHZQZS2IA cand=0
+completed_candidates=1660/10722 example=CDs_and_Vinyl:train:1661:AGWMLPLSAA7WDJ5C55B7QBOP5BEA cand=0
+completed_candidates=1670/10722 example=CDs_and_Vinyl:train:1676:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=1680/10722 example=CDs_and_Vinyl:train:1686:AFBNAOVQDCCJAYG6MX66DOKOKOUQ cand=0
+completed_candidates=1690/10722 example=CDs_and_Vinyl:train:1696:AEILQ6XKO55HIEKNAHWP7GI3DRHA cand=0
+completed_candidates=1700/10722 example=CDs_and_Vinyl:train:1707:AFQJ2VJHI2FGRS6N3YCM4WBVAOTA cand=0
+periodic_aggregate completed_candidates=1700 aggregated_rows=1700 complete_examples=1700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1710/10722 example=CDs_and_Vinyl:train:1717:AGRCMCWESWFMUEPRMHLPMWLP3AJA cand=0
+failed example=CDs_and_Vinyl:train:1722:AHREBUEBUFNHEV5A5MMZMI2T3HDA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1720/10722 example=CDs_and_Vinyl:train:1730:AGRCMCWESWFMUEPRMHLPMWLP3AJA cand=0
+completed_candidates=1730/10722 example=CDs_and_Vinyl:train:1738:AGRCMCWESWFMUEPRMHLPMWLP3AJA cand=0
+completed_candidates=1740/10722 example=CDs_and_Vinyl:train:1748:AETEQRILBXUGGXKPPMKBCF4LM67Q cand=0
+completed_candidates=1750/10722 example=CDs_and_Vinyl:train:1758:AGRWBP6XITBD6GIO2LNIPVOIKFPQ cand=0
+completed_candidates=1760/10722 example=CDs_and_Vinyl:train:1768:AF4GFXSNFAAQG7DVPU4GNVW76VFQ cand=0
+completed_candidates=1770/10722 example=CDs_and_Vinyl:train:1777:AE4XDDTKRMCHNC7ETU6IVYXAX35A cand=0
+completed_candidates=1780/10722 example=CDs_and_Vinyl:train:1790:AEMSD6QR5JWRKIZ6E5FAGX6HNJKA cand=0
+completed_candidates=1790/10722 example=CDs_and_Vinyl:train:1800:AESH4AJAPZRJV23T2TT4RGOUY65Q cand=0
+completed_candidates=1800/10722 example=CDs_and_Vinyl:train:1809:AFHVZM2VZNJRDEBCJMRLONVB5JVA cand=0
+periodic_aggregate completed_candidates=1800 aggregated_rows=1800 complete_examples=1800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1810/10722 example=CDs_and_Vinyl:train:1817:AGOFRFUO4ABCZ77MOIT3R3CJOBNQ cand=0
+completed_candidates=1820/10722 example=CDs_and_Vinyl:train:1827:AEVWRIDXK34EDXOGZOPGXN6C3GUA cand=0
+completed_candidates=1830/10722 example=CDs_and_Vinyl:train:1838:AGLFYV4JWKRLENFFLFBS5DJH5QGA cand=0
+completed_candidates=1840/10722 example=CDs_and_Vinyl:train:1845:AFZXEMLLRLM6NSW2XVRGSPA5KGIQ cand=0
+completed_candidates=1850/10722 example=CDs_and_Vinyl:train:1859:AGZMDGWR6NGEMEXYMKIOJPAMMQ6A cand=0
+completed_candidates=1860/10722 example=CDs_and_Vinyl:train:1867:AEKYLWOO4JAH6WCFNOHVHHYGQH5A cand=0
+completed_candidates=1870/10722 example=CDs_and_Vinyl:train:1878:AEYF4RDRCP5BGRJFP736JDL47HYA cand=0
+completed_candidates=1880/10722 example=CDs_and_Vinyl:train:1890:AEP4R5FQUSUJBK4SX7L5DUXYZA6A cand=0
+completed_candidates=1890/10722 example=CDs_and_Vinyl:train:1899:AGO5O3HCM5VYPHMSP2WPRDGJ2LIA cand=0
+completed_candidates=1900/10722 example=CDs_and_Vinyl:train:1908:AHFAF3LWPORS4ENWJTCKKTBV5MBA cand=0
+periodic_aggregate completed_candidates=1900 aggregated_rows=1900 complete_examples=1900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1910/10722 example=CDs_and_Vinyl:train:1900:AGR7OEPJSF7IHOKFO7DX6HPVZ3GQ cand=0
+completed_candidates=1920/10722 example=CDs_and_Vinyl:train:1928:AHIVI72TGD3EM6Z6DIPIHCVSVZNQ cand=0
+completed_candidates=1930/10722 example=CDs_and_Vinyl:train:1939:AE2MUPXP5P5M3HUSBYVXYXP4NNGQ cand=0
+completed_candidates=1940/10722 example=CDs_and_Vinyl:train:1947:AGFPIGYLIIHUNTQG6WLN43A4SXCQ cand=0
+completed_candidates=1950/10722 example=CDs_and_Vinyl:train:1957:AFRUF2TH3UVOAHZKITO3CD3CBDGQ cand=0
+completed_candidates=1960/10722 example=CDs_and_Vinyl:train:1942:AEO5NJZ7C7VQSNHO7EFMWDRPQDXA cand=0
+completed_candidates=1970/10722 example=CDs_and_Vinyl:train:1977:AG362OECRKCRBUKIWPH2DEBMBFRQ cand=0
+completed_candidates=1980/10722 example=CDs_and_Vinyl:train:1989:AFSCWJBCXPHAPANMFF4CC5IVX3JQ cand=0
+failed example=CDs_and_Vinyl:train:1985:AGE2E7EX5IWB4OLKC65WCPZPDBBQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=1990/10722 example=CDs_and_Vinyl:train:1998:AFAO3U4J2W6FPEGXQF5UBZCMGJWQ cand=0
+completed_candidates=2000/10722 example=CDs_and_Vinyl:train:2007:AHOYKPUHSV4TZCRIFJGWOUBLQINA cand=0
+periodic_aggregate completed_candidates=2000 aggregated_rows=2000 complete_examples=2000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2010/10722 example=CDs_and_Vinyl:train:2021:AHCPVMZS4WQQI6OAPDXUA3HI4VRQ cand=0
+completed_candidates=2020/10722 example=CDs_and_Vinyl:train:2026:AG7SY24XRUDPOVHZ5PPOL2BU6BUQ cand=0
+completed_candidates=2030/10722 example=CDs_and_Vinyl:train:2039:AFWGTJVAB6Q4QQ534BXMCUAQ3GAQ cand=0
+completed_candidates=2040/10722 example=CDs_and_Vinyl:train:2041:AFLNGYFRNQEHD75WFIVXHWG3VU3A cand=0
+completed_candidates=2050/10722 example=CDs_and_Vinyl:train:2058:AHCC7KVWNTI5ID4B4GBASOJNS42A cand=0
+completed_candidates=2060/10722 example=CDs_and_Vinyl:train:2068:AGB3P4R5N4M5WIS5AATPXLP4VHZQ cand=0
+completed_candidates=2070/10722 example=CDs_and_Vinyl:train:2078:AETZAWQBDTYLVRO5L2XBGEIBUBYA cand=0
+completed_candidates=2080/10722 example=CDs_and_Vinyl:train:2090:AHFEZLF7MCNTWQF6VKD74RPUNNIQ cand=0
+completed_candidates=2090/10722 example=CDs_and_Vinyl:train:2092:AG5FERHTLE72K7XPARGJI2TPUKTA cand=0
+completed_candidates=2100/10722 example=CDs_and_Vinyl:train:2109:AGCLCH5MIOPPPCQES6HOXFPXJB5Q cand=0
+periodic_aggregate completed_candidates=2100 aggregated_rows=2100 complete_examples=2100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2110/10722 example=CDs_and_Vinyl:train:2112:AFD3ZGDF3NIVBOYDUZJJGQ2R7ZCQ cand=0
+completed_candidates=2120/10722 example=CDs_and_Vinyl:train:2129:AEEIDTDUSSRIOWFVH76EDKL2XJBQ cand=0
+completed_candidates=2130/10722 example=CDs_and_Vinyl:train:2140:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=2140/10722 example=CDs_and_Vinyl:train:2149:AEAYS2QVOAHR7RVUBMWIY2IBBOJQ cand=0
+completed_candidates=2150/10722 example=CDs_and_Vinyl:train:2160:AEND2F5HEJS23KRMBEKYHIAOFLIA cand=0
+completed_candidates=2160/10722 example=CDs_and_Vinyl:train:2169:AH4HX4VFOFFTKFUT7WBSY3CVZ44A cand=0
+completed_candidates=2170/10722 example=CDs_and_Vinyl:train:2177:AGHM7LO53SBDUJUI3O23FAWGSDIQ cand=0
+completed_candidates=2180/10722 example=CDs_and_Vinyl:train:2181:AFQ3SYSQU74LZ3Q763TUBQNHNDGQ cand=0
+completed_candidates=2190/10722 example=CDs_and_Vinyl:train:2198:AGNUSBUMRYEQCOVGPUQPEOSZ5WRQ cand=0
+completed_candidates=2200/10722 example=CDs_and_Vinyl:train:2208:AG52YKXJC4N432WUFCVBIX7ZABRA cand=0
+periodic_aggregate completed_candidates=2200 aggregated_rows=2200 complete_examples=2200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2210/10722 example=CDs_and_Vinyl:train:2210:AFLOLAMXHADBZXSIGBQVRGWQSPRA cand=0
+completed_candidates=2220/10722 example=CDs_and_Vinyl:train:2225:AFK36VGE2JC3VXI3PK2UVO5BE7ZA cand=0
+completed_candidates=2230/10722 example=CDs_and_Vinyl:train:2240:AH6EXHSHDYJUJM2WFJ6FHBW6SJWA cand=0
+completed_candidates=2240/10722 example=CDs_and_Vinyl:train:2232:AHFAF3LWPORS4ENWJTCKKTBV5MBA cand=0
+completed_candidates=2250/10722 example=CDs_and_Vinyl:train:2258:AGOHYPN6WXMJW6HHU2NB7SPINYFQ cand=0
+completed_candidates=2260/10722 example=CDs_and_Vinyl:train:2270:AHRGNGJD4VKTEYFOPY7U6MA7ALBA cand=0
+completed_candidates=2270/10722 example=CDs_and_Vinyl:train:2280:AHRGNGJD4VKTEYFOPY7U6MA7ALBA cand=0
+completed_candidates=2280/10722 example=CDs_and_Vinyl:train:2289:AEEKB5ZSJ6AG3P2YPK65OEXGZY3A cand=0
+completed_candidates=2290/10722 example=CDs_and_Vinyl:train:2297:AE3YCTVL6F4IMYJC6C46Q5PXMZOA cand=0
+completed_candidates=2300/10722 example=CDs_and_Vinyl:train:2307:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+periodic_aggregate completed_candidates=2300 aggregated_rows=2300 complete_examples=2300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2310/10722 example=CDs_and_Vinyl:train:2316:AEE376ZFCXP7LSMFLZYXPMN6EUAA cand=0
+completed_candidates=2320/10722 example=CDs_and_Vinyl:train:2327:AF6SVOEDMKBR3YNYWB5R5GX2LW7Q cand=0
+completed_candidates=2330/10722 example=CDs_and_Vinyl:train:2340:AE5SRIMQVUEWXVIMG5FB7J25P6UA cand=0
+completed_candidates=2340/10722 example=CDs_and_Vinyl:train:2349:AFZ42CTVQ3HPFQMWKCHOLA3ZYWUQ cand=0
+completed_candidates=2350/10722 example=CDs_and_Vinyl:train:2352:AEPQDW6QPMBFGJVYNZ4MTWPX2KHQ cand=0
+completed_candidates=2360/10722 example=CDs_and_Vinyl:train:2369:AGHMVI5WGG6YNNMYFK26FY2YCOAQ cand=0
+completed_candidates=2370/10722 example=CDs_and_Vinyl:train:2379:AGW7PVJVBWMITUAAFGTAONBGPDHA cand=0
+completed_candidates=2380/10722 example=CDs_and_Vinyl:train:2390:AEWM5D5K6IDDI4LUX4TNMMFZ7SOQ cand=0
+completed_candidates=2390/10722 example=CDs_and_Vinyl:train:2399:AEZGLNA2XRA5CHETDKY3LZC43TJA cand=0
+completed_candidates=2400/10722 example=CDs_and_Vinyl:train:2409:AF6X6NTDGUVDAEH6645SGTXQ4H7A cand=0
+periodic_aggregate completed_candidates=2400 aggregated_rows=2400 complete_examples=2400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2410/10722 example=CDs_and_Vinyl:train:2417:AF6X6NTDGUVDAEH6645SGTXQ4H7A cand=0
+completed_candidates=2420/10722 example=CDs_and_Vinyl:train:2427:AHBJ7MC6QUKVVI7OSANQDYENABNA cand=0
+completed_candidates=2430/10722 example=CDs_and_Vinyl:train:2440:AF7FFK736MSV2TV7F7YW2VG3HCGQ cand=0
+completed_candidates=2440/10722 example=CDs_and_Vinyl:train:2448:AHDCLJRYFLXEFUH64CKGR3PMOLJA cand=0
+completed_candidates=2450/10722 example=CDs_and_Vinyl:train:2459:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=2460/10722 example=CDs_and_Vinyl:train:2469:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+completed_candidates=2470/10722 example=CDs_and_Vinyl:train:2479:AGZCWSKHVM67VSTFMYHFHTJ5AQQQ cand=0
+completed_candidates=2480/10722 example=CDs_and_Vinyl:train:2489:AE4JONBRXQ54KHO2OIQ33Z75DVDQ cand=0
+completed_candidates=2490/10722 example=CDs_and_Vinyl:train:2496:AGTKVXQFOE5DZURWIPGAPHKHLRVA cand=0
+completed_candidates=2500/10722 example=CDs_and_Vinyl:train:2509:AHBJ7MC6QUKVVI7OSANQDYENABNA cand=0
+periodic_aggregate completed_candidates=2500 aggregated_rows=2500 complete_examples=2500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2510/10722 example=CDs_and_Vinyl:train:2519:AHGIGBBZSCOUSGIP7YAU6R2IM4WQ cand=0
+completed_candidates=2520/10722 example=CDs_and_Vinyl:train:2531:AGZ22G7TC6VBH5OHTQHLV4OUVLSA cand=0
+completed_candidates=2530/10722 example=CDs_and_Vinyl:train:2540:AEFCHWDLHSB4YIATPCT2WUVRNA7A cand=0
+completed_candidates=2540/10722 example=CDs_and_Vinyl:train:2550:AFU77XA3PJWWQSENOEXVSTB3YC4A cand=0
+completed_candidates=2550/10722 example=CDs_and_Vinyl:train:2560:AHL3TSH35X7273JHNHIGDTLV3VGA cand=0
+completed_candidates=2560/10722 example=CDs_and_Vinyl:train:2554:AGVOLYJSGAPFQTGD3VI4UK6KYZ6Q cand=0
+completed_candidates=2570/10722 example=CDs_and_Vinyl:train:2579:AH4YZV26RHOSLYOHTZU3QGMZ44QA cand=0
+completed_candidates=2580/10722 example=CDs_and_Vinyl:train:2590:AFMC7FQB4TG4ZRSJGWGVMF63XF5A cand=0
+completed_candidates=2590/10722 example=CDs_and_Vinyl:train:2599:AFJXAXKZVOFEGZV4OU7OITTR5Z4A cand=0
+completed_candidates=2600/10722 example=CDs_and_Vinyl:train:2610:AEZ2EFG6WE33AJDTNOUIH63XBD4A cand=0
+periodic_aggregate completed_candidates=2600 aggregated_rows=2600 complete_examples=2600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2610/10722 example=CDs_and_Vinyl:train:2620:AHRMK5FANLW423BLWONXMFIPBZFQ cand=0
+completed_candidates=2620/10722 example=CDs_and_Vinyl:train:2629:AHTKASCMTS2QL2B74OBDHP4XLIBQ cand=0
+completed_candidates=2630/10722 example=CDs_and_Vinyl:train:2640:AEMAVOCQGA7A2QJEQ3SGP2FB6W3A cand=0
+completed_candidates=2640/10722 example=CDs_and_Vinyl:train:2643:AE7GYBJJGL5FFJPPH4WEYSQT3LRQ cand=0
+completed_candidates=2650/10722 example=CDs_and_Vinyl:train:2658:AFFAZY63WFA2UZMRF2FJALV6SYBQ cand=0
+completed_candidates=2660/10722 example=CDs_and_Vinyl:train:2669:AEM5U3CZH6TVF3H4ZTU4JC7QWXMQ cand=0
+completed_candidates=2670/10722 example=CDs_and_Vinyl:train:2677:AEQC3UC5LY5WS4JSF5EMC4CO2YHA cand=0
+completed_candidates=2680/10722 example=CDs_and_Vinyl:train:2686:AEYXIRWZG3YJCBSSJJVAG7WEFPOA cand=0
+completed_candidates=2690/10722 example=CDs_and_Vinyl:train:2701:AGF44XIBMZNBTD46BBSKSB3VH75Q cand=0
+completed_candidates=2700/10722 example=CDs_and_Vinyl:train:2710:AH54YHJGSYN4R2VIQYXVZWUP4GAQ cand=0
+periodic_aggregate completed_candidates=2700 aggregated_rows=2700 complete_examples=2700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2710/10722 example=CDs_and_Vinyl:train:2698:AHCJM7KAX4FBWEHPZHOCQ3IKFSXQ cand=0
+completed_candidates=2720/10722 example=CDs_and_Vinyl:train:2728:AGSSMESBM73NKW4GSV2LE6OT7TSA cand=0
+completed_candidates=2730/10722 example=CDs_and_Vinyl:train:2737:AF6XRRBO2DDT56FYNXGLO7O3LOXQ cand=0
+completed_candidates=2740/10722 example=CDs_and_Vinyl:train:2746:AFPJR7N54272K25LQRDQCWD7GNRQ cand=0
+completed_candidates=2750/10722 example=CDs_and_Vinyl:train:2754:AG7RLYZXWOR5Q4LIAGP3U4JBNWOQ cand=0
+completed_candidates=2760/10722 example=CDs_and_Vinyl:train:2769:AGH5J2WYDMQAPIV22ABIXWNXQKRQ cand=0
+completed_candidates=2770/10722 example=CDs_and_Vinyl:train:2770:AGNI7LB6RW4FJNJKCKMB7VUJVHVQ cand=0
+completed_candidates=2780/10722 example=CDs_and_Vinyl:train:2788:AGXY4UMKNWEQ5HC4R3Y4ZBEZTJFA cand=0
+completed_candidates=2790/10722 example=CDs_and_Vinyl:train:2799:AHUBQ5GOFLKUYOZONZAFRYRNXRMQ cand=0
+completed_candidates=2800/10722 example=CDs_and_Vinyl:train:2804:AHUBQ5GOFLKUYOZONZAFRYRNXRMQ cand=0
+periodic_aggregate completed_candidates=2800 aggregated_rows=2800 complete_examples=2800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2810/10722 example=CDs_and_Vinyl:train:2817:AHUBQ5GOFLKUYOZONZAFRYRNXRMQ cand=0
+completed_candidates=2820/10722 example=CDs_and_Vinyl:train:2827:AF6LZO4MPJPHWZBSI7LQAANVTVQQ cand=0
+completed_candidates=2830/10722 example=CDs_and_Vinyl:train:2838:AHXNZ75VJUMZ34ASD2BFHTPRD6BA cand=0
+completed_candidates=2840/10722 example=CDs_and_Vinyl:train:2848:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=2850/10722 example=CDs_and_Vinyl:train:2849:AF4FLEL2KR3CM4FEQUHMZ3CZKUDQ cand=0
+completed_candidates=2860/10722 example=CDs_and_Vinyl:train:2869:AGRNM3BUFN4ZF2SW324HTQMZOPTA cand=0
+completed_candidates=2870/10722 example=CDs_and_Vinyl:train:2876:AGRNM3BUFN4ZF2SW324HTQMZOPTA cand=0
+completed_candidates=2880/10722 example=CDs_and_Vinyl:train:2888:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=2890/10722 example=CDs_and_Vinyl:train:2899:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=2900/10722 example=CDs_and_Vinyl:train:2908:AFVDLAD6GTA76BOOF6XAQJEA4GGQ cand=0
+periodic_aggregate completed_candidates=2900 aggregated_rows=2900 complete_examples=2900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=2910/10722 example=CDs_and_Vinyl:train:2920:AGZWIBCIV2JFPFPVI3OXSQJORRKA cand=0
+completed_candidates=2920/10722 example=CDs_and_Vinyl:train:2929:AHH2A7EZ5N72KUWT2Q5G2HORH7PQ cand=0
+completed_candidates=2930/10722 example=CDs_and_Vinyl:train:2937:AEKSK2D4SUD3AC7KQ7ZXTPICDANQ cand=0
+completed_candidates=2940/10722 example=CDs_and_Vinyl:train:2946:AESVYG6KO443G27IL5GWETHOG4WA cand=0
+completed_candidates=2950/10722 example=CDs_and_Vinyl:train:2961:AF34723SYWSLE3XCZNNZY2NYQRAQ cand=0
+completed_candidates=2960/10722 example=CDs_and_Vinyl:train:2970:AEOMCWWZ5BM552XYBG7SRTH2FW4Q cand=0
+completed_candidates=2970/10722 example=CDs_and_Vinyl:train:2980:AFDQPGXCBEJWM2OYWNQPILR5BRBA cand=0
+completed_candidates=2980/10722 example=CDs_and_Vinyl:train:2987:AHYZYCOZDP3MCRMWKIWQZG2RLRTA cand=0
+completed_candidates=2990/10722 example=CDs_and_Vinyl:train:2998:AFFCVXJEMWPGE75IA27DE4KFWJHQ cand=0
+completed_candidates=3000/10722 example=CDs_and_Vinyl:train:3001:AFYFU5Q3XDRLE2CEQSVGFDD72WIA cand=0
+periodic_aggregate completed_candidates=3000 aggregated_rows=3000 complete_examples=3000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3010/10722 example=CDs_and_Vinyl:train:3019:AFB276UIM2JXFN52R7FEKGAUFAOQ cand=0
+completed_candidates=3020/10722 example=CDs_and_Vinyl:train:3028:AGWR6GPCDOW2SFLKX4O7IM6XVNSA cand=0
+completed_candidates=3030/10722 example=CDs_and_Vinyl:train:3038:AGE5K2THKGILZK3LGZ6AWPG4IVEQ cand=0
+failed example=CDs_and_Vinyl:train:3030:AHROOHTPWDC3MEYI7PORGBHKIUKQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=3040/10722 example=CDs_and_Vinyl:train:3050:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ cand=0
+completed_candidates=3050/10722 example=CDs_and_Vinyl:train:3057:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ cand=0
+completed_candidates=3060/10722 example=CDs_and_Vinyl:train:3071:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ cand=0
+completed_candidates=3070/10722 example=CDs_and_Vinyl:train:3077:AF2KMZ5UXLY6VUGFYAU7V4VCCSCQ cand=0
+completed_candidates=3080/10722 example=CDs_and_Vinyl:train:3091:AGCOKY3Y27XIQM2NRZV2H6OZ4PDQ cand=0
+completed_candidates=3090/10722 example=CDs_and_Vinyl:train:3100:AHX3YNG46FCNMOTUPAE3UVGYQYLA cand=0
+completed_candidates=3100/10722 example=CDs_and_Vinyl:train:3108:AHZKYTLGJVZFGKPQPD7EHIBSJR6Q cand=0
+periodic_aggregate completed_candidates=3100 aggregated_rows=3100 complete_examples=3100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3110/10722 example=CDs_and_Vinyl:train:3120:AGPRF56XBOPRX7IBFHVPW5ARPQAA cand=0
+completed_candidates=3120/10722 example=CDs_and_Vinyl:train:3129:AHSJ3Q7E5A5GP6IMM5QYKMBWGZMA cand=0
+completed_candidates=3130/10722 example=CDs_and_Vinyl:train:3137:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=3140/10722 example=CDs_and_Vinyl:train:3149:AGZGBQXCARETETKAJVU4X7DNJFVA cand=0
+completed_candidates=3150/10722 example=CDs_and_Vinyl:train:3160:AESBCJUYWGD7WN3YW4565BREXSVQ cand=0
+completed_candidates=3160/10722 example=CDs_and_Vinyl:train:3171:AHZJ3NEAWYPNY2Y36UJY7AALSEGQ cand=0
+completed_candidates=3170/10722 example=CDs_and_Vinyl:train:3181:AE4MERXWRFB3Y6KJ3IDHE2JUSSKA cand=0
+completed_candidates=3180/10722 example=CDs_and_Vinyl:train:3189:AHLJLTA4QG6V4VN7SDZ7TZKAAHYQ cand=0
+completed_candidates=3190/10722 example=CDs_and_Vinyl:train:3198:AEA5MWJCC4VGPWYHRTRLF2F5WBYQ cand=0
+completed_candidates=3200/10722 example=CDs_and_Vinyl:train:3210:AHXAENPDKZ3KNTHWT6OMKLV5MCCA cand=0
+periodic_aggregate completed_candidates=3200 aggregated_rows=3200 complete_examples=3200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3210/10722 example=CDs_and_Vinyl:train:3218:AFQRWBFQXTIGJ4B6GGGXOU2F7SGA cand=0
+completed_candidates=3220/10722 example=CDs_and_Vinyl:train:3230:AEQJPVJZ5CHWXN55MFO7RUE4LPXA cand=0
+completed_candidates=3230/10722 example=CDs_and_Vinyl:train:3239:AGPRF56XBOPRX7IBFHVPW5ARPQAA cand=0
+completed_candidates=3240/10722 example=CDs_and_Vinyl:train:3249:AFECROTB24GATZH6JFH24BS3BMTQ cand=0
+completed_candidates=3250/10722 example=CDs_and_Vinyl:train:3259:AHQ5YHBEBMHNFJXOGOUQ6BWEUPBA cand=0
+completed_candidates=3260/10722 example=CDs_and_Vinyl:train:3270:AGMXR3FKFE5J3S4JF5DPTDHPSZWA cand=0
+completed_candidates=3270/10722 example=CDs_and_Vinyl:train:3280:AELNUMSOP7B37VW5ZPGUMKF3PMXA cand=0
+completed_candidates=3280/10722 example=CDs_and_Vinyl:train:3290:AEM63I635LEGJUSEEXMWLFWJXZTA cand=0
+completed_candidates=3290/10722 example=CDs_and_Vinyl:train:3299:AFAO3U4J2W6FPEGXQF5UBZCMGJWQ cand=0
+completed_candidates=3300/10722 example=CDs_and_Vinyl:train:3309:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+periodic_aggregate completed_candidates=3300 aggregated_rows=3300 complete_examples=3300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3310/10722 example=CDs_and_Vinyl:train:3321:AHAUPED45U66LYDGYHMZ6Z7YXDWQ cand=0
+completed_candidates=3320/10722 example=CDs_and_Vinyl:train:3330:AHXI32PFMVAPJHWYBX2GSEMISRZA cand=0
+completed_candidates=3330/10722 example=CDs_and_Vinyl:train:3340:AHFWEOFZWZ6N3F2WJGWPTQ3IRXNA cand=0
+completed_candidates=3340/10722 example=CDs_and_Vinyl:train:3352:AHUZCDW44SMPCJSM4JVWUCYDNAYA cand=0
+completed_candidates=3350/10722 example=CDs_and_Vinyl:train:3358:AFMAB2ES7BOHG6TCKHP632I56JZQ cand=0
+completed_candidates=3360/10722 example=CDs_and_Vinyl:train:3370:AFLYUUEU57HTGOJ3DH7L4UBMNFLQ cand=0
+completed_candidates=3370/10722 example=CDs_and_Vinyl:train:3328:AEH357KCNXCGRDHSPFFA4BDV6R2Q cand=0
+completed_candidates=3380/10722 example=CDs_and_Vinyl:train:3391:AEINGBTMJIX4NMC3G35ZVF7RDRIQ cand=0
+completed_candidates=3390/10722 example=CDs_and_Vinyl:train:3402:AG2ZNCKN4NWDNXPJFVI7H4ASRIQQ cand=0
+completed_candidates=3400/10722 example=CDs_and_Vinyl:train:3412:AFTKCZHDACEENUENRZNJDHGASJPA cand=0
+periodic_aggregate completed_candidates=3400 aggregated_rows=3400 complete_examples=3400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3410/10722 example=CDs_and_Vinyl:train:3420:AEIXMUAMN4TVBSJY55T4TCQGOAZA cand=0
+completed_candidates=3420/10722 example=CDs_and_Vinyl:train:3430:AFKNWQYHE6PQN22TASSWKA3VPF6Q cand=0
+completed_candidates=3430/10722 example=CDs_and_Vinyl:train:3442:AGLFM25IA7WWBDBVMUTWWGCUF4IA cand=0
+completed_candidates=3440/10722 example=CDs_and_Vinyl:train:3451:AEOGBEJ7JUGRUZH4FNYB3P6HGFZQ cand=0
+completed_candidates=3450/10722 example=CDs_and_Vinyl:train:3461:AGQT3JE4D2EFOD77E2RG4EEAK5QA cand=0
+completed_candidates=3460/10722 example=CDs_and_Vinyl:train:3470:AFY5G2D2XS5WICEDLNENQO4WIANA cand=0
+completed_candidates=3470/10722 example=CDs_and_Vinyl:train:3481:AE35ABQP6EKEHQKXSJXJQVHNFNSA cand=0
+completed_candidates=3480/10722 example=CDs_and_Vinyl:train:3492:AHO7ZGPD36NZVIZQDR2YIRDK5BWA cand=0
+completed_candidates=3490/10722 example=CDs_and_Vinyl:train:3490:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=3500/10722 example=CDs_and_Vinyl:train:3511:AG4IW56XAMJIBVBFV6FJTRTXBDAA cand=0
+periodic_aggregate completed_candidates=3500 aggregated_rows=3500 complete_examples=3500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3510/10722 example=CDs_and_Vinyl:train:3521:AG3WJR5MLOKA7TQFBACA4YIEVT6A cand=0
+completed_candidates=3520/10722 example=CDs_and_Vinyl:train:3530:AFGR5LPZI5RSZ36DSA46EGQXPCDQ cand=0
+failed example=CDs_and_Vinyl:train:3533:AGI5VFJFEG5RWK6QAZAROWUIS3GA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=3530/10722 example=CDs_and_Vinyl:train:3542:AHWD5JELYVWD6VL2XMCLEXKI2PLA cand=0
+completed_candidates=3540/10722 example=CDs_and_Vinyl:train:3552:AEU24YDL7MXW4ROFP32BRC5MTZ2A cand=0
+failed example=CDs_and_Vinyl:train:3551:AFM4DQKDBHZZWZXXRDIZPZ5AAO4Q cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=3550/10722 example=CDs_and_Vinyl:train:3562:AEZAMUJUOENDECX2D7RME4PZVHQA cand=0
+completed_candidates=3560/10722 example=CDs_and_Vinyl:train:3568:AEMHHOTN7EDKYMPQS47J2FUQVEYA cand=0
+completed_candidates=3570/10722 example=CDs_and_Vinyl:train:3582:AGIAZLPVHVIMJTLHH3PNC46PUYEA cand=0
+completed_candidates=3580/10722 example=CDs_and_Vinyl:train:3592:AEEEKAOS2W46XF6CEYWHNDKXMH4A cand=0
+completed_candidates=3590/10722 example=CDs_and_Vinyl:train:3601:AHIDMAI3D3H3KO36C7KH42RCOEAQ cand=0
+completed_candidates=3600/10722 example=CDs_and_Vinyl:train:3609:AFC46Q2XQMAQEXM4GXQIQROWRUFA cand=0
+periodic_aggregate completed_candidates=3600 aggregated_rows=3600 complete_examples=3600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3610/10722 example=CDs_and_Vinyl:train:3621:AG6XX65X24Z2I7HN32JAWO7XUPXA cand=0
+completed_candidates=3620/10722 example=CDs_and_Vinyl:train:3627:AE4MERXWRFB3Y6KJ3IDHE2JUSSKA cand=0
+completed_candidates=3630/10722 example=CDs_and_Vinyl:train:3638:AGX5QXGZFJIW2IBU7YO6OMS2NE2A cand=0
+completed_candidates=3640/10722 example=CDs_and_Vinyl:train:3652:AGPR7RNOXC6TIVF24PS4CXHNOJ4A cand=0
+completed_candidates=3650/10722 example=CDs_and_Vinyl:train:3658:AGPR7RNOXC6TIVF24PS4CXHNOJ4A cand=0
+completed_candidates=3660/10722 example=CDs_and_Vinyl:train:3671:AGPR7RNOXC6TIVF24PS4CXHNOJ4A cand=0
+completed_candidates=3670/10722 example=CDs_and_Vinyl:train:3679:AGPR7RNOXC6TIVF24PS4CXHNOJ4A cand=0
+completed_candidates=3680/10722 example=CDs_and_Vinyl:train:3693:AHNRS6ZVPIW6WU4LIDB7EPMMGHRQ cand=0
+completed_candidates=3690/10722 example=CDs_and_Vinyl:train:3701:AGAQHC6F5MX4QVGJBFD43H3KB3TA cand=0
+completed_candidates=3700/10722 example=CDs_and_Vinyl:train:3708:AFWSIRUZIXUSLXI4B2G3EECN2F2A cand=0
+periodic_aggregate completed_candidates=3700 aggregated_rows=3700 complete_examples=3700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3710/10722 example=CDs_and_Vinyl:train:3724:AGKW7A5BHSJRWODW2UTF5NTMXCMQ cand=0
+completed_candidates=3720/10722 example=CDs_and_Vinyl:train:3733:AH2DLFEXOEWCAOFKG66KHUTDFV5A cand=0
+completed_candidates=3730/10722 example=CDs_and_Vinyl:train:3739:AH2DLFEXOEWCAOFKG66KHUTDFV5A cand=0
+completed_candidates=3740/10722 example=CDs_and_Vinyl:train:3748:AGG3SQAGQDS5UU3XL3JSOQINFLMA cand=0
+completed_candidates=3750/10722 example=CDs_and_Vinyl:train:3761:AGSLR6SVVJNMBF7IH7LBWZJK5EDA cand=0
+completed_candidates=3760/10722 example=CDs_and_Vinyl:train:3773:AEEUR4BHC4C65ILPB55VPG4ZJASA cand=0
+completed_candidates=3770/10722 example=CDs_and_Vinyl:train:3783:AGCK2YQKIG7PG2O7N7JHWXVQKYQA cand=0
+completed_candidates=3780/10722 example=CDs_and_Vinyl:train:3792:AGCK2YQKIG7PG2O7N7JHWXVQKYQA cand=0
+completed_candidates=3790/10722 example=CDs_and_Vinyl:train:3797:AGBYZGQKARQCO33QGDWGCIAHIRPQ cand=0
+completed_candidates=3800/10722 example=CDs_and_Vinyl:train:3811:AFLXC5A6PTGAAMWZXS53Z66KD2CQ cand=0
+periodic_aggregate completed_candidates=3800 aggregated_rows=3800 complete_examples=3800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3810/10722 example=CDs_and_Vinyl:train:3822:AEZV3TJNRGQPA6GKMBSWCTGZ3BWA cand=0
+completed_candidates=3820/10722 example=CDs_and_Vinyl:train:3832:AELRX264FJWNV2G75NP65SFYLHTQ cand=0
+completed_candidates=3830/10722 example=CDs_and_Vinyl:train:3839:AF7AVC2ELXBD66HJVI7NOKHMADIQ cand=0
+completed_candidates=3840/10722 example=CDs_and_Vinyl:train:3849:AGE2LEIBC2QVXPA4KWCIYFY3HZWQ cand=0
+completed_candidates=3850/10722 example=CDs_and_Vinyl:train:3862:AEC2VTD46PCHN5IB2MDW5ROZMOVQ cand=0
+completed_candidates=3860/10722 example=CDs_and_Vinyl:train:3873:AGLRLVPYBZQVQF4QTMEPQMMJ3TZA cand=0
+completed_candidates=3870/10722 example=CDs_and_Vinyl:train:3880:AH6M3NCA2UCCTXGG3K5ZZEOA7GTA cand=0
+completed_candidates=3880/10722 example=CDs_and_Vinyl:train:3893:AF5HV6HLRO3CNFQQBADVHIU7HYSQ cand=0
+completed_candidates=3890/10722 example=CDs_and_Vinyl:train:3903:AFHBPKNNVWUMGK5TCDRPPEIZ3DAA cand=0
+completed_candidates=3900/10722 example=CDs_and_Vinyl:train:3913:AFXO7EIJAB7AFWKET6PA66ZRPB3A cand=0
+periodic_aggregate completed_candidates=3900 aggregated_rows=3900 complete_examples=3900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=3910/10722 example=CDs_and_Vinyl:train:3923:AGXXDM6E7A26OC3YRC5Q6GIX4WZQ cand=0
+completed_candidates=3920/10722 example=CDs_and_Vinyl:train:3932:AHH6VCZTOKZ3DHHRIV3FG2J5TCIA cand=0
+completed_candidates=3930/10722 example=CDs_and_Vinyl:train:3942:AHH6VCZTOKZ3DHHRIV3FG2J5TCIA cand=0
+completed_candidates=3940/10722 example=CDs_and_Vinyl:train:3951:AFZFMF5CWTLC7S2LZ3L4HBP3YT4Q cand=0
+completed_candidates=3950/10722 example=CDs_and_Vinyl:train:3962:AFEKPQGNPD5SMIYTJT5ZGSF7EQFA cand=0
+completed_candidates=3960/10722 example=CDs_and_Vinyl:train:3971:AH6T4RJ5UJEHIO4RFA5FXLDUW74Q cand=0
+completed_candidates=3970/10722 example=CDs_and_Vinyl:train:3983:AGAGAYRYLTU2IHXH4KPGUAIYHYKQ cand=0
+completed_candidates=3980/10722 example=CDs_and_Vinyl:train:3992:AHQNNOATJOVZNCP5O5OTUMIK3LJQ cand=0
+completed_candidates=3990/10722 example=CDs_and_Vinyl:train:4003:AEHZ255IMJZYGEH5HHBE7YROSYJQ cand=0
+completed_candidates=4000/10722 example=CDs_and_Vinyl:train:4014:AEMEFZDJZEZIEG42TMERR23HXO4Q cand=0
+periodic_aggregate completed_candidates=4000 aggregated_rows=4000 complete_examples=4000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4010/10722 example=CDs_and_Vinyl:train:4023:AEJ3DGTKCMZJ6UNLYW6J2P342EKQ cand=0
+completed_candidates=4020/10722 example=CDs_and_Vinyl:train:4030:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=4030/10722 example=CDs_and_Vinyl:train:4043:AEFIN3GDN5THJOSBDSEVO26QVYVQ cand=0
+completed_candidates=4040/10722 example=CDs_and_Vinyl:train:4052:AHSJ3Q7E5A5GP6IMM5QYKMBWGZMA cand=0
+completed_candidates=4050/10722 example=CDs_and_Vinyl:train:4061:AGOHYPN6WXMJW6HHU2NB7SPINYFQ cand=0
+completed_candidates=4060/10722 example=CDs_and_Vinyl:train:4071:AHF6Z2S3DJHZVUQPJ646ZVY335LA cand=0
+completed_candidates=4070/10722 example=CDs_and_Vinyl:train:4083:AHDAV3HR2W4SNNTK52F3FKKJ6KEQ cand=0
+completed_candidates=4080/10722 example=CDs_and_Vinyl:train:4079:AHHLWB3P6KUACXVSTA6IF47AEZIA cand=0
+completed_candidates=4090/10722 example=CDs_and_Vinyl:train:4104:AFRJLR2FCCFYQI5Z5ZTFDZ7GUQ7Q cand=0
+completed_candidates=4100/10722 example=CDs_and_Vinyl:train:4112:AGD3JWHITPKMH5QOTDVNV4IKS5RQ cand=0
+periodic_aggregate completed_candidates=4100 aggregated_rows=4100 complete_examples=4100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4110/10722 example=CDs_and_Vinyl:train:4117:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=4120/10722 example=CDs_and_Vinyl:train:4132:AFUIH7SGD7WIKICJHLLK33JWMDPA cand=0
+completed_candidates=4130/10722 example=CDs_and_Vinyl:train:4141:AG4VJPQHKMJ6Q7RL3TWFN2ZULXWQ cand=0
+completed_candidates=4140/10722 example=CDs_and_Vinyl:train:4151:AENNMPDX43JJVYRIEKMANADNEL5Q cand=0
+completed_candidates=4150/10722 example=CDs_and_Vinyl:train:4160:AH7AWOBBL626WYN7MLOBJ2SUP77Q cand=0
+completed_candidates=4160/10722 example=CDs_and_Vinyl:train:4173:AGUMUMUBNSE4PLHJQFUL5WMIGRDA cand=0
+completed_candidates=4170/10722 example=CDs_and_Vinyl:train:4182:AEBJDHIIR5OWA3VUENF3K22X4ROA cand=0
+completed_candidates=4180/10722 example=CDs_and_Vinyl:train:4189:AHL3TSH35X7273JHNHIGDTLV3VGA cand=0
+completed_candidates=4190/10722 example=CDs_and_Vinyl:train:4203:AFESJ2WUDLJ2ULL7QHOLN2JD6JWA cand=0
+completed_candidates=4200/10722 example=CDs_and_Vinyl:train:4214:AH4YZV26RHOSLYOHTZU3QGMZ44QA cand=0
+periodic_aggregate completed_candidates=4200 aggregated_rows=4200 complete_examples=4200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4210/10722 example=CDs_and_Vinyl:train:4222:AF6FAVG2B7KEGVFA6WTEVOK7QQTQ cand=0
+completed_candidates=4220/10722 example=CDs_and_Vinyl:train:4230:AELAK5ZXPLJ3LV2CKY7CBAAMNQLQ cand=0
+completed_candidates=4230/10722 example=CDs_and_Vinyl:train:4241:AHP234IVQZHAFZZDAZZHNGWXVQMA cand=0
+completed_candidates=4240/10722 example=CDs_and_Vinyl:train:4252:AHZCDKWUNLWNQJPYSNELFXXLTQYA cand=0
+completed_candidates=4250/10722 example=CDs_and_Vinyl:train:4263:AGDVYFMNSE2GX2YMGDQUGG7ZAJHA cand=0
+completed_candidates=4260/10722 example=CDs_and_Vinyl:train:4273:AHFWEOFZWZ6N3F2WJGWPTQ3IRXNA cand=0
+completed_candidates=4270/10722 example=CDs_and_Vinyl:train:4282:AHJDQD6TL3MJZSUH2TXOOCDCI2MQ cand=0
+completed_candidates=4280/10722 example=CDs_and_Vinyl:train:4278:AEKDRGWN5HLBLVAT7QRDMLJLW4MQ cand=0
+completed_candidates=4290/10722 example=CDs_and_Vinyl:train:4297:AFWHHJDFQ3EVVPXFFI3QAYOXVYFA cand=0
+completed_candidates=4300/10722 example=CDs_and_Vinyl:train:4312:AGLFQMONMYD3G2SEPTEGV6GKU7JQ cand=0
+periodic_aggregate completed_candidates=4300 aggregated_rows=4300 complete_examples=4300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4310/10722 example=CDs_and_Vinyl:train:4321:AHE43J5PYADVHZV4AHQWYQYW6YSQ cand=0
+completed_candidates=4320/10722 example=CDs_and_Vinyl:train:4329:AELSWDKGMCLMSAIVA3ITJSOWMZ6Q cand=0
+completed_candidates=4330/10722 example=CDs_and_Vinyl:train:4342:AE3KIDMEZFAWQHOZRRT7VDGPSGAQ cand=0
+completed_candidates=4340/10722 example=CDs_and_Vinyl:train:4352:AGRN65DGVYHEG3IIJ4T7GMSGVYMQ cand=0
+completed_candidates=4350/10722 example=CDs_and_Vinyl:train:4363:AGV4OUYJDVPPF4W6IMZH2OIJPBEQ cand=0
+completed_candidates=4360/10722 example=CDs_and_Vinyl:train:4371:AF3LBFPMX445BWDZS7IVE3U7P5BQ cand=0
+completed_candidates=4370/10722 example=CDs_and_Vinyl:train:4381:AEKNPWLEIUMRJ5ZE6WXQNCVU55IA cand=0
+completed_candidates=4380/10722 example=CDs_and_Vinyl:train:4392:AFRKLGCPJHP4JVHOFJ5EDR4HOI5A cand=0
+failed example=CDs_and_Vinyl:train:4388:AHAXDESC2KFUGMQIBK6VDVKUDXDQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=4390/10722 example=CDs_and_Vinyl:train:4402:AHRKGXV5X7OBUNVZOC3TDT2NISCA cand=0
+completed_candidates=4400/10722 example=CDs_and_Vinyl:train:4413:AHJQPEAQ57JVQAA6FLQOB6X6PKUA cand=0
+periodic_aggregate completed_candidates=4400 aggregated_rows=4400 complete_examples=4400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:4410:AFZ4STK6GX7RD6LRCEEZMTE2EUGQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=4410/10722 example=CDs_and_Vinyl:train:4426:AHFFZBMY45IQVBBP23ZHGOEFY6DA cand=0
+completed_candidates=4420/10722 example=CDs_and_Vinyl:train:4435:AEPS6KTEZVAD3IGMNZROUVW4RZZQ cand=0
+completed_candidates=4430/10722 example=CDs_and_Vinyl:train:4441:AEL2W5346TI6Z3DNUQQD4WFZFO7A cand=0
+completed_candidates=4440/10722 example=CDs_and_Vinyl:train:4454:AF3HBTOED6ARDQHYHPFSEI5GMRDA cand=0
+completed_candidates=4450/10722 example=CDs_and_Vinyl:train:4459:AFDKWMBKWK2WKRIP3U5QD4TXVGJQ cand=0
+completed_candidates=4460/10722 example=CDs_and_Vinyl:train:4475:AFM77XJP2ADRM7ST2CZE237WMAKA cand=0
+completed_candidates=4470/10722 example=CDs_and_Vinyl:train:4484:AFM77XJP2ADRM7ST2CZE237WMAKA cand=0
+completed_candidates=4480/10722 example=CDs_and_Vinyl:train:4493:AEZCSRJ7EQFX2SJFITNKUPBXXK7Q cand=0
+completed_candidates=4490/10722 example=CDs_and_Vinyl:train:4503:AGE2LEIBC2QVXPA4KWCIYFY3HZWQ cand=0
+completed_candidates=4500/10722 example=CDs_and_Vinyl:train:4514:AHCU2VIV447XUPWPFKA4P4P6XIRQ cand=0
+periodic_aggregate completed_candidates=4500 aggregated_rows=4500 complete_examples=4500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4510/10722 example=CDs_and_Vinyl:train:4517:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+failed example=CDs_and_Vinyl:train:4520:AFV22TSWLQJ3VSEMMNUFQKX5VOAQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=4520/10722 example=CDs_and_Vinyl:train:4536:AGUR7KQUCHZUC4T44KN3RCLA7N3Q cand=0
+completed_candidates=4530/10722 example=CDs_and_Vinyl:train:4544:AHW4XZ4ZTDZNVR7UH6JYMLF2MADQ cand=0
+completed_candidates=4540/10722 example=CDs_and_Vinyl:train:4556:AGAIKV552VQNHJPJHGBBDPYRU4UA cand=0
+completed_candidates=4550/10722 example=CDs_and_Vinyl:train:4566:AFB2QMAW37E467VZLQOUNFFW5P2A cand=0
+completed_candidates=4560/10722 example=CDs_and_Vinyl:train:4574:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=4570/10722 example=CDs_and_Vinyl:train:4585:AGSYUDVAVEAXFSYOA7CXYHCSHXPA cand=0
+completed_candidates=4580/10722 example=CDs_and_Vinyl:train:4595:AHINLPS3LY62T2XDFWY2IQSJE4VQ cand=0
+completed_candidates=4590/10722 example=CDs_and_Vinyl:train:4605:AHW77AUR5JVRVZHXHZ36FDVEUGIA cand=0
+completed_candidates=4600/10722 example=CDs_and_Vinyl:train:4604:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+periodic_aggregate completed_candidates=4600 aggregated_rows=4600 complete_examples=4600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4610/10722 example=CDs_and_Vinyl:train:4625:AEHGQIACWEH5P74CAD2D3HSDPGJQ cand=0
+completed_candidates=4620/10722 example=CDs_and_Vinyl:train:4634:AHSJ3Q7E5A5GP6IMM5QYKMBWGZMA cand=0
+completed_candidates=4630/10722 example=CDs_and_Vinyl:train:4644:AHFEJW56VUJ7AFJWXM5QGRKKAHJQ cand=0
+completed_candidates=4640/10722 example=CDs_and_Vinyl:train:4656:AEED4EYIIE7K5MHDNWAKFUYTYOTQ cand=0
+completed_candidates=4650/10722 example=CDs_and_Vinyl:train:4665:AHDGVNGC2MT4RO6CJHH4HD6USSWQ cand=0
+completed_candidates=4660/10722 example=CDs_and_Vinyl:train:4675:AEQ3V62MDN3YGZYNM2LCUEFV3HNA cand=0
+completed_candidates=4670/10722 example=CDs_and_Vinyl:train:4684:AEQ3V62MDN3YGZYNM2LCUEFV3HNA cand=0
+completed_candidates=4680/10722 example=CDs_and_Vinyl:train:4696:AEQ3V62MDN3YGZYNM2LCUEFV3HNA cand=0
+completed_candidates=4690/10722 example=CDs_and_Vinyl:train:4704:AEQ3V62MDN3YGZYNM2LCUEFV3HNA cand=0
+completed_candidates=4700/10722 example=CDs_and_Vinyl:train:4716:AHSJ3Q7E5A5GP6IMM5QYKMBWGZMA cand=0
+periodic_aggregate completed_candidates=4700 aggregated_rows=4700 complete_examples=4700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4710/10722 example=CDs_and_Vinyl:train:4724:AFFCZYWPDGLGGEB4HC7CE5ILQF3Q cand=0
+completed_candidates=4720/10722 example=CDs_and_Vinyl:train:4735:AF5K2ZNT6ELYFQ4IM7OUJGWO2NBA cand=0
+completed_candidates=4730/10722 example=CDs_and_Vinyl:train:4743:AE2WFPBUH6JYHTNC7FJQH64PY6XA cand=0
+completed_candidates=4740/10722 example=CDs_and_Vinyl:train:4754:AFCX3XQPNVEOI2HG27KF74J7VCEQ cand=0
+failed example=CDs_and_Vinyl:train:4757:AFCX3XQPNVEOI2HG27KF74J7VCEQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=4750/10722 example=CDs_and_Vinyl:train:4765:AFK2QJDACYZBDSAHTCDNME5JDCJA cand=0
+completed_candidates=4760/10722 example=CDs_and_Vinyl:train:4775:AH5IFBEJEDNUGWMAPZMYRL32SMBA cand=0
+completed_candidates=4770/10722 example=CDs_and_Vinyl:train:4786:AEN7LK5ZF2YQXZ5E5HJEKFJ65VJA cand=0
+completed_candidates=4780/10722 example=CDs_and_Vinyl:train:4796:AHFWEOFZWZ6N3F2WJGWPTQ3IRXNA cand=0
+completed_candidates=4790/10722 example=CDs_and_Vinyl:train:4806:AEUUEQN42CO4F6YXI7NGAXQNMREA cand=0
+completed_candidates=4800/10722 example=CDs_and_Vinyl:train:4813:AEVJWXGH6SDDBECEEAEGN37U3ONA cand=0
+periodic_aggregate completed_candidates=4800 aggregated_rows=4800 complete_examples=4800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4810/10722 example=CDs_and_Vinyl:train:4825:AF4ORNS7VPKNCHB35V35XQRPECCA cand=0
+completed_candidates=4820/10722 example=CDs_and_Vinyl:train:4836:AEMOHNVOYCGJ7YM6LPX7QSIHQITA cand=0
+completed_candidates=4830/10722 example=CDs_and_Vinyl:train:4847:AH5EBVHTFTPY5ZFGSWHIMHJHIKYA cand=0
+completed_candidates=4840/10722 example=CDs_and_Vinyl:train:4856:AFNWXZXZW6IDMNZPTKLYIBAD3LRQ cand=0
+completed_candidates=4850/10722 example=CDs_and_Vinyl:train:4867:AFMAB2ES7BOHG6TCKHP632I56JZQ cand=0
+completed_candidates=4860/10722 example=CDs_and_Vinyl:train:4877:AGACIBUHS4JIIHEWPGK3KYEX3AAA cand=0
+completed_candidates=4870/10722 example=CDs_and_Vinyl:train:4885:AHG72V3HQTW7WNEGD3J6VPVB5WEA cand=0
+completed_candidates=4880/10722 example=CDs_and_Vinyl:train:4895:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=4890/10722 example=CDs_and_Vinyl:train:4905:AH4MZVGDGZQ42FTXM2UFM47P3JNA cand=0
+completed_candidates=4900/10722 example=CDs_and_Vinyl:train:4916:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+periodic_aggregate completed_candidates=4900 aggregated_rows=4900 complete_examples=4900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=4910/10722 example=CDs_and_Vinyl:train:4927:AE4A3F2VCEVOF37O2DDLPNL3V5OQ cand=0
+completed_candidates=4920/10722 example=CDs_and_Vinyl:train:4933:AH2DLFEXOEWCAOFKG66KHUTDFV5A cand=0
+completed_candidates=4930/10722 example=CDs_and_Vinyl:train:4937:AH2DLFEXOEWCAOFKG66KHUTDFV5A cand=0
+completed_candidates=4940/10722 example=CDs_and_Vinyl:train:4956:AGOTOZ3LIDZ7P2EN6CMFHOPJR4LA cand=0
+completed_candidates=4950/10722 example=CDs_and_Vinyl:train:4967:AE7RINYSARVRUZKGZNQAHFGHI6BA cand=0
+completed_candidates=4960/10722 example=CDs_and_Vinyl:train:4978:AGERZ7DXN4KBOEAQV7C52OTCOBAQ cand=0
+completed_candidates=4970/10722 example=CDs_and_Vinyl:train:4983:AHLGYBZYJ6OHGI5LNDYWN4KGUI7Q cand=0
+completed_candidates=4980/10722 example=CDs_and_Vinyl:train:4998:AEDPLWTN5AH6OU4PGNFQSTRNQAWQ cand=0
+completed_candidates=4990/10722 example=CDs_and_Vinyl:train:5008:AFBV2CEMMTL7S36FLLNO4RN4FN6A cand=0
+completed_candidates=5000/10722 example=CDs_and_Vinyl:train:5018:AG7E643ZZRLLVTRHILLSKT27L5FA cand=0
+periodic_aggregate completed_candidates=5000 aggregated_rows=5000 complete_examples=5000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5010/10722 example=CDs_and_Vinyl:train:5028:AFJEIVVLHF4XO4I3GL5VQUJP2PPQ cand=0
+completed_candidates=5020/10722 example=CDs_and_Vinyl:train:5037:AFU3PIJQ42UECY6EFKJFW36HMYEA cand=0
+completed_candidates=5030/10722 example=CDs_and_Vinyl:train:5046:AEV5IB437WLTTUZMGQRUAQIURKKQ cand=0
+completed_candidates=5040/10722 example=CDs_and_Vinyl:train:5056:AFXFRAEV6BZIK5Y2OD7Z36AFEDDA cand=0
+completed_candidates=5050/10722 example=CDs_and_Vinyl:train:5067:AG3RJLGNXBCB7Y537ABYFFUWC3NA cand=0
+failed example=CDs_and_Vinyl:train:5061:AF5IPNL5WTTROYA3TQTFTSLRVW2A cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5060/10722 example=CDs_and_Vinyl:train:5079:AH3NROBFU636CUMZLDF5AEXARHZA cand=0
+completed_candidates=5070/10722 example=CDs_and_Vinyl:train:5088:AHIR6MMCGP57RMZ57KPBPL2X2RYA cand=0
+completed_candidates=5080/10722 example=CDs_and_Vinyl:train:5098:AFP3NZBOMBOYACSFF7C2AGZJOILA cand=0
+completed_candidates=5090/10722 example=CDs_and_Vinyl:train:5106:AEU3BYHKPOYDYCNQBHXNFUS6GHZA cand=0
+completed_candidates=5100/10722 example=CDs_and_Vinyl:train:5116:AHJXDXNWLEI7Q6XR2VXURLZQDP7Q cand=0
+periodic_aggregate completed_candidates=5100 aggregated_rows=5100 complete_examples=5100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5110/10722 example=CDs_and_Vinyl:train:5129:AGBAZ7YIFCZFSOL23JS5OCKYBD6Q cand=0
+completed_candidates=5120/10722 example=CDs_and_Vinyl:train:5136:AF5SEXBKANSXNZA5YPMFLZDHXWZA cand=0
+completed_candidates=5130/10722 example=CDs_and_Vinyl:train:5148:AGU2ODN2JWDJAWHFLK6FGGQOTOXA cand=0
+completed_candidates=5140/10722 example=CDs_and_Vinyl:train:5155:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=5150/10722 example=CDs_and_Vinyl:train:5168:AGZK7SQC5OZBDN5WKTANHSV45JWQ cand=0
+completed_candidates=5160/10722 example=CDs_and_Vinyl:train:5177:AG3NR7OFUFA7RQSI6UHTKQ7ZXJ3Q cand=0
+completed_candidates=5170/10722 example=CDs_and_Vinyl:train:5189:AFYOI243IKUXI7EUDMFV35MQQR6Q cand=0
+failed example=CDs_and_Vinyl:train:5188:AHB3EWDAYHORBERJ2KZVMJGFSINQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5180/10722 example=CDs_and_Vinyl:train:5196:AHYMFUS35WZUJMAQAWLLM2RZFQEA cand=0
+completed_candidates=5190/10722 example=CDs_and_Vinyl:train:5209:AEVJWXGH6SDDBECEEAEGN37U3ONA cand=0
+completed_candidates=5200/10722 example=CDs_and_Vinyl:train:5215:AEPEZWKXEZ2JFOUEWO7HUKPIAVJA cand=0
+periodic_aggregate completed_candidates=5200 aggregated_rows=5200 complete_examples=5200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5210/10722 example=CDs_and_Vinyl:train:5229:AHIVI72TGD3EM6Z6DIPIHCVSVZNQ cand=0
+completed_candidates=5220/10722 example=CDs_and_Vinyl:train:5239:AGLA3A4D5OQU5QPRO3TTCDPJZSMA cand=0
+completed_candidates=5230/10722 example=CDs_and_Vinyl:train:5247:AFEV2Q6LTYIUHOYY3X6BH6ANB7ZA cand=0
+completed_candidates=5240/10722 example=CDs_and_Vinyl:train:5258:AFTDYE2HBF7BQOBXAY4FFBICYGSA cand=0
+completed_candidates=5250/10722 example=CDs_and_Vinyl:train:5267:AEZEFITMFEMWDV4UYVPN4BJ5UJCQ cand=0
+completed_candidates=5260/10722 example=CDs_and_Vinyl:train:5277:AGWGCRZ2BK3PAUKAQQRY5FIOIA3A cand=0
+completed_candidates=5270/10722 example=CDs_and_Vinyl:train:5289:AGWDLK6KABOR4IJPZ3AHT3EL3PVA cand=0
+completed_candidates=5280/10722 example=CDs_and_Vinyl:train:5299:AFWY4HNO7PM3IRZLWQMEEIARA5AQ cand=0
+completed_candidates=5290/10722 example=CDs_and_Vinyl:train:5308:AFYEEO5DSBKW6K3TPELNZCWGZ2NQ cand=0
+completed_candidates=5300/10722 example=CDs_and_Vinyl:train:5319:AF6Z2G4PX2XFZVADA5ORSOJEPTAA cand=0
+periodic_aggregate completed_candidates=5300 aggregated_rows=5300 complete_examples=5300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:5314:AH4FUINZLDJWGM3H2LO6Y3UQGTRQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5310/10722 example=CDs_and_Vinyl:train:5330:AHJUTE3UZAOXPUPS6L2QH3BHIDWQ cand=0
+completed_candidates=5320/10722 example=CDs_and_Vinyl:train:5337:AGJJVJ54EAWE747MA7ZKCFZ7MFCA cand=0
+completed_candidates=5330/10722 example=CDs_and_Vinyl:train:5346:AHS4PGOQHFRKW77YRQTVRDBUXBWQ cand=0
+completed_candidates=5340/10722 example=CDs_and_Vinyl:train:5360:AF3E6VJHHIBDCNEIKZDFOCUW3XRA cand=0
+completed_candidates=5350/10722 example=CDs_and_Vinyl:train:5369:AGXVY2NHIKC7EWCKVBYTE2FKGB4A cand=0
+failed example=CDs_and_Vinyl:train:5370:AFRL7RUF4BRYIB54HW7Y3MSCQJOA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5360/10722 example=CDs_and_Vinyl:train:5381:AFQ77Z5GTJBELBOUYCRFWVC7YQFQ cand=0
+completed_candidates=5370/10722 example=CDs_and_Vinyl:train:5389:AFRL7RUF4BRYIB54HW7Y3MSCQJOA cand=0
+completed_candidates=5380/10722 example=CDs_and_Vinyl:train:5400:AGWDYYVVWM3DC3CASUZKXK67G6IA cand=0
+completed_candidates=5390/10722 example=CDs_and_Vinyl:train:5374:AEKQ3BRPRIYUIIOH3OHEARS4AZWQ cand=0
+completed_candidates=5400/10722 example=CDs_and_Vinyl:train:5422:AHPTT6WKATUKGIHQOUUUGL6TM7DA cand=0
+periodic_aggregate completed_candidates=5400 aggregated_rows=5400 complete_examples=5400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5410/10722 example=CDs_and_Vinyl:train:5417:AHWPIYMDUEZRSHF3A7DBH3FODWLA cand=0
+failed example=CDs_and_Vinyl:train:5426:AGBGFEVCOQALBQOI7RFDPXJIUTHA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5420/10722 example=CDs_and_Vinyl:train:5441:AGUBCEXOS66GLEN2E2FBTSD77P7A cand=0
+completed_candidates=5430/10722 example=CDs_and_Vinyl:train:5452:AEVCCAVRKGNEWJD6YBNNDZWT5BLA cand=0
+completed_candidates=5440/10722 example=CDs_and_Vinyl:train:5460:AHIE6R6FZ6JGYRS5TXN4ISWXSFIQ cand=0
+completed_candidates=5450/10722 example=CDs_and_Vinyl:train:5472:AGAYXRYKTQS5GS53GJNYCMSMPORA cand=0
+completed_candidates=5460/10722 example=CDs_and_Vinyl:train:5469:AFGTIXU3BMHCWG2ALITQWHF2KGYA cand=0
+completed_candidates=5470/10722 example=CDs_and_Vinyl:train:5490:AEWQZAX6SCPGZOLSPIZ7YWEOTYAA cand=0
+completed_candidates=5480/10722 example=CDs_and_Vinyl:train:5498:AH7O7NGXAA3NKRHSMX3HEDIEPXHA cand=0
+completed_candidates=5490/10722 example=CDs_and_Vinyl:train:5507:AFENAR5VUPOZWKXMMAC6CDZ575WQ cand=0
+completed_candidates=5500/10722 example=CDs_and_Vinyl:train:5517:AFGTIXU3BMHCWG2ALITQWHF2KGYA cand=0
+periodic_aggregate completed_candidates=5500 aggregated_rows=5500 complete_examples=5500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5510/10722 example=CDs_and_Vinyl:train:5531:AFC4ATIZRR45GB4HJ5TY3OGJA44Q cand=0
+completed_candidates=5520/10722 example=CDs_and_Vinyl:train:5539:AGMMBEUJ7O3DZJZQY3ADCHGEAN6Q cand=0
+completed_candidates=5530/10722 example=CDs_and_Vinyl:train:5543:AH27DMWIOZVZ4JPICUUW43G2AFIQ cand=0
+completed_candidates=5540/10722 example=CDs_and_Vinyl:train:5561:AGNP3XOYTOPJO3RRHJ3CWHBZ5XZQ cand=0
+completed_candidates=5550/10722 example=CDs_and_Vinyl:train:5571:AEILQ6XKO55HIEKNAHWP7GI3DRHA cand=0
+completed_candidates=5560/10722 example=CDs_and_Vinyl:train:5581:AESJ57BHBRX5SEHH4SFMQVG3FRXA cand=0
+completed_candidates=5570/10722 example=CDs_and_Vinyl:train:5591:AESJ57BHBRX5SEHH4SFMQVG3FRXA cand=0
+completed_candidates=5580/10722 example=CDs_and_Vinyl:train:5602:AHL55X5THSSOKL4I7AER3DT76Y6Q cand=0
+completed_candidates=5590/10722 example=CDs_and_Vinyl:train:5612:AEJXZADG7MLGC4IFUAFMD5JQADBQ cand=0
+completed_candidates=5600/10722 example=CDs_and_Vinyl:train:5621:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+periodic_aggregate completed_candidates=5600 aggregated_rows=5600 complete_examples=5600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5610/10722 example=CDs_and_Vinyl:train:5630:AFACMVPSA5542ETIMSP6KG4N7JJQ cand=0
+completed_candidates=5620/10722 example=CDs_and_Vinyl:train:5625:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+completed_candidates=5630/10722 example=CDs_and_Vinyl:train:5651:AEWXZY5YHR2KED2VEKDODWEXPDXQ cand=0
+completed_candidates=5640/10722 example=CDs_and_Vinyl:train:5661:AHFSGMFPMTX4TIYNOXAJFXQJPTXA cand=0
+completed_candidates=5650/10722 example=CDs_and_Vinyl:train:5672:AHZEZOO77W34JAGM4GYXVD6QGLEQ cand=0
+completed_candidates=5660/10722 example=CDs_and_Vinyl:train:5681:AG5I5TTL7MVAJZJHHD5A6ESFZ47A cand=0
+completed_candidates=5670/10722 example=CDs_and_Vinyl:train:5692:AHCHBLH7PAKTAPJRCVJTVUFXLTAA cand=0
+completed_candidates=5680/10722 example=CDs_and_Vinyl:train:5699:AH4CSJOHAXFF5ZIWUKINTVH5OZZA cand=0
+completed_candidates=5690/10722 example=CDs_and_Vinyl:train:5713:AGN7GJPFZS6TESNQIVSHJLV5K26A cand=0
+completed_candidates=5700/10722 example=CDs_and_Vinyl:train:5719:AHS4PGOQHFRKW77YRQTVRDBUXBWQ cand=0
+periodic_aggregate completed_candidates=5700 aggregated_rows=5700 complete_examples=5700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5710/10722 example=CDs_and_Vinyl:train:5732:AGFCZ5K7VP3PRSPXKQBZ7JJA6R6A cand=0
+completed_candidates=5720/10722 example=CDs_and_Vinyl:train:5741:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=5730/10722 example=CDs_and_Vinyl:train:5751:AHSQH4AMYP2YBFWSAHVFEZ5B3REQ cand=0
+completed_candidates=5740/10722 example=CDs_and_Vinyl:train:5762:AEWXZY5YHR2KED2VEKDODWEXPDXQ cand=0
+completed_candidates=5750/10722 example=CDs_and_Vinyl:train:5771:AFYHVG3TOOKJ35UV5VVP62GUHCCA cand=0
+failed example=CDs_and_Vinyl:train:5772:AFYHVG3TOOKJ35UV5VVP62GUHCCA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=5760/10722 example=CDs_and_Vinyl:train:5784:AEYGX2NA355QE6H3QOFLJYWSRF2Q cand=0
+completed_candidates=5770/10722 example=CDs_and_Vinyl:train:5793:AEQO7AVTLPI4UMQIOLHKBMIMH6QQ cand=0
+completed_candidates=5780/10722 example=CDs_and_Vinyl:train:5804:AGITFPP6TOU33ARR4XLO2DXCRBGQ cand=0
+completed_candidates=5790/10722 example=CDs_and_Vinyl:train:5812:AEE3P2UHOVEGJIUGKLWEZT7V3U5A cand=0
+completed_candidates=5800/10722 example=CDs_and_Vinyl:train:5822:AF46EOY3I6R4HKNCG2VFIRRJ5X3Q cand=0
+periodic_aggregate completed_candidates=5800 aggregated_rows=5800 complete_examples=5800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5810/10722 example=CDs_and_Vinyl:train:5833:AEH4B7RSY6QUXVAYRFHYD767ZJOQ cand=0
+completed_candidates=5820/10722 example=CDs_and_Vinyl:train:5842:AFSDJGIKXIRRFU5J7L6JS2RFK6XQ cand=0
+completed_candidates=5830/10722 example=CDs_and_Vinyl:train:5852:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+completed_candidates=5840/10722 example=CDs_and_Vinyl:train:5863:AEMTMV5UULWWFCAXVUOKNLNLGQSA cand=0
+completed_candidates=5850/10722 example=CDs_and_Vinyl:train:5873:AF37GJJ7IIN4VLB4M45R532JWG3A cand=0
+completed_candidates=5860/10722 example=CDs_and_Vinyl:train:5881:AFCVJTV3ZX7YWRYPB4KLJXHWS43Q cand=0
+completed_candidates=5870/10722 example=CDs_and_Vinyl:train:5891:AHNEIAJUL7D2OC5YSNOI4CUH5FFQ cand=0
+completed_candidates=5880/10722 example=CDs_and_Vinyl:train:5902:AF24EUHHPRMJTK4MEPNXEAEKXZSQ cand=0
+completed_candidates=5890/10722 example=CDs_and_Vinyl:train:5909:AF24EUHHPRMJTK4MEPNXEAEKXZSQ cand=0
+completed_candidates=5900/10722 example=CDs_and_Vinyl:train:5922:AFZO6J6WZPPNZ7UBAMBMTJPUNE7Q cand=0
+periodic_aggregate completed_candidates=5900 aggregated_rows=5900 complete_examples=5900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=5910/10722 example=CDs_and_Vinyl:train:5933:AHHLWB3P6KUACXVSTA6IF47AEZIA cand=0
+completed_candidates=5920/10722 example=CDs_and_Vinyl:train:5944:AHRZ3GSP6BCHU76AIIIG4AOYQVPA cand=0
+completed_candidates=5930/10722 example=CDs_and_Vinyl:train:5947:AH3F4AYI762FO274ARPOOMBXOCLA cand=0
+completed_candidates=5940/10722 example=CDs_and_Vinyl:train:5961:AF4MXKKGYFROI6YJ2EX2W5TN35PQ cand=0
+completed_candidates=5950/10722 example=CDs_and_Vinyl:train:5971:AGKHN7PAME352PYEN2X7YFHXBUHA cand=0
+completed_candidates=5960/10722 example=CDs_and_Vinyl:train:5983:AECTSKSMJY5FFNWDUWQPBH7CH36A cand=0
+failed example=CDs_and_Vinyl:train:5980:AFEI5QPNI5BWL2RLMH5HHLMBALPQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=5970/10722 example=CDs_and_Vinyl:train:5992:AGHYURP5OCK7R5DF4L7FPEVDXQ3Q cand=0
+completed_candidates=5980/10722 example=CDs_and_Vinyl:train:6003:AH2RHPR52NNHUGJJKDAHHQKRY5VQ cand=0
+completed_candidates=5990/10722 example=CDs_and_Vinyl:train:6012:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+completed_candidates=6000/10722 example=CDs_and_Vinyl:train:6021:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+periodic_aggregate completed_candidates=6000 aggregated_rows=6000 complete_examples=6000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6010/10722 example=CDs_and_Vinyl:train:6032:AF5HIZ34VDJY42DKFB7WJI5UICAQ cand=0
+completed_candidates=6020/10722 example=CDs_and_Vinyl:train:6044:AFOJJGYW2K3BKD3MGZCOLF3VG6TA cand=0
+completed_candidates=6030/10722 example=CDs_and_Vinyl:train:6053:AH5L3E5IGE2X7VNQAEADTUIVTXNQ cand=0
+completed_candidates=6040/10722 example=CDs_and_Vinyl:train:6063:AG5HJPOK42BHSPNTUSZLHDI7Q45A cand=0
+completed_candidates=6050/10722 example=CDs_and_Vinyl:train:6072:AELW6KT4YOXEPK2WC35FII3HA2KA cand=0
+completed_candidates=6060/10722 example=CDs_and_Vinyl:train:6082:AELW6KT4YOXEPK2WC35FII3HA2KA cand=0
+completed_candidates=6070/10722 example=CDs_and_Vinyl:train:6094:AELW6KT4YOXEPK2WC35FII3HA2KA cand=0
+completed_candidates=6080/10722 example=CDs_and_Vinyl:train:6101:AELW6KT4YOXEPK2WC35FII3HA2KA cand=0
+completed_candidates=6090/10722 example=CDs_and_Vinyl:train:6113:AGYXU2J6AD5XSUFHZRUM5G5HNAIQ cand=0
+completed_candidates=6100/10722 example=CDs_and_Vinyl:train:6124:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+periodic_aggregate completed_candidates=6100 aggregated_rows=6100 complete_examples=6100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6110/10722 example=CDs_and_Vinyl:train:6132:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+completed_candidates=6120/10722 example=CDs_and_Vinyl:train:6141:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+completed_candidates=6130/10722 example=CDs_and_Vinyl:train:6152:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+completed_candidates=6140/10722 example=CDs_and_Vinyl:train:6165:AH5MADJNLNXRQMKFDC22VDBMFV6Q cand=0
+completed_candidates=6150/10722 example=CDs_and_Vinyl:train:6174:AFMIMMSB5ULQQWSNFYI7ETUZEPQQ cand=0
+completed_candidates=6160/10722 example=CDs_and_Vinyl:train:6183:AGF4JV27MDFBALXBXYOFMIS4JSOQ cand=0
+completed_candidates=6170/10722 example=CDs_and_Vinyl:train:6193:AH4OYMNHOOBSDEE4XSMN655FGKVQ cand=0
+completed_candidates=6180/10722 example=CDs_and_Vinyl:train:6204:AGYYMFKWRRT3K43S65GNBIWAS6HA cand=0
+completed_candidates=6190/10722 example=CDs_and_Vinyl:train:6215:AFLPM2BAGIVE3HZ5ZKPPHXB3K7IQ cand=0
+completed_candidates=6200/10722 example=CDs_and_Vinyl:train:6225:AE22RDF72XZIZOE2M23ASFW3IPJQ cand=0
+periodic_aggregate completed_candidates=6200 aggregated_rows=6200 complete_examples=6200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6210/10722 example=CDs_and_Vinyl:train:6234:AHL55X5THSSOKL4I7AER3DT76Y6Q cand=0
+completed_candidates=6220/10722 example=CDs_and_Vinyl:train:6243:AE3E4J4SALNWYYCGLE2J3G3U3JEQ cand=0
+completed_candidates=6230/10722 example=CDs_and_Vinyl:train:6253:AEJECTKDKAAMTFYGQKK7FQWIWIIA cand=0
+completed_candidates=6240/10722 example=CDs_and_Vinyl:train:6263:AE3E4J4SALNWYYCGLE2J3G3U3JEQ cand=0
+completed_candidates=6250/10722 example=CDs_and_Vinyl:train:6274:AENG6JQVZRHCUJK6Q2LF5NN6F5WA cand=0
+completed_candidates=6260/10722 example=CDs_and_Vinyl:train:6285:AGSLCDUXWQTDT3FTBWFDGCRDPDKA cand=0
+completed_candidates=6270/10722 example=CDs_and_Vinyl:train:6293:AGTNC7ITWDTNJ477HHVMC5NDIDKQ cand=0
+completed_candidates=6280/10722 example=CDs_and_Vinyl:train:6304:AGZLAANWCQBKYWRJ2LKTXJPOB7EA cand=0
+completed_candidates=6290/10722 example=CDs_and_Vinyl:train:6312:AFV4TVOD6NCXARO6LLOR3WRPX4PQ cand=0
+completed_candidates=6300/10722 example=CDs_and_Vinyl:train:6323:AFAH42J4CXKERLGKGN3IO3KM723Q cand=0
+periodic_aggregate completed_candidates=6300 aggregated_rows=6300 complete_examples=6300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6310/10722 example=CDs_and_Vinyl:train:6328:AFY3OQLDOOJGKNXN2PGUUDXY6LTA cand=0
+completed_candidates=6320/10722 example=CDs_and_Vinyl:train:6339:AEV6M22CB3QDTCC76SLVD6M7D4PQ cand=0
+completed_candidates=6330/10722 example=CDs_and_Vinyl:train:6351:AFNDUZIJZNY7YPYFGRAL2EVY633A cand=0
+completed_candidates=6340/10722 example=CDs_and_Vinyl:train:6359:AHJENVNPX2OY66J25QGMXD7CYLXA cand=0
+completed_candidates=6350/10722 example=CDs_and_Vinyl:train:6374:AFFW5UCQH33QEBEYVNNKWVPOS3GQ cand=0
+completed_candidates=6360/10722 example=CDs_and_Vinyl:train:6377:AF34MP64NCCUZCBHDKFV3VNOYT5A cand=0
+completed_candidates=6370/10722 example=CDs_and_Vinyl:train:6394:AFSHD27Z7NWMCD4LUS4USMNFUHLA cand=0
+completed_candidates=6380/10722 example=CDs_and_Vinyl:train:6402:AFSHD27Z7NWMCD4LUS4USMNFUHLA cand=0
+completed_candidates=6390/10722 example=CDs_and_Vinyl:train:6410:AFSHD27Z7NWMCD4LUS4USMNFUHLA cand=0
+completed_candidates=6400/10722 example=CDs_and_Vinyl:train:6419:AFSHD27Z7NWMCD4LUS4USMNFUHLA cand=0
+periodic_aggregate completed_candidates=6400 aggregated_rows=6400 complete_examples=6400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6410/10722 example=CDs_and_Vinyl:train:6433:AGKHN7PAME352PYEN2X7YFHXBUHA cand=0
+completed_candidates=6420/10722 example=CDs_and_Vinyl:train:6444:AFAFZNN4M564B5TVKWLFJPA52WIQ cand=0
+completed_candidates=6430/10722 example=CDs_and_Vinyl:train:6454:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=6440/10722 example=CDs_and_Vinyl:train:6464:AEZH24HENPUFVGMNGMUHVUYOBGVA cand=0
+failed example=CDs_and_Vinyl:train:6465:AEZH24HENPUFVGMNGMUHVUYOBGVA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=6450/10722 example=CDs_and_Vinyl:train:6474:AHDMRZOXB2OB5PBKVP6AVDUKFLBQ cand=0
+completed_candidates=6460/10722 example=CDs_and_Vinyl:train:6485:AHHPOW4NCAEFMTXZDCGJWD44AQ2Q cand=0
+completed_candidates=6470/10722 example=CDs_and_Vinyl:train:6495:AEJXKSAIJWYM5VELN26U6CBSGVWA cand=0
+failed example=CDs_and_Vinyl:train:6497:AFXUIBQGQZSYWNUI4AAQD6X6VDPA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=6480/10722 example=CDs_and_Vinyl:train:6504:AFXQCHA4DDYRNV6TY2FXV6TZXYDA cand=0
+completed_candidates=6490/10722 example=CDs_and_Vinyl:train:6516:AHD25KARG2IMASMJMC74NGO7BSNQ cand=0
+completed_candidates=6500/10722 example=CDs_and_Vinyl:train:6525:AGKHN7PAME352PYEN2X7YFHXBUHA cand=0
+periodic_aggregate completed_candidates=6500 aggregated_rows=6500 complete_examples=6500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:6493:AFXUIBQGQZSYWNUI4AAQD6X6VDPA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:suitable|appeal\w*|fans?|enthusiasts?)\b
+completed_candidates=6510/10722 example=CDs_and_Vinyl:train:6535:AHF3TJWVPG3OFVPU2F2YSGYNADGA cand=0
+completed_candidates=6520/10722 example=CDs_and_Vinyl:train:6547:AFF35FAEPJIFB7BS3HN47A6646HA cand=0
+completed_candidates=6530/10722 example=CDs_and_Vinyl:train:6553:AFF35FAEPJIFB7BS3HN47A6646HA cand=0
+completed_candidates=6540/10722 example=CDs_and_Vinyl:train:6565:AFXQCHA4DDYRNV6TY2FXV6TZXYDA cand=0
+completed_candidates=6550/10722 example=CDs_and_Vinyl:train:6575:AHBJ7MC6QUKVVI7OSANQDYENABNA cand=0
+completed_candidates=6560/10722 example=CDs_and_Vinyl:train:6582:AFMXGXFY5YGGFJRSSZBIAPRIDTAA cand=0
+completed_candidates=6570/10722 example=CDs_and_Vinyl:train:6596:AHJS67VIFSCZRL2CPQ6SNJ3AQGBQ cand=0
+completed_candidates=6580/10722 example=CDs_and_Vinyl:train:6606:AEEVOHN4KXRUL3JNA6445FDNK7XA cand=0
+completed_candidates=6590/10722 example=CDs_and_Vinyl:train:6616:AGAB2EEQJEUMRDMPGMGP3DWBJDOQ cand=0
+completed_candidates=6600/10722 example=CDs_and_Vinyl:train:6626:AFHE5JG66KIJXE242WQINLQSZEFQ cand=0
+periodic_aggregate completed_candidates=6600 aggregated_rows=6600 complete_examples=6600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6610/10722 example=CDs_and_Vinyl:train:6637:AFLF75BAPN6GRFMQFI6I6OHJGKIQ cand=0
+completed_candidates=6620/10722 example=CDs_and_Vinyl:train:6646:AGNGTLFCLISJIRGIQ57YSB4FQNEQ cand=0
+completed_candidates=6630/10722 example=CDs_and_Vinyl:train:6653:AEHGMIU26SANEHSDZFU7Z4ME54ZQ cand=0
+completed_candidates=6640/10722 example=CDs_and_Vinyl:train:6667:AEVEB7MBQFCYSNIZ3TIXVO6MAUXQ cand=0
+completed_candidates=6650/10722 example=CDs_and_Vinyl:train:6674:AEQQ5E7O35RB4BNBAE7XX2URF77Q cand=0
+completed_candidates=6660/10722 example=CDs_and_Vinyl:train:6686:AFNU5LWZDFLXL46FGTOOOW5HKQ4A cand=0
+completed_candidates=6670/10722 example=CDs_and_Vinyl:train:6696:AE7C2RAGIJOR4VC6P2HCS46ETLGA cand=0
+completed_candidates=6680/10722 example=CDs_and_Vinyl:train:6705:AHUNSUQAF7JO3TU3DKNPTU5DO5EA cand=0
+completed_candidates=6690/10722 example=CDs_and_Vinyl:train:6716:AF5HV6HLRO3CNFQQBADVHIU7HYSQ cand=0
+completed_candidates=6700/10722 example=CDs_and_Vinyl:train:6726:AHX3G2WJVDOIUQEQKRCSRG5CNUEQ cand=0
+periodic_aggregate completed_candidates=6700 aggregated_rows=6700 complete_examples=6700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6710/10722 example=CDs_and_Vinyl:train:6734:AHMUZU6LYRGWDJXEKK55LPJ3YTZA cand=0
+completed_candidates=6720/10722 example=CDs_and_Vinyl:train:6746:AHV4JFOB62LK44ZW3GCEM3OUQMVQ cand=0
+completed_candidates=6730/10722 example=CDs_and_Vinyl:train:6755:AHRWAICOCCUFPIIF3ZHE27NLNJ3A cand=0
+completed_candidates=6740/10722 example=CDs_and_Vinyl:train:6764:AEKTANM6MJPYFHWJNGUMDYDYEKSQ cand=0
+completed_candidates=6750/10722 example=CDs_and_Vinyl:train:6777:AGB2QCZ4DAFTK57ZGGXLIKDYJEZQ cand=0
+completed_candidates=6760/10722 example=CDs_and_Vinyl:train:6783:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+completed_candidates=6770/10722 example=CDs_and_Vinyl:train:6797:AEIFOQTDLBQDCD7DSNYNOPCUQXDA cand=0
+completed_candidates=6780/10722 example=CDs_and_Vinyl:train:6806:AFIN7GRXPNPUQ3YOKYVR3FYP24FQ cand=0
+completed_candidates=6790/10722 example=CDs_and_Vinyl:train:6817:AE46JQRDEGDQAEX5KM7JJAJSP6NQ cand=0
+completed_candidates=6800/10722 example=CDs_and_Vinyl:train:6827:AHPWFXGYERBCYZIPTEQSD63VDJKQ cand=0
+periodic_aggregate completed_candidates=6800 aggregated_rows=6800 complete_examples=6800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6810/10722 example=CDs_and_Vinyl:train:6837:AFGCUWJKHDQOSDKYLGOCYJLBWRFA cand=0
+completed_candidates=6820/10722 example=CDs_and_Vinyl:train:6845:AFY3M2FXGK7KIMKOX2FGTMBMDFLQ cand=0
+completed_candidates=6830/10722 example=CDs_and_Vinyl:train:6856:AFY3M2FXGK7KIMKOX2FGTMBMDFLQ cand=0
+completed_candidates=6840/10722 example=CDs_and_Vinyl:train:6804:AFQEBN4ZNFJ3KGZSUSQDMVSCL43Q cand=0
+completed_candidates=6850/10722 example=CDs_and_Vinyl:train:6866:AHSVORA2U2CPXQGHDF7ODX6BG3VA cand=0
+completed_candidates=6860/10722 example=CDs_and_Vinyl:train:6886:AGLMARK3CKTNA2VA7HBNIFADAODA cand=0
+completed_candidates=6870/10722 example=CDs_and_Vinyl:train:6896:AH5QXM4FFDVMF7N564YAIYUWLW5Q cand=0
+completed_candidates=6880/10722 example=CDs_and_Vinyl:train:6903:AEBB4C4IX3J6DXSTL62MHIFZSUAA cand=0
+completed_candidates=6890/10722 example=CDs_and_Vinyl:train:6916:AGYYMFKWRRT3K43S65GNBIWAS6HA cand=0
+completed_candidates=6900/10722 example=CDs_and_Vinyl:train:6926:AEAFMXFN5Y3QI6WQ6K5NBUCJALEA cand=0
+periodic_aggregate completed_candidates=6900 aggregated_rows=6900 complete_examples=6900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=6910/10722 example=CDs_and_Vinyl:train:6937:AHSY2AJKLBORQLSDOL7MJJEOY3VQ cand=0
+completed_candidates=6920/10722 example=CDs_and_Vinyl:train:6948:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=6930/10722 example=CDs_and_Vinyl:train:6956:AF37GJJ7IIN4VLB4M45R532JWG3A cand=0
+completed_candidates=6940/10722 example=CDs_and_Vinyl:train:6965:AEKM5PATJ4UCFU2QZ42MQZNLNWYA cand=0
+completed_candidates=6950/10722 example=CDs_and_Vinyl:train:6975:AFEFRA32L34V2BIWCMGEO5ST3L3Q cand=0
+completed_candidates=6960/10722 example=CDs_and_Vinyl:train:6988:AGRAXM3EPYCXWEEKPEZAZ25HIXGQ cand=0
+completed_candidates=6970/10722 example=CDs_and_Vinyl:train:6994:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=6980/10722 example=CDs_and_Vinyl:train:7006:AGOHYPN6WXMJW6HHU2NB7SPINYFQ cand=0
+completed_candidates=6990/10722 example=CDs_and_Vinyl:train:7012:AGOHYPN6WXMJW6HHU2NB7SPINYFQ cand=0
+completed_candidates=7000/10722 example=CDs_and_Vinyl:train:7026:AFBW2HY7NOCPM42YNDYS7CZLJZXA cand=0
+periodic_aggregate completed_candidates=7000 aggregated_rows=7000 complete_examples=7000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7010/10722 example=CDs_and_Vinyl:train:7035:AGYQXIYYTGC3RIFBMDCI75DN35UQ cand=0
+completed_candidates=7020/10722 example=CDs_and_Vinyl:train:7045:AFDXJCNEWIMJP5RF35UKF72CAORQ cand=0
+completed_candidates=7030/10722 example=CDs_and_Vinyl:train:7056:AF6SVOEDMKBR3YNYWB5R5GX2LW7Q cand=0
+completed_candidates=7040/10722 example=CDs_and_Vinyl:train:7066:AF6SVOEDMKBR3YNYWB5R5GX2LW7Q cand=0
+completed_candidates=7050/10722 example=CDs_and_Vinyl:train:7078:AFPUMQ7S2QNIGJEP4RM37EH3MC7A cand=0
+completed_candidates=7060/10722 example=CDs_and_Vinyl:train:7085:AEVWRIDXK34EDXOGZOPGXN6C3GUA cand=0
+completed_candidates=7070/10722 example=CDs_and_Vinyl:train:7095:AFMSX6RU3IN77DHKK2JSHRB5W56Q cand=0
+completed_candidates=7080/10722 example=CDs_and_Vinyl:train:7107:AGC67OHILAH5KWTLF4BDUTIRER7Q cand=0
+completed_candidates=7090/10722 example=CDs_and_Vinyl:train:7112:AHZUFJ5VJBEVF5EBYBVWTHPHAWTA cand=0
+completed_candidates=7100/10722 example=CDs_and_Vinyl:train:7124:AFX2OHQJVHO4746QOGZWJQMF5M2A cand=0
+periodic_aggregate completed_candidates=7100 aggregated_rows=7100 complete_examples=7100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7110/10722 example=CDs_and_Vinyl:train:7135:AFX2OHQJVHO4746QOGZWJQMF5M2A cand=0
+completed_candidates=7120/10722 example=CDs_and_Vinyl:train:7145:AFX2OHQJVHO4746QOGZWJQMF5M2A cand=0
+completed_candidates=7130/10722 example=CDs_and_Vinyl:train:7153:AFX2OHQJVHO4746QOGZWJQMF5M2A cand=0
+completed_candidates=7140/10722 example=CDs_and_Vinyl:train:7165:AEDPLWTN5AH6OU4PGNFQSTRNQAWQ cand=0
+completed_candidates=7150/10722 example=CDs_and_Vinyl:train:7176:AEOQLEZBT3PLESGNIH74G2BKUBYQ cand=0
+completed_candidates=7160/10722 example=CDs_and_Vinyl:train:7187:AEZH4BGRC53B66JUGPOTST7NHFLQ cand=0
+completed_candidates=7170/10722 example=CDs_and_Vinyl:train:7195:AHEUBXPJQROF25LNS64WWJUPISRA cand=0
+completed_candidates=7180/10722 example=CDs_and_Vinyl:train:7207:AFPRN7YQMTURV2THCNU5RPOMHH7A cand=0
+completed_candidates=7190/10722 example=CDs_and_Vinyl:train:7211:AHDFDKT7QKIDPHMRIJWSJLN533DQ cand=0
+completed_candidates=7200/10722 example=CDs_and_Vinyl:train:7227:AFYEJCZUVSPJR4E46XB2E4SUI5AQ cand=0
+periodic_aggregate completed_candidates=7200 aggregated_rows=7200 complete_examples=7200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7210/10722 example=CDs_and_Vinyl:train:7236:AHLNMFDIGPZNKR44BL66XC3KPBBQ cand=0
+completed_candidates=7220/10722 example=CDs_and_Vinyl:train:7246:AH5AOAXRPZBJDZCKE25YBHC2NGKA cand=0
+completed_candidates=7230/10722 example=CDs_and_Vinyl:train:7256:AH53XTG3SUSZFYQTV4H23RCDQ2WQ cand=0
+completed_candidates=7240/10722 example=CDs_and_Vinyl:train:7267:AFMFCDGUZ4WV33PCI2RJWDPKLOIQ cand=0
+completed_candidates=7250/10722 example=CDs_and_Vinyl:train:7271:AHEI4PBPZIFJ2JB2YA63QHUHKTDQ cand=0
+completed_candidates=7260/10722 example=CDs_and_Vinyl:train:7288:AFEMZ7WE6XL7DPH22LX6PQVVXBBA cand=0
+completed_candidates=7270/10722 example=CDs_and_Vinyl:train:7296:AFYDPZPN2GQNECLWYYVECGMXL2TA cand=0
+completed_candidates=7280/10722 example=CDs_and_Vinyl:train:7306:AHCJESO2SPCP4OXESH5DX7FIYANA cand=0
+completed_candidates=7290/10722 example=CDs_and_Vinyl:train:7317:AGDVYFMNSE2GX2YMGDQUGG7ZAJHA cand=0
+completed_candidates=7300/10722 example=CDs_and_Vinyl:train:7327:AEWXXI6D2WCCOCQEPHGNWC6EEVVA cand=0
+periodic_aggregate completed_candidates=7300 aggregated_rows=7300 complete_examples=7300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7310/10722 example=CDs_and_Vinyl:train:7335:AGKGN4322ZVXWLRCJWO2UJVJHDBQ cand=0
+completed_candidates=7320/10722 example=CDs_and_Vinyl:train:7343:AFYL667Q4W6XZOJLQZKMLDGIFHAA cand=0
+completed_candidates=7330/10722 example=CDs_and_Vinyl:train:7356:AFZDHNEMWXN2VPN7DJ2IR23HZVWA cand=0
+completed_candidates=7340/10722 example=CDs_and_Vinyl:train:7366:AG7IHOJB4BUD7UHXDL6QU2ESXUPQ cand=0
+completed_candidates=7350/10722 example=CDs_and_Vinyl:train:7376:AHNEIAJUL7D2OC5YSNOI4CUH5FFQ cand=0
+completed_candidates=7360/10722 example=CDs_and_Vinyl:train:7386:AFCFPBELYA6VX7LML762I5AVIMZQ cand=0
+completed_candidates=7370/10722 example=CDs_and_Vinyl:train:7381:AHNEIAJUL7D2OC5YSNOI4CUH5FFQ cand=0
+completed_candidates=7380/10722 example=CDs_and_Vinyl:train:7403:AFEHEZECCRD2LIQGE4V2JUIFFQJA cand=0
+completed_candidates=7390/10722 example=CDs_and_Vinyl:train:7415:AFEHEZECCRD2LIQGE4V2JUIFFQJA cand=0
+completed_candidates=7400/10722 example=CDs_and_Vinyl:train:7425:AH7FTZUVGWK3IFYDCFZIS634WWNA cand=0
+periodic_aggregate completed_candidates=7400 aggregated_rows=7400 complete_examples=7400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7410/10722 example=CDs_and_Vinyl:train:7437:AHTZP6BE5TG5SNKSXQICVS26SPKQ cand=0
+completed_candidates=7420/10722 example=CDs_and_Vinyl:train:7447:AENOSABAE4FN5HIC6X4Y27BNYLOA cand=0
+completed_candidates=7430/10722 example=CDs_and_Vinyl:train:7457:AHLTM6RR52PYUOS3W2EXZVGFW33A cand=0
+completed_candidates=7440/10722 example=CDs_and_Vinyl:train:7465:AFV52JTWHSS5HV53KLAZBGZZ5YVA cand=0
+completed_candidates=7450/10722 example=CDs_and_Vinyl:train:7476:AHHOS7VR3AMAESY4D46JY4T3DJYQ cand=0
+completed_candidates=7460/10722 example=CDs_and_Vinyl:train:7487:AG66O6ETAUNUBCSK57JTZP7CKDSA cand=0
+completed_candidates=7470/10722 example=CDs_and_Vinyl:train:7496:AHCHFXHOOZWUOLJDXRNCTOOYJRMA cand=0
+completed_candidates=7480/10722 example=CDs_and_Vinyl:train:7506:AFLDPNQKV3WVPCKZRPKX7D2UBSRA cand=0
+completed_candidates=7490/10722 example=CDs_and_Vinyl:train:7516:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7500/10722 example=CDs_and_Vinyl:train:7523:AHRMZNNVR6HDWMYXYHIRWEWOMNYQ cand=0
+periodic_aggregate completed_candidates=7500 aggregated_rows=7500 complete_examples=7500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7510/10722 example=CDs_and_Vinyl:train:7536:AGAB2EEQJEUMRDMPGMGP3DWBJDOQ cand=0
+completed_candidates=7520/10722 example=CDs_and_Vinyl:train:7546:AEX3XRASIN6MK7BBZJIIZIUR5HDA cand=0
+completed_candidates=7530/10722 example=CDs_and_Vinyl:train:7557:AE5WI72PR5LSEYLA43OAVFVVXW7Q cand=0
+completed_candidates=7540/10722 example=CDs_and_Vinyl:train:7567:AGRAXM3EPYCXWEEKPEZAZ25HIXGQ cand=0
+completed_candidates=7550/10722 example=CDs_and_Vinyl:train:7577:AEHXCHXCDOBYSTPY7T77TJZREOXA cand=0
+completed_candidates=7560/10722 example=CDs_and_Vinyl:train:7586:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+failed example=CDs_and_Vinyl:train:7576:AEHXCHXCDOBYSTPY7T77TJZREOXA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=7570/10722 example=CDs_and_Vinyl:train:7597:AHQTU6M3BMERY4DN6OSXBWFBHUBA cand=0
+completed_candidates=7580/10722 example=CDs_and_Vinyl:train:7607:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7590/10722 example=CDs_and_Vinyl:train:7616:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7600/10722 example=CDs_and_Vinyl:train:7627:AFSEKNTVX3ASZMNJJKXLPW56SUJQ cand=0
+periodic_aggregate completed_candidates=7600 aggregated_rows=7600 complete_examples=7600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7610/10722 example=CDs_and_Vinyl:train:7637:AEAPH7SDRPDUDDSDTRM5EZU4MJBQ cand=0
+completed_candidates=7620/10722 example=CDs_and_Vinyl:train:7644:AEWJ5QGTJ6RXZ5KFDF6OFZT4JCDA cand=0
+completed_candidates=7630/10722 example=CDs_and_Vinyl:train:7658:AHM3G3W2UCVHPFUB7GSZW6G3ZKVA cand=0
+completed_candidates=7640/10722 example=CDs_and_Vinyl:train:7667:AENBEZDMTYODPEHLO5VIDCAVTGEQ cand=0
+completed_candidates=7650/10722 example=CDs_and_Vinyl:train:7678:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7660/10722 example=CDs_and_Vinyl:train:7683:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7670/10722 example=CDs_and_Vinyl:train:7694:AEQGW5NQFAAXVLYHEAQ7BV3NPTWA cand=0
+completed_candidates=7680/10722 example=CDs_and_Vinyl:train:7700:AEZH24HENPUFVGMNGMUHVUYOBGVA cand=0
+completed_candidates=7690/10722 example=CDs_and_Vinyl:train:7719:AFHWUH6KQC75PQM4VUSUAMZMY3EQ cand=0
+completed_candidates=7700/10722 example=CDs_and_Vinyl:train:7726:AF5IPNL5WTTROYA3TQTFTSLRVW2A cand=0
+periodic_aggregate completed_candidates=7700 aggregated_rows=7700 complete_examples=7700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7710/10722 example=CDs_and_Vinyl:train:7736:AFCVJTV3ZX7YWRYPB4KLJXHWS43Q cand=0
+completed_candidates=7720/10722 example=CDs_and_Vinyl:train:7747:AGNSENV6KLU7LQCZKRKY6SQG5EWQ cand=0
+completed_candidates=7730/10722 example=CDs_and_Vinyl:train:7757:AGR66AMMVLECGZXA53SWHZECRALQ cand=0
+completed_candidates=7740/10722 example=CDs_and_Vinyl:train:7764:AELAK5ZXPLJ3LV2CKY7CBAAMNQLQ cand=0
+completed_candidates=7750/10722 example=CDs_and_Vinyl:train:7778:AHUU2ABXWMJG5DKJNZ4J7DJ4XG5A cand=0
+completed_candidates=7760/10722 example=CDs_and_Vinyl:train:7789:AFSJATMSUIUNW6PML4QW77XAAR4A cand=0
+failed example=CDs_and_Vinyl:train:7785:AH2ENAH2MUCHWBSJHZIP6GGXB4GA cand=0: RuntimeError: API failed after retries: HTTPError 400: {"contentFilter":[{"level":1,"role":"assistant"}],"error":{"code":"1301","message":"系统检测到输入或生成内容可能包含不安全或敏感内容，请您避免输入易产生敏感内容的提示语，感谢您的配合。"}}
+completed_candidates=7770/10722 example=CDs_and_Vinyl:train:7798:AEFYE7D7C75VZNIJUXD2FYG5XKNQ cand=0
+completed_candidates=7780/10722 example=CDs_and_Vinyl:train:7810:AGJJVJ54EAWE747MA7ZKCFZ7MFCA cand=0
+completed_candidates=7790/10722 example=CDs_and_Vinyl:train:7815:AGO7QGYXJ5UI7H37JSE5BJZWE3AA cand=0
+completed_candidates=7800/10722 example=CDs_and_Vinyl:train:7827:AH4OXXWMMGF2ZUJRLEEIIPCELL7A cand=0
+periodic_aggregate completed_candidates=7800 aggregated_rows=7800 complete_examples=7800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7810/10722 example=CDs_and_Vinyl:train:7840:AGDBQWJJHAAY7JZD7L6W4KQ4O7NQ cand=0
+completed_candidates=7820/10722 example=CDs_and_Vinyl:train:7848:AEZA7HNI76XUAAYFWTJNZ4FXVKQA cand=0
+completed_candidates=7830/10722 example=CDs_and_Vinyl:train:7859:AEFLTNVJHFKOC44APVMGQMIVQDQA cand=0
+failed example=CDs_and_Vinyl:train:7853:AEZA7HNI76XUAAYFWTJNZ4FXVKQA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=7840/10722 example=CDs_and_Vinyl:train:7870:AH6VPL2UG3G4GAYM7REDALDR4OTA cand=0
+completed_candidates=7850/10722 example=CDs_and_Vinyl:train:7877:AGZC26J7426GBBMGNFU7HWPADT3A cand=0
+completed_candidates=7860/10722 example=CDs_and_Vinyl:train:7888:AGZC26J7426GBBMGNFU7HWPADT3A cand=0
+completed_candidates=7870/10722 example=CDs_and_Vinyl:train:7898:AGZC26J7426GBBMGNFU7HWPADT3A cand=0
+completed_candidates=7880/10722 example=CDs_and_Vinyl:train:7910:AEZA7HNI76XUAAYFWTJNZ4FXVKQA cand=0
+completed_candidates=7890/10722 example=CDs_and_Vinyl:train:7921:AFURPOVYS6H6TTOG2NOV2KIKOMMA cand=0
+failed example=CDs_and_Vinyl:train:7918:AH7MHWJV233LVWIGRO73RSTFGSHQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=7900/10722 example=CDs_and_Vinyl:train:7929:AE3INAYILWZKXP6CEWFFXIOVTQJA cand=0
+periodic_aggregate completed_candidates=7900 aggregated_rows=7900 complete_examples=7900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=7910/10722 example=CDs_and_Vinyl:train:7942:AF34723SYWSLE3XCZNNZY2NYQRAQ cand=0
+completed_candidates=7920/10722 example=CDs_and_Vinyl:train:7951:AEJ3U2CHM6BND6RGV2ABKI47B4CA cand=0
+completed_candidates=7930/10722 example=CDs_and_Vinyl:train:7956:AEW4GIWAUXNYGZTP6GTEVBSZV4DA cand=0
+completed_candidates=7940/10722 example=CDs_and_Vinyl:train:7972:AEHP5YW5LLWT7WI4SKSHSZMRU7OQ cand=0
+completed_candidates=7950/10722 example=CDs_and_Vinyl:train:7980:AFP5MO4AH4TS57JT7FZ47AJTY4BQ cand=0
+completed_candidates=7960/10722 example=CDs_and_Vinyl:train:7992:AEGS7KZGYJCTCI4HAYCXJWWPRVEQ cand=0
+failed example=CDs_and_Vinyl:train:7991:AFXJS5O54H6XTZ324K5VS5UPG4XA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=7970/10722 example=CDs_and_Vinyl:train:8000:AFATLYV7LSKEO773UIRSTVUHR6CQ cand=0
+completed_candidates=7980/10722 example=CDs_and_Vinyl:train:8012:AFP2K2GGAVSGHQEFBCZXGRUMC5YA cand=0
+completed_candidates=7990/10722 example=CDs_and_Vinyl:train:8021:AEA6EC4Q4NZVCH6EXKJPAFDPS56Q cand=0
+failed example=CDs_and_Vinyl:train:8022:AFQ3SYSQU74LZ3Q763TUBQNHNDGQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=8000/10722 example=CDs_and_Vinyl:train:8033:AHL74REHOSQKERFTFULAP4Z76LQA cand=0
+periodic_aggregate completed_candidates=8000 aggregated_rows=8000 complete_examples=8000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8010/10722 example=CDs_and_Vinyl:train:8043:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=8020/10722 example=CDs_and_Vinyl:train:8052:AGSMR72XTXESLE5D56BXXBY5WP2A cand=0
+completed_candidates=8030/10722 example=CDs_and_Vinyl:train:8062:AGHJCPHZZOA5NVNT3CAKG4TJPYNQ cand=0
+completed_candidates=8040/10722 example=CDs_and_Vinyl:train:8073:AHYDTJDTG6LUBTQX6UUBKVYXVTZA cand=0
+completed_candidates=8050/10722 example=CDs_and_Vinyl:train:8081:AHYDTJDTG6LUBTQX6UUBKVYXVTZA cand=0
+failed example=CDs_and_Vinyl:train:8078:AHYDTJDTG6LUBTQX6UUBKVYXVTZA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=8060/10722 example=CDs_and_Vinyl:train:8085:AFSHD27Z7NWMCD4LUS4USMNFUHLA cand=0
+completed_candidates=8070/10722 example=CDs_and_Vinyl:train:8101:AHVSOVFWDZPQKZEHNUEOW3S6DE2Q cand=0
+completed_candidates=8080/10722 example=CDs_and_Vinyl:train:8108:AHX4QEDEJQIS7MI5JBVCW3I4H3OQ cand=0
+completed_candidates=8090/10722 example=CDs_and_Vinyl:train:8124:AEN4QIHDT46PVCRK6I7HURQ3HCJA cand=0
+completed_candidates=8100/10722 example=CDs_and_Vinyl:train:8132:AGFE5OY3VQHXGEQG2RH4LRRHMI3A cand=0
+periodic_aggregate completed_candidates=8100 aggregated_rows=8100 complete_examples=8100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8110/10722 example=CDs_and_Vinyl:train:8145:AGVZXOC4MRJRAVD7ZKKFAFELGHMA cand=0
+completed_candidates=8120/10722 example=CDs_and_Vinyl:train:8153:AHNIKHHYKJ4P456LW3JRA5CULILA cand=0
+completed_candidates=8130/10722 example=CDs_and_Vinyl:train:8163:AGTD4ELYFB3P4CYS3C4KNZJJ3NKA cand=0
+completed_candidates=8140/10722 example=CDs_and_Vinyl:train:8172:AGAB2EEQJEUMRDMPGMGP3DWBJDOQ cand=0
+completed_candidates=8150/10722 example=CDs_and_Vinyl:train:8182:AGR66AMMVLECGZXA53SWHZECRALQ cand=0
+completed_candidates=8160/10722 example=CDs_and_Vinyl:train:8193:AEINQC2LJZJ4Y2DD52UXNQTFVMKQ cand=0
+completed_candidates=8170/10722 example=CDs_and_Vinyl:train:8201:AFRTCMLPOIHW5WJKH34OE5WAR3MA cand=0
+completed_candidates=8180/10722 example=CDs_and_Vinyl:train:8213:AGMBXBLRLO6J3I6WO5DZ6LOTXREQ cand=0
+completed_candidates=8190/10722 example=CDs_and_Vinyl:train:8223:AHCG5X2B6WMN3RZGZB5Y24367C7Q cand=0
+completed_candidates=8200/10722 example=CDs_and_Vinyl:train:8228:AGMOD7SFBW4TSQHTP5VVHHOYFUZA cand=0
+periodic_aggregate completed_candidates=8200 aggregated_rows=8200 complete_examples=8200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8210/10722 example=CDs_and_Vinyl:train:8245:AH34J3VVTI7IN6VINKZZZ6AE55SQ cand=0
+completed_candidates=8220/10722 example=CDs_and_Vinyl:train:8254:AF763PAJX7FFOTCZBKLJO7S4X2IQ cand=0
+completed_candidates=8230/10722 example=CDs_and_Vinyl:train:8261:AHIDMAI3D3H3KO36C7KH42RCOEAQ cand=0
+completed_candidates=8240/10722 example=CDs_and_Vinyl:train:8273:AHXKIBGKZS4V62SCHEZLTGAFBOJQ cand=0
+completed_candidates=8250/10722 example=CDs_and_Vinyl:train:8282:AEEX5FQMAGMB6ZKNKGVF5FM6XVFQ cand=0
+completed_candidates=8260/10722 example=CDs_and_Vinyl:train:8293:AGTF3KQLOVW6EF7I3AAKLJBK4KZA cand=0
+completed_candidates=8270/10722 example=CDs_and_Vinyl:train:8298:AEVSHV5TDS6BOMJBAGU3T6TKT2CA cand=0
+completed_candidates=8280/10722 example=CDs_and_Vinyl:train:8311:AFM6HECFGXHL5I4756SA4EYZD4HQ cand=0
+completed_candidates=8290/10722 example=CDs_and_Vinyl:train:8324:AGK4XSVCNF4FVDWJAUBCDM3HIYLA cand=0
+completed_candidates=8300/10722 example=CDs_and_Vinyl:train:8333:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+periodic_aggregate completed_candidates=8300 aggregated_rows=8300 complete_examples=8300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8310/10722 example=CDs_and_Vinyl:train:8343:AH5YXZY5ABJCOWIYJMTYUDDKARBA cand=0
+completed_candidates=8320/10722 example=CDs_and_Vinyl:train:8353:AEV7D7IFCR73ETDKVT36KTZUKOQQ cand=0
+completed_candidates=8330/10722 example=CDs_and_Vinyl:train:8363:AG275UKOGQZHMQUVFFBPUNKLGWMA cand=0
+completed_candidates=8340/10722 example=CDs_and_Vinyl:train:8372:AFOUTCUX3YG52JD6M7GI5QZIKPEA cand=0
+completed_candidates=8350/10722 example=CDs_and_Vinyl:train:8383:AFQPDFXWWNKREILYPUCFUFQOLH6A cand=0
+completed_candidates=8360/10722 example=CDs_and_Vinyl:train:8392:AEGFFH5RWY7KQZT3HLOKAMK3JZ5A cand=0
+completed_candidates=8370/10722 example=CDs_and_Vinyl:train:8402:AGXPARQZKIO52JX4SOQVCBK66CTQ cand=0
+completed_candidates=8380/10722 example=CDs_and_Vinyl:train:8407:AGXPARQZKIO52JX4SOQVCBK66CTQ cand=0
+completed_candidates=8390/10722 example=CDs_and_Vinyl:train:8422:AHBTX6ENDRGA7IRU5S3ETMMK5BXA cand=0
+completed_candidates=8400/10722 example=CDs_and_Vinyl:train:8434:AE3VIGOGWTS3A2R6CCQLJDY2RHSQ cand=0
+periodic_aggregate completed_candidates=8400 aggregated_rows=8400 complete_examples=8400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:8425:AEEVOHN4KXRUL3JNA6445FDNK7XA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+failed example=CDs_and_Vinyl:train:8426:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=8410/10722 example=CDs_and_Vinyl:train:8445:AGYYWIL6GFYIX7GKIXQK5ZCTGMMQ cand=0
+completed_candidates=8420/10722 example=CDs_and_Vinyl:train:8456:AGYYWIL6GFYIX7GKIXQK5ZCTGMMQ cand=0
+completed_candidates=8430/10722 example=CDs_and_Vinyl:train:8465:AESBCJUYWGD7WN3YW4565BREXSVQ cand=0
+completed_candidates=8440/10722 example=CDs_and_Vinyl:train:8475:AENSUW67C7VPFPZLMBXCW2TUUEXA cand=0
+completed_candidates=8450/10722 example=CDs_and_Vinyl:train:8486:AHX3WXTZWPFZCAXLB6FN2V6GXHQQ cand=0
+completed_candidates=8460/10722 example=CDs_and_Vinyl:train:8496:AEHVKDPX3FR2OZI67EVMYMQ6DNKA cand=0
+completed_candidates=8470/10722 example=CDs_and_Vinyl:train:8507:AFD3EKI27Y5V3OICVZMRZPFAPWAQ cand=0
+failed example=CDs_and_Vinyl:train:8501:AFQ3SYSQU74LZ3Q763TUBQNHNDGQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=8480/10722 example=CDs_and_Vinyl:train:8514:AGL6TNJY7GNI3H3SRE7C7GMYCOZA cand=0
+completed_candidates=8490/10722 example=CDs_and_Vinyl:train:8524:AGEMHKVVGH4LN5FHNQOC3DFLVFPA cand=0
+completed_candidates=8500/10722 example=CDs_and_Vinyl:train:8533:AFQ3SYSQU74LZ3Q763TUBQNHNDGQ cand=0
+periodic_aggregate completed_candidates=8500 aggregated_rows=8500 complete_examples=8500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8510/10722 example=CDs_and_Vinyl:train:8547:AH4PSBGO5XWI5D3CNE6CI7YG3F5A cand=0
+completed_candidates=8520/10722 example=CDs_and_Vinyl:train:8556:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0
+completed_candidates=8530/10722 example=CDs_and_Vinyl:train:8566:AGHYURP5OCK7R5DF4L7FPEVDXQ3Q cand=0
+completed_candidates=8540/10722 example=CDs_and_Vinyl:train:8571:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+completed_candidates=8550/10722 example=CDs_and_Vinyl:train:8588:AGZWIBCIV2JFPFPVI3OXSQJORRKA cand=0
+completed_candidates=8560/10722 example=CDs_and_Vinyl:train:8596:AEKOMVJZX7H3MP3ES4ZU66EO4U7Q cand=0
+completed_candidates=8570/10722 example=CDs_and_Vinyl:train:8603:AEWXZY5YHR2KED2VEKDODWEXPDXQ cand=0
+completed_candidates=8580/10722 example=CDs_and_Vinyl:train:8618:AF7YWCXJWTSHM53U76GSJSIKGTYA cand=0
+completed_candidates=8590/10722 example=CDs_and_Vinyl:train:8626:AHNUSRRR3B7U4K4ELOVTJ2VOZRVA cand=0
+completed_candidates=8600/10722 example=CDs_and_Vinyl:train:8638:AH7XHLRRJ3GLTMD6HXUYG2GGPRCQ cand=0
+periodic_aggregate completed_candidates=8600 aggregated_rows=8600 complete_examples=8600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:8623:AGYNDGPGVIAEVRCQN4AWDDV4QYJQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=8610/10722 example=CDs_and_Vinyl:train:8649:AFYHLKGGAQDHNGM5H4ML43WU36KQ cand=0
+completed_candidates=8620/10722 example=CDs_and_Vinyl:train:8657:AH4UKY6Z7AHJTJGWPYZJCI6O6ZMA cand=0
+completed_candidates=8630/10722 example=CDs_and_Vinyl:train:8667:AGE2LEIBC2QVXPA4KWCIYFY3HZWQ cand=0
+completed_candidates=8640/10722 example=CDs_and_Vinyl:train:8678:AGVPT7WIINHBQR6XRKPLVD66BD2Q cand=0
+completed_candidates=8650/10722 example=CDs_and_Vinyl:train:8685:AFGTIXU3BMHCWG2ALITQWHF2KGYA cand=0
+completed_candidates=8660/10722 example=CDs_and_Vinyl:train:8697:AHUVVRNRIZTVBYW36PCAUP54BACA cand=0
+completed_candidates=8670/10722 example=CDs_and_Vinyl:train:8706:AHJPNDKMEPJ4F7F7J5DYBXDEJTQA cand=0
+completed_candidates=8680/10722 example=CDs_and_Vinyl:train:8718:AETNWZM3CEIBWBJAZWOTCHDXWD3Q cand=0
+completed_candidates=8690/10722 example=CDs_and_Vinyl:train:8727:AHXX3ZKTE2DTRYND6EFM4PQ5HTBQ cand=0
+completed_candidates=8700/10722 example=CDs_and_Vinyl:train:8737:AE4CACSJOI6CA3CGUPC62XYHJHCA cand=0
+periodic_aggregate completed_candidates=8700 aggregated_rows=8700 complete_examples=8700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:8735:AE4CACSJOI6CA3CGUPC62XYHJHCA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=8710/10722 example=CDs_and_Vinyl:train:8742:AE4CACSJOI6CA3CGUPC62XYHJHCA cand=0
+completed_candidates=8720/10722 example=CDs_and_Vinyl:train:8758:AHEDLZSACREXVOWX3CN44N4XDC6Q cand=0
+completed_candidates=8730/10722 example=CDs_and_Vinyl:train:8769:AGUV2EZUFVUKKAFNRIPLM3MK2HVQ cand=0
+completed_candidates=8740/10722 example=CDs_and_Vinyl:train:8779:AGSAE7HPK73FUWEN5LDZOXJOW44A cand=0
+completed_candidates=8750/10722 example=CDs_and_Vinyl:train:8789:AHJXDXNWLEI7Q6XR2VXURLZQDP7Q cand=0
+completed_candidates=8760/10722 example=CDs_and_Vinyl:train:8799:AHU7H6VLVEESK6T5YEMAXKFMDM3A cand=0
+completed_candidates=8770/10722 example=CDs_and_Vinyl:train:8809:AHUP5Z5NH4DBZRIPPKUZW2MDVHSA cand=0
+completed_candidates=8780/10722 example=CDs_and_Vinyl:train:8817:AELIGY5O2KDJSOUQKCPV52FDB2AQ cand=0
+completed_candidates=8790/10722 example=CDs_and_Vinyl:train:8830:AEAZFLL7IIOAKTL6RVVHBG6FTIAQ cand=0
+completed_candidates=8800/10722 example=CDs_and_Vinyl:train:8836:AEAZFLL7IIOAKTL6RVVHBG6FTIAQ cand=0
+periodic_aggregate completed_candidates=8800 aggregated_rows=8800 complete_examples=8800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:8826:AFQ3SYSQU74LZ3Q763TUBQNHNDGQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=8810/10722 example=CDs_and_Vinyl:train:8849:AGXGCYQ2OM627WVPL3G2AKRQ4VXQ cand=0
+completed_candidates=8820/10722 example=CDs_and_Vinyl:train:8859:AEWXZY5YHR2KED2VEKDODWEXPDXQ cand=0
+completed_candidates=8830/10722 example=CDs_and_Vinyl:train:8870:AFEN7G6GQJPNLR2IM6NUYVWJPPPQ cand=0
+completed_candidates=8840/10722 example=CDs_and_Vinyl:train:8878:AEYX74AR7OK76BHNNFV2LIFZMTAA cand=0
+completed_candidates=8850/10722 example=CDs_and_Vinyl:train:8889:AEBWUFJLDQVMMJRLYLQEKY2VERRQ cand=0
+completed_candidates=8860/10722 example=CDs_and_Vinyl:train:8899:AHGAX46SYPJIAY622Q4RFXW3Q5QQ cand=0
+completed_candidates=8870/10722 example=CDs_and_Vinyl:train:8909:AF6THZWCOGSBQ37FICMHHWXX353A cand=0
+completed_candidates=8880/10722 example=CDs_and_Vinyl:train:8919:AGERZ7DXN4KBOEAQV7C52OTCOBAQ cand=0
+completed_candidates=8890/10722 example=CDs_and_Vinyl:train:8931:AEEVROQSWZNCJ67IVOVFHBBP66QA cand=0
+completed_candidates=8900/10722 example=CDs_and_Vinyl:train:8939:AEIXPZWVWCZU3DNEJHBNZ2WXZWIQ cand=0
+periodic_aggregate completed_candidates=8900 aggregated_rows=8900 complete_examples=8900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=8910/10722 example=CDs_and_Vinyl:train:8950:AFX3CE7VTBH7PQVNNISE7IORZ6GQ cand=0
+completed_candidates=8920/10722 example=CDs_and_Vinyl:train:8960:AHFFZBMY45IQVBBP23ZHGOEFY6DA cand=0
+completed_candidates=8930/10722 example=CDs_and_Vinyl:train:8969:AH3DT3L5RSCHW5NK7OD45GFAIRWQ cand=0
+completed_candidates=8940/10722 example=CDs_and_Vinyl:train:8978:AEDDF3KIFICJVI753NSHSTFR5WEQ cand=0
+completed_candidates=8950/10722 example=CDs_and_Vinyl:train:8989:AFP2IAKC4B42MMNQFIUQRUMPJJHQ cand=0
+completed_candidates=8960/10722 example=CDs_and_Vinyl:train:8998:AEV3B5QFBVKJ4EOVACCKBIBTVVRQ cand=0
+completed_candidates=8970/10722 example=CDs_and_Vinyl:train:9009:AGLA3A4D5OQU5QPRO3TTCDPJZSMA cand=0
+completed_candidates=8980/10722 example=CDs_and_Vinyl:train:9020:AHRYOQTRHIY3O265DL2VEU6SIHOA cand=0
+completed_candidates=8990/10722 example=CDs_and_Vinyl:train:9028:AHRYOQTRHIY3O265DL2VEU6SIHOA cand=0
+completed_candidates=9000/10722 example=CDs_and_Vinyl:train:9039:AHRYOQTRHIY3O265DL2VEU6SIHOA cand=0
+periodic_aggregate completed_candidates=9000 aggregated_rows=9000 complete_examples=9000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9010/10722 example=CDs_and_Vinyl:train:9048:AEJAKSWWUA7IF7KNWSLROX4ZFASQ cand=0
+completed_candidates=9020/10722 example=CDs_and_Vinyl:train:9060:AF3KNEVKE2LC2TJLUAZLD2OUR7QQ cand=0
+completed_candidates=9030/10722 example=CDs_and_Vinyl:train:9069:AEUOLCIOQJCQ4WTPHEBMXNHYHY3Q cand=0
+completed_candidates=9040/10722 example=CDs_and_Vinyl:train:9081:AGYD2B363IF7I62BXJ5SYWCJWTVQ cand=0
+completed_candidates=9050/10722 example=CDs_and_Vinyl:train:9090:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=9060/10722 example=CDs_and_Vinyl:train:9101:AFF2NXR5Q4W6DX6TJRK6FOYG3W6A cand=0
+completed_candidates=9070/10722 example=CDs_and_Vinyl:train:9108:AGZCWSKHVM67VSTFMYHFHTJ5AQQQ cand=0
+failed example=CDs_and_Vinyl:train:9111:AHB3EWDAYHORBERJ2KZVMJGFSINQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=9080/10722 example=CDs_and_Vinyl:train:9118:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+completed_candidates=9090/10722 example=CDs_and_Vinyl:train:9131:AHOLW2DEZVJNEMS3SVQMP2BEQWQA cand=0
+completed_candidates=9100/10722 example=CDs_and_Vinyl:train:9141:AGT7EAK4NO3EOCGPUEPWGIY33HTQ cand=0
+periodic_aggregate completed_candidates=9100 aggregated_rows=9100 complete_examples=9100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9110/10722 example=CDs_and_Vinyl:train:9152:AF6ODTOLMI3RJXTOVNFWV3UXONMA cand=0
+completed_candidates=9120/10722 example=CDs_and_Vinyl:train:9161:AHPTEXTIDZJ676RFEHI4YQ2AWFIQ cand=0
+completed_candidates=9130/10722 example=CDs_and_Vinyl:train:9171:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=9140/10722 example=CDs_and_Vinyl:train:9180:AGAGBZ7WOIOSQBYTE4O2MK7IC5AA cand=0
+completed_candidates=9150/10722 example=CDs_and_Vinyl:train:9187:AFZBGMXW62UJFSFV6F7OPMUARUBA cand=0
+completed_candidates=9160/10722 example=CDs_and_Vinyl:train:9199:AEQRP2M3JBSZGFDKZWD2P4FSAIEA cand=0
+completed_candidates=9170/10722 example=CDs_and_Vinyl:train:9211:AEQYBYYZF7DIJSMCTQAN7GCHIMHA cand=0
+completed_candidates=9180/10722 example=CDs_and_Vinyl:train:9220:AE3CSSO3B7WERLGI2BEGZVCRW7CQ cand=0
+completed_candidates=9190/10722 example=CDs_and_Vinyl:train:9230:AGSMR72XTXESLE5D56BXXBY5WP2A cand=0
+completed_candidates=9200/10722 example=CDs_and_Vinyl:train:9235:AGNYW7XCLDQGCRBHK2BHAVMFAV6A cand=0
+periodic_aggregate completed_candidates=9200 aggregated_rows=9200 complete_examples=9200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9210/10722 example=CDs_and_Vinyl:train:9251:AHM2T7GQ2ZO7HANPUM6YIABM3D6A cand=0
+failed example=CDs_and_Vinyl:train:9245:AGYYMFKWRRT3K43S65GNBIWAS6HA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=9220/10722 example=CDs_and_Vinyl:train:9261:AHCWJDHM3UGHPBW7L2RQ2VOB4YAA cand=0
+completed_candidates=9230/10722 example=CDs_and_Vinyl:train:9272:AFZINHUV5ARVVPKECBUMVX4T276A cand=0
+completed_candidates=9240/10722 example=CDs_and_Vinyl:train:9282:AEIGPYUXCKHG3ET7NGJBKQQMPGOQ cand=0
+failed example=CDs_and_Vinyl:train:9280:AGYYMFKWRRT3K43S65GNBIWAS6HA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=9250/10722 example=CDs_and_Vinyl:train:9292:AH7LMJYY6CRMREPNEOQECSSBZSAA cand=0
+completed_candidates=9260/10722 example=CDs_and_Vinyl:train:9301:AEFAZ6Y5CGCUT46NBOFGF623RFIQ cand=0
+completed_candidates=9270/10722 example=CDs_and_Vinyl:train:9311:AF6DDBQFNVK5Z7YYAWJCNQZFZT5A cand=0
+completed_candidates=9280/10722 example=CDs_and_Vinyl:train:9323:AGX5QXGZFJIW2IBU7YO6OMS2NE2A cand=0
+completed_candidates=9290/10722 example=CDs_and_Vinyl:train:9333:AFJMC2VSV7ZR4PSBS3FMZ3DUY44Q cand=0
+completed_candidates=9300/10722 example=CDs_and_Vinyl:train:9338:AHMQBKL37Q4D4BXFDDXBYPF5FKDA cand=0
+periodic_aggregate completed_candidates=9300 aggregated_rows=9300 complete_examples=9300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9310/10722 example=CDs_and_Vinyl:train:9352:AFBW2HY7NOCPM42YNDYS7CZLJZXA cand=0
+completed_candidates=9320/10722 example=CDs_and_Vinyl:train:9362:AGRMXB6VJSXLKRDICWOU7KYC2OXQ cand=0
+failed example=CDs_and_Vinyl:train:9355:AGRA5RMSAIXGOV4AQIDFKZIYACTQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=9330/10722 example=CDs_and_Vinyl:train:9373:AF2KDAYJ5D3T253NYQVO7WXU6GJQ cand=0
+completed_candidates=9340/10722 example=CDs_and_Vinyl:train:9381:AEG3VDSHU56S5FDLJYOSZ6HCZTHQ cand=0
+completed_candidates=9350/10722 example=CDs_and_Vinyl:train:9394:AHGLNY37KSEFFXGGFGFTMDCHAJMA cand=0
+completed_candidates=9360/10722 example=CDs_and_Vinyl:train:9404:AHRL6TWAPCXVO7J4QLLEAG3KVECA cand=0
+completed_candidates=9370/10722 example=CDs_and_Vinyl:train:9414:AEONWL4TS3GJXK67ZK7XSQNZL6EA cand=0
+completed_candidates=9380/10722 example=CDs_and_Vinyl:train:9424:AE5JGYKJFDE73SX4QUC7ROFBOFPQ cand=0
+completed_candidates=9390/10722 example=CDs_and_Vinyl:train:9432:AELIGY5O2KDJSOUQKCPV52FDB2AQ cand=0
+completed_candidates=9400/10722 example=CDs_and_Vinyl:train:9443:AGCVSWL73WABJDSPMZA6MKGUT6YA cand=0
+periodic_aggregate completed_candidates=9400 aggregated_rows=9400 complete_examples=9400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9410/10722 example=CDs_and_Vinyl:train:9454:AHGB44BJCYOE7UJ36Z36MTOAVPRQ cand=0
+completed_candidates=9420/10722 example=CDs_and_Vinyl:train:9464:AHGB44BJCYOE7UJ36Z36MTOAVPRQ cand=0
+completed_candidates=9430/10722 example=CDs_and_Vinyl:train:9474:AHKJ2UOZSFBNYO623J76TACMKKXA cand=0
+completed_candidates=9440/10722 example=CDs_and_Vinyl:train:9478:AHCKTKPOVN5D72LKKWCDKETMIJQA cand=0
+completed_candidates=9450/10722 example=CDs_and_Vinyl:train:9484:AGMMAQVN5LH5CYR5VLPGAYRLFBJA cand=0
+completed_candidates=9460/10722 example=CDs_and_Vinyl:train:9503:AENBSJOBQIUYW5UK3ESTAF7ECSGA cand=0
+completed_candidates=9470/10722 example=CDs_and_Vinyl:train:9514:AFQXTUWOBNNTIBQTPUC7W3WJZKZA cand=0
+completed_candidates=9480/10722 example=CDs_and_Vinyl:train:9523:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+failed example=CDs_and_Vinyl:train:9524:AE7BV6IMNPZ3F266H7PXMH3BZQNQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=9490/10722 example=CDs_and_Vinyl:train:9534:AGGFJK2DHSLW374RIFVWIXJZXGOQ cand=0
+completed_candidates=9500/10722 example=CDs_and_Vinyl:train:9543:AFOED6WLDXUKUD4I33V3T56PCKJA cand=0
+periodic_aggregate completed_candidates=9500 aggregated_rows=9500 complete_examples=9500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9510/10722 example=CDs_and_Vinyl:train:9551:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=9520/10722 example=CDs_and_Vinyl:train:9564:AGD7H2GZCMQMHTSV2IILE5YP5N2Q cand=0
+completed_candidates=9530/10722 example=CDs_and_Vinyl:train:9574:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=9540/10722 example=CDs_and_Vinyl:train:9585:AH2WHTFPKXQM7Q5IVTFV22LE25WQ cand=0
+completed_candidates=9550/10722 example=CDs_and_Vinyl:train:9594:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=9560/10722 example=CDs_and_Vinyl:train:9601:AH4HTM57ZF3FCEI2LXPCE7M25CDA cand=0
+completed_candidates=9570/10722 example=CDs_and_Vinyl:train:9616:AENW2JOESGNGG23IAHHQANXSXLXQ cand=0
+completed_candidates=9580/10722 example=CDs_and_Vinyl:train:9625:AEHP5YW5LLWT7WI4SKSHSZMRU7OQ cand=0
+completed_candidates=9590/10722 example=CDs_and_Vinyl:train:9634:AHIDMAI3D3H3KO36C7KH42RCOEAQ cand=0
+completed_candidates=9600/10722 example=CDs_and_Vinyl:train:9644:AFKTJCGS2WTJLTGFKRWYIQEILSVQ cand=0
+periodic_aggregate completed_candidates=9600 aggregated_rows=9600 complete_examples=9600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9610/10722 example=CDs_and_Vinyl:train:9653:AFCVJTV3ZX7YWRYPB4KLJXHWS43Q cand=0
+completed_candidates=9620/10722 example=CDs_and_Vinyl:train:9655:AH4LMUWNOHB56CNCBE24IFY3KKAQ cand=0
+completed_candidates=9630/10722 example=CDs_and_Vinyl:train:9673:AHYC6B7GIR7NLJEKLWSFQ5Q2VOMA cand=0
+completed_candidates=9640/10722 example=CDs_and_Vinyl:train:9684:AG2BPXCLB7Q6KM5BW73A5BEWZCGQ cand=0
+completed_candidates=9650/10722 example=CDs_and_Vinyl:train:9694:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=9660/10722 example=CDs_and_Vinyl:train:9705:AFYDPZPN2GQNECLWYYVECGMXL2TA cand=0
+completed_candidates=9670/10722 example=CDs_and_Vinyl:train:9714:AF4K5SCZ5BN5ODBFWOLYVTT5UGEQ cand=0
+completed_candidates=9680/10722 example=CDs_and_Vinyl:train:9721:AETYIXGGHUX2OEZRCJWMPJ6PYTAQ cand=0
+completed_candidates=9690/10722 example=CDs_and_Vinyl:train:9735:AHRBG3W7GWOBL3VNNEQCMEUD2BNQ cand=0
+completed_candidates=9700/10722 example=CDs_and_Vinyl:train:9743:AHGEWD5PCV2OAR3MSGUEY3VYGV3A cand=0
+periodic_aggregate completed_candidates=9700 aggregated_rows=9700 complete_examples=9700/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9710/10722 example=CDs_and_Vinyl:train:9755:AFPXCU3WA7ZDA5R5JIQITSWO3YFA cand=0
+completed_candidates=9720/10722 example=CDs_and_Vinyl:train:9763:AHGEWD5PCV2OAR3MSGUEY3VYGV3A cand=0
+completed_candidates=9730/10722 example=CDs_and_Vinyl:train:9771:AEFB4LGHJXMOOFWUM5UTUG26MQ3Q cand=0
+completed_candidates=9740/10722 example=CDs_and_Vinyl:train:9784:AFOJJGYW2K3BKD3MGZCOLF3VG6TA cand=0
+completed_candidates=9750/10722 example=CDs_and_Vinyl:train:9795:AGFEK4AZTBAVPBYSKTFD4BAAC4YA cand=0
+completed_candidates=9760/10722 example=CDs_and_Vinyl:train:9804:AGN6HJOIYNCN34DHTYYJWBV6RHVQ cand=0
+completed_candidates=9770/10722 example=CDs_and_Vinyl:train:9814:AEQZZW2WAXJLU2EDCF6IQFBDXR7A cand=0
+completed_candidates=9780/10722 example=CDs_and_Vinyl:train:9822:AEQZZW2WAXJLU2EDCF6IQFBDXR7A cand=0
+completed_candidates=9790/10722 example=CDs_and_Vinyl:train:9836:AEQZZW2WAXJLU2EDCF6IQFBDXR7A cand=0
+completed_candidates=9800/10722 example=CDs_and_Vinyl:train:9844:AEQZZW2WAXJLU2EDCF6IQFBDXR7A cand=0
+periodic_aggregate completed_candidates=9800 aggregated_rows=9800 complete_examples=9800/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9810/10722 example=CDs_and_Vinyl:train:9854:AEQZZW2WAXJLU2EDCF6IQFBDXR7A cand=0
+completed_candidates=9820/10722 example=CDs_and_Vinyl:train:9865:AG64MCAJKA7J2TNMEBP7K7DCXZWQ cand=0
+completed_candidates=9830/10722 example=CDs_and_Vinyl:train:9875:AFXOCQSCCX7UNTEBAEFBRFMALCBA cand=0
+completed_candidates=9840/10722 example=CDs_and_Vinyl:train:9884:AGFNMKHLWLTSWAIFLXRLGPRKVR7A cand=0
+completed_candidates=9850/10722 example=CDs_and_Vinyl:train:9893:AEXX3T7PIHUXWBM5WKLTLZ3235SA cand=0
+completed_candidates=9860/10722 example=CDs_and_Vinyl:train:9905:AEPL4YLFDWFEAJJ37TNJHV6SPG2Q cand=0
+completed_candidates=9870/10722 example=CDs_and_Vinyl:train:9913:AHGEWD5PCV2OAR3MSGUEY3VYGV3A cand=0
+completed_candidates=9880/10722 example=CDs_and_Vinyl:train:9925:AEGA2DSX5DYJ63AE4ZOBNKV4XGTQ cand=0
+completed_candidates=9890/10722 example=CDs_and_Vinyl:train:9934:AGPRMPPDHVKSZLAFXDOFM6PRZN2A cand=0
+completed_candidates=9900/10722 example=CDs_and_Vinyl:train:9929:AEXX3T7PIHUXWBM5WKLTLZ3235SA cand=0
+periodic_aggregate completed_candidates=9900 aggregated_rows=9900 complete_examples=9900/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=9910/10722 example=CDs_and_Vinyl:train:9954:AEWH3GQ44O4AJ6RA64UUGPOJ3G4A cand=0
+completed_candidates=9920/10722 example=CDs_and_Vinyl:train:9963:AEY5IWTEKOKLBOZ3QWURCYXPQPEQ cand=0
+completed_candidates=9930/10722 example=CDs_and_Vinyl:train:9975:AER5HOYVBA425ZFQUJYBZTQHTZ3A cand=0
+completed_candidates=9940/10722 example=CDs_and_Vinyl:train:9984:AFVCHFRIXUZFXPLK3XHQELVKWIYA cand=0
+completed_candidates=9950/10722 example=CDs_and_Vinyl:train:9994:AFNBZIQXO6MSNU7LGXFEF3CQYNDA cand=0
+completed_candidates=9960/10722 example=CDs_and_Vinyl:train:10004:AHXXJGAQRPKSRIV7QXYMIEGYOMMQ cand=0
+completed_candidates=9970/10722 example=CDs_and_Vinyl:train:10014:AESJQVZX3YZMFVPEZ4NYQWVU3UCA cand=0
+completed_candidates=9980/10722 example=CDs_and_Vinyl:train:10025:AH4LMUWNOHB56CNCBE24IFY3KKAQ cand=0
+completed_candidates=9990/10722 example=CDs_and_Vinyl:train:10035:AEVWRIDXK34EDXOGZOPGXN6C3GUA cand=0
+completed_candidates=10000/10722 example=CDs_and_Vinyl:train:10046:AEVT2WJBEDO66I5XSVJ66EUNBHQA cand=0
+periodic_aggregate completed_candidates=10000 aggregated_rows=10000 complete_examples=10000/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=10010/10722 example=CDs_and_Vinyl:train:10048:AHSA5SHQICUYPWJFSBBXI7AOIW7Q cand=0
+completed_candidates=10020/10722 example=CDs_and_Vinyl:train:10062:AEIWQL5TPLIHDVNFKWBET63PAFWQ cand=0
+completed_candidates=10030/10722 example=CDs_and_Vinyl:train:10073:AHEF2YF4DD7KIC56R6NL5AKEYXGQ cand=0
+completed_candidates=10040/10722 example=CDs_and_Vinyl:train:10084:AFYDPZPN2GQNECLWYYVECGMXL2TA cand=0
+completed_candidates=10050/10722 example=CDs_and_Vinyl:train:10094:AHFQSMNRE3XZLAW7PZDSV3YUWNJA cand=0
+completed_candidates=10060/10722 example=CDs_and_Vinyl:train:10105:AG2ZNCKN4NWDNXPJFVI7H4ASRIQQ cand=0
+completed_candidates=10070/10722 example=CDs_and_Vinyl:train:10113:AF4E2GUEGR4WROUUAXWJB6LDQYZQ cand=0
+completed_candidates=10080/10722 example=CDs_and_Vinyl:train:10125:AEOQE6QKNZC4PAPEE4GFALJSWPSQ cand=0
+completed_candidates=10090/10722 example=CDs_and_Vinyl:train:10136:AFYDPZPN2GQNECLWYYVECGMXL2TA cand=0
+completed_candidates=10100/10722 example=CDs_and_Vinyl:train:10145:AHIVMHBSZAIQA5AVZKUJHKIMBUUQ cand=0
+periodic_aggregate completed_candidates=10100 aggregated_rows=10100 complete_examples=10100/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:10132:AHEOAAUTKNREC3VKGAM2ETR4I7TQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=10110/10722 example=CDs_and_Vinyl:train:10154:AGYBRJP5XND45K6UAVSEHY7PDT4Q cand=0
+completed_candidates=10120/10722 example=CDs_and_Vinyl:train:10159:AHBF5J7HB7UNZBJCSVI3EUURWQ5A cand=0
+completed_candidates=10130/10722 example=CDs_and_Vinyl:train:10174:AEDPLWTN5AH6OU4PGNFQSTRNQAWQ cand=0
+completed_candidates=10140/10722 example=CDs_and_Vinyl:train:10184:AGBKUB3MZO4DXK3S7PSD7EM7WKEQ cand=0
+completed_candidates=10150/10722 example=CDs_and_Vinyl:train:10195:AEMPSYPDK36HLD3P3WKK4KIRG5UA cand=0
+completed_candidates=10160/10722 example=CDs_and_Vinyl:train:10206:AGVZXOC4MRJRAVD7ZKKFAFELGHMA cand=0
+completed_candidates=10170/10722 example=CDs_and_Vinyl:train:10200:AEFULTUBIWDFZCCYWXELQL5NPTUQ cand=0
+completed_candidates=10180/10722 example=CDs_and_Vinyl:train:10222:AH66PIBT2Q7I6M7ZA7WWCD6HGZJQ cand=0
+completed_candidates=10190/10722 example=CDs_and_Vinyl:train:10235:AG7VFLUUSGUPYROOTR7IRRJF24IQ cand=0
+completed_candidates=10200/10722 example=CDs_and_Vinyl:train:10244:AEXX3T7PIHUXWBM5WKLTLZ3235SA cand=0
+periodic_aggregate completed_candidates=10200 aggregated_rows=10200 complete_examples=10200/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+failed example=CDs_and_Vinyl:train:10246:AEXX3T7PIHUXWBM5WKLTLZ3235SA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+failed example=CDs_and_Vinyl:train:10248:AFCVJTV3ZX7YWRYPB4KLJXHWS43Q cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=10210/10722 example=CDs_and_Vinyl:train:10250:AFCVJTV3ZX7YWRYPB4KLJXHWS43Q cand=0
+completed_candidates=10220/10722 example=CDs_and_Vinyl:train:10268:AEAHPVUUNR6DY3DK7BTKAKDX4CHA cand=0
+completed_candidates=10230/10722 example=CDs_and_Vinyl:train:10277:AHYELNNI3LTA4TXU2UVVLVHBYK4A cand=0
+completed_candidates=10240/10722 example=CDs_and_Vinyl:train:10283:AH536W3OE7UD4WKIOOY6OMTXV2RQ cand=0
+completed_candidates=10250/10722 example=CDs_and_Vinyl:train:10297:AEL5D67WWTHR7GRMZ5Z3GOKCDB3A cand=0
+completed_candidates=10260/10722 example=CDs_and_Vinyl:train:10307:AEGTFLKMVKDQ7WKKCPATWWEQRXCA cand=0
+completed_candidates=10270/10722 example=CDs_and_Vinyl:train:10317:AEVEFNJXWZDYQQIE2DLWO2QLZJQA cand=0
+completed_candidates=10280/10722 example=CDs_and_Vinyl:train:10326:AE44L4RNLIGJ6CZ4UZKAA46PQLIA cand=0
+completed_candidates=10290/10722 example=CDs_and_Vinyl:train:10336:AF6FAVG2B7KEGVFA6WTEVOK7QQTQ cand=0
+completed_candidates=10300/10722 example=CDs_and_Vinyl:train:10348:AHJRB6FLUC36YHVDYXVQVBETXK3A cand=0
+periodic_aggregate completed_candidates=10300 aggregated_rows=10300 complete_examples=10300/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=10310/10722 example=CDs_and_Vinyl:train:10357:AHND4VR3N44FW2EEHHAKSLNDEJMA cand=0
+completed_candidates=10320/10722 example=CDs_and_Vinyl:train:10367:AH53XTG3SUSZFYQTV4H23RCDQ2WQ cand=0
+completed_candidates=10330/10722 example=CDs_and_Vinyl:train:10378:AG2ZNCKN4NWDNXPJFVI7H4ASRIQQ cand=0
+completed_candidates=10340/10722 example=CDs_and_Vinyl:train:10387:AFIXMELEMNUQPT7HS3BXVPYF47HQ cand=0
+completed_candidates=10350/10722 example=CDs_and_Vinyl:train:10390:AFHXK5R5RQRN4YHSDUTWODIHEFFQ cand=0
+completed_candidates=10360/10722 example=CDs_and_Vinyl:train:10405:AFATLYV7LSKEO773UIRSTVUHR6CQ cand=0
+completed_candidates=10370/10722 example=CDs_and_Vinyl:train:10416:AH4XEOD3H4OCTBEOS2ESSZGUP4TQ cand=0
+completed_candidates=10380/10722 example=CDs_and_Vinyl:train:10418:AG6YWDOXBSQ5NEKR6HTW4QPE4PKA cand=0
+failed example=CDs_and_Vinyl:train:10428:AEXXLO7RNRE6YEROMFCGPNY2TKYA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:recommend\w*|suggest\w*|should|must|need(?:s)?\s+to|future\s+\w+|focus(?:es|ed|ing)?\s+on|avoid\w*|instead)\b
+completed_candidates=10390/10722 example=CDs_and_Vinyl:train:10436:AFDJWBBMXEL6LAK6KA766ZBEVYTA cand=0
+completed_candidates=10400/10722 example=CDs_and_Vinyl:train:10447:AHHFXLERLKXLJ7X6EE7NXINPVYHA cand=0
+periodic_aggregate completed_candidates=10400 aggregated_rows=10400 complete_examples=10400/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=10410/10722 example=CDs_and_Vinyl:train:10460:AELMJKGCR7NNU23KKTMPT2LIDHXQ cand=0
+completed_candidates=10420/10722 example=CDs_and_Vinyl:train:10466:AFW4UALGE5FCA4D7ZNRLDHULXUDA cand=0
+completed_candidates=10430/10722 example=CDs_and_Vinyl:train:10475:AFMC7FQB4TG4ZRSJGWGVMF63XF5A cand=0
+completed_candidates=10440/10722 example=CDs_and_Vinyl:train:10490:AF4UXMKQMNOGBE55D7LGXVZHI6QA cand=0
+completed_candidates=10450/10722 example=CDs_and_Vinyl:train:10487:AFLF75BAPN6GRFMQFI6I6OHJGKIQ cand=0
+completed_candidates=10460/10722 example=CDs_and_Vinyl:train:10505:AF4UXMKQMNOGBE55D7LGXVZHI6QA cand=0
+completed_candidates=10470/10722 example=CDs_and_Vinyl:train:10517:AHVQNQIHFYIAHIGYHYX6FUSRS3HQ cand=0
+completed_candidates=10480/10722 example=CDs_and_Vinyl:train:10528:AHZ5XUEOEH6DQ6XO2E33M7ONNCEA cand=0
+completed_candidates=10490/10722 example=CDs_and_Vinyl:train:10530:AEG4ZBX7QMZLIEBDF5Z3YR3B5GNA cand=0
+completed_candidates=10500/10722 example=CDs_and_Vinyl:train:10539:AFLPIVDNWA35JNKWKEVYM7FFE3ZA cand=0
+periodic_aggregate completed_candidates=10500 aggregated_rows=10500 complete_examples=10500/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=10510/10722 example=CDs_and_Vinyl:train:10558:AEXBD4K5D2TORSFC3BQAQRQQYU6Q cand=0
+completed_candidates=10520/10722 example=CDs_and_Vinyl:train:10570:AHUPHRZ4UNZMRFCNIZRQWQSZCVSQ cand=0
+completed_candidates=10530/10722 example=CDs_and_Vinyl:train:10579:AGHGR53OUG64B26TEGTX63IPWF4A cand=0
+completed_candidates=10540/10722 example=CDs_and_Vinyl:train:10588:AGRCVTGVKU6I4WAR4WJGCAQZM6XA cand=0
+completed_candidates=10550/10722 example=CDs_and_Vinyl:train:10598:AEU5JGP7UH6NJLJQVPE6XAFNYZ6A cand=0
+completed_candidates=10560/10722 example=CDs_and_Vinyl:train:10607:AGK4XSVCNF4FVDWJAUBCDM3HIYLA cand=0
+completed_candidates=10570/10722 example=CDs_and_Vinyl:train:10618:AGCJMWVQGHFKCLEPPGHQEYCPSHUA cand=0
+completed_candidates=10580/10722 example=CDs_and_Vinyl:train:10628:AEL6NWBXVBYUM6OPJGD3ZTGDYHFA cand=0
+completed_candidates=10590/10722 example=CDs_and_Vinyl:train:10639:AGUV2EZUFVUKKAFNRIPLM3MK2HVQ cand=0
+completed_candidates=10600/10722 example=CDs_and_Vinyl:train:10648:AHXVK2ZLSYLBQ3QYDHGQ7EKWLAFA cand=0
+periodic_aggregate completed_candidates=10600 aggregated_rows=10600 complete_examples=10600/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=10610/10722 example=CDs_and_Vinyl:train:10659:AHWSKVLRI3CADYKZHMFSAB4RWSEA cand=0
+completed_candidates=10620/10722 example=CDs_and_Vinyl:train:10664:AFYHXURBG65PEOSGHZD4CIDEJ2TA cand=0
+completed_candidates=10630/10722 example=CDs_and_Vinyl:train:10678:AE3VIGOGWTS3A2R6CCQLJDY2RHSQ cand=0
+completed_candidates=10640/10722 example=CDs_and_Vinyl:train:10684:AEHP5YW5LLWT7WI4SKSHSZMRU7OQ cand=0
+completed_candidates=10650/10722 example=CDs_and_Vinyl:train:10696:AG6HZYAA3MND7JPCDD5EEPAYGUGA cand=0
+completed_candidates=10660/10722 example=CDs_and_Vinyl:train:10708:AEVZZV44ASSELEIYF4T6DWEGPG3Q cand=0
+completed_candidates=10670/10722 example=CDs_and_Vinyl:train:10718:AGW7ZYD42XMSQH2IIXXCM3NCMBLA cand=0
+done completed_candidates=10674 failed_candidates=48 aggregated_rows=10674 complete_examples=10674/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+CDs history 与 external-CoT 严格对齐实验参数：
+ROOT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6 # 项目根目录；运行前必须读取 AGENTS.md。
+VENV=/home/user/.conda/envs/aaai_pro # A100 Conda 环境。
+BASE_MODEL=/home/user/models_hf/Qwen3-Embedding-0.6B # 两组共同的 Qwen3-Embedding-0.6B 初始权重。
+CONFIG_FILE=/home/user/aaai_pro/configs/glm_codeplan.env # GLM API 密钥配置文件；只读取，不输出密钥。
+TRAIN_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/data/rrec_amazon/CDs_and_Vinyl/examples.jsonl # 官方 train split，10722 条。
+VALID_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/valid.jsonl # 官方 valid split，1340 条，只用于选模。
+TEST_SOURCE=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/test.jsonl # 官方 test split，1341 条；方案冻结后评测一次。
+ITEM_INFO=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl # 历史字段、完整 positive 和 12000 个候选物品来源。
+DATA_ROOT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1 # 严格配对数据、CoT raw 和审计文件目录。
+QUERY_FIELDS=title,store,categories # 两组共同的 history 字段。
+HISTORY_MAX_ITEM_CHARS=0 # history item 文本不做字符截断。
+MAX_TARGET_CHARS=0 # positive 目标文本不做字符截断。
+MAX_ITEM_CHARS=0 # 评测候选 item 文本不做字符截断。
+HISTORY_TRAIN=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl # history-only train pair。
+HISTORY_VALID=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/valid.jsonl # history-only valid pair。
+HISTORY_TEST=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl # history-only test pair。
+COT_TRAIN=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/train.jsonl # query 只比 HISTORY_TRAIN 多完整 tagged CoT。
+COT_VALID=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/valid.jsonl # query 只比 HISTORY_VALID 多完整 tagged CoT。
+COT_TEST=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/training/test.jsonl # query 只比 HISTORY_TEST 多完整 tagged CoT。
+API_PROVIDER=glm_codeplan # GLM OpenAI-compatible API provider。
+API_BASE_URL=https://open.bigmodel.cn/api/coding/paas/v4 # GLM API 地址。
+API_MODEL=glm-4.7 # train、valid、test 共用的 external CoT 生成模型。
+API_KEY_CONFIGURED=yes # 只显示密钥是否存在，不打印密钥内容。
+API_THINKING=disabled # 关闭 API 内置 thinking，只读取显式 tagged 输出。
+MAX_GENERATION_RECOVERY_PASSES=20 # 单个 split 缺行时按相同参数执行 resume 的最大恢复轮数。
+COT_OUTPUT_FORMAT=tagged # 生成 <think>/<answer> 规范化 CoT。
+RATING_CONTEXT=no_rating # 所有 split 都按无评分 observed history 生成。
+TEMPERATURE=0.6 # 每条 history 的唯一 CoT 采样温度。
+TOP_P=0.9 # GLM nucleus sampling 参数。
+NUM_CANDIDATES=1 # 每条 history 只生成一条 CoT。
+MAX_OUTPUT_WORDS=1024 # tagged think 与 answer 的总词数上限。
+MAX_NEW_TOKENS=2048 # API 最大输出 token 数。
+RECORD_API_RAW=0 # 默认不保存完整 API raw response。
+HISTORY_OUT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1_history # clean history-only checkpoint 输出。
+COT_OUT=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/checkpoints/rrec_amazon_CDs_and_Vinyl/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1_external_cot # 严格配对 external-CoT checkpoint 输出。
+LOSS=single-positive InfoNCE # 两组每行只把同位置 positive 作为正例。
+MULTI_POSITIVE_TARGETS=0 # 固定为 0，保持 single-positive。
+BATCH_SIZE=128 # 两组共同的单卡 batch size。
+GRAD_ACCUM=1 # 两组共同的梯度累积步数。
+GLOBAL_BATCH_SIZE=128 # 每次更新覆盖的 query 数。
+MAX_LENGTH=4096 # 训练 query 和 positive 的 token 上限；预审计要求超限数为 0。
+EPOCHS=4 # 两组都训练 4 轮。
+LEARNING_RATE=2e-5 # 两组共同的 AdamW 学习率。
+WEIGHT_DECAY=0.01 # 两组共同的权重衰减。
+WARMUP_RATIO=0.03 # 两组共同的 warmup 比例。
+TEMPERATURE_LOSS=0.05 # InfoNCE 相似度温度。
+SAVE_STEPS=83 # 每 83 step 保存一次，约每轮一个 checkpoint。
+SEED=42 # 数据顺序、DataLoader、初始化、训练和评测统一随机种子。
+ATTN_IMPLEMENTATION=flash_attention_2 # 两组共同使用 FlashAttention 2。
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True # 减少长序列显存碎片。
+CUDA_DEVICES=0 # 训练和评测使用的 A100 GPU。
+EVAL_BATCH_SIZE=256 # 两组共同的评测编码 batch size。
+EVAL_MAX_LENGTH=4096 # 评测 token 上限，与训练一致。
+CANDIDATE_ITEMS=12000 # 两组使用相同 item_info 和候选顺序。
+SEEN_ITEM_MASK=1 # 两组排序前屏蔽 history item 和 pad item。
+SELECTION_METRIC=NDCG@20 # 两组分别只按 valid 指标选 checkpoint。
+RUN_TEST=1 # valid 选模并冻结后是否各运行一次 development test。
+RUN_TEST_ALL_CHECKPOINTS=1 # 是否在独立目录对每个 checkpoint 跑 test 诊断；诊断指标不得参与选模。
+RUN_GENERATION=1 # 是否调用 GLM 生成 train、valid、test CoT。
+RUN_TRAIN=1 # 是否训练并评测两组 retriever。
+CONFIRM_RUN=1 # 必须为 1 才执行数据生成、API、训练或评测。
+PRINT_ARGS_ONLY=0 # 为 1 时只打印本参数表。
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl",
+  "rows": 10722,
+  "expected_split": "train",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 7385,
+  "excess_target_rows": 3337,
+  "excess_target_row_rate": 0.31122924827457565,
+  "rows_in_repeated_target_groups": 5053,
+  "repeated_target_group_row_rate": 0.47127401604178326,
+  "targets_with_multiple_rows": 1716,
+  "max_rows_per_target": 41,
+  "duplicate_query_positive_rows": 9,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 1.2209971100445771,
+  "query_chars": {
+    "min": 159,
+    "median": 475.0,
+    "p95": 2797,
+    "max": 4789
+  },
+  "positive_chars": {
+    "min": 69,
+    "median": 433.0,
+    "p95": 1357,
+    "max": 10508
+  }
+}
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/valid.jsonl",
+  "rows": 1340,
+  "expected_split": "valid",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 1217,
+  "excess_target_rows": 123,
+  "excess_target_row_rate": 0.09179104477611941,
+  "rows_in_repeated_target_groups": 213,
+  "repeated_target_group_row_rate": 0.15895522388059702,
+  "targets_with_multiple_rows": 90,
+  "max_rows_per_target": 8,
+  "duplicate_query_positive_rows": 0,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 1.7032804610257153,
+  "query_chars": {
+    "min": 168,
+    "median": 547.5,
+    "p95": 2749,
+    "max": 5089
+  },
+  "positive_chars": {
+    "min": 81,
+    "median": 426.5,
+    "p95": 1441,
+    "max": 4920
+  }
+}
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl",
+  "rows": 1341,
+  "expected_split": "test",
+  "expected_query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "forbid_cot_tags": true,
+  "failures": {},
+  "unique_targets": 1228,
+  "excess_target_rows": 113,
+  "excess_target_row_rate": 0.0842654735272185,
+  "rows_in_repeated_target_groups": 193,
+  "repeated_target_group_row_rate": 0.14392244593586875,
+  "targets_with_multiple_rows": 80,
+  "max_rows_per_target": 20,
+  "duplicate_query_positive_rows": 0,
+  "batch_size": 128,
+  "expected_same_target_pairs_per_batch": 2.7772724743174506,
+  "query_chars": {
+    "min": 168,
+    "median": 515,
+    "p95": 2504,
+    "max": 3431
+  },
+  "positive_chars": {
+    "min": 76,
+    "median": 408,
+    "p95": 1381,
+    "max": 5102
+  }
+}
+train CoT 生成或恢复轮次 1/20。
+loaded_examples=10722 existing_candidates=10674 sorted_checkpoint_candidates=10674 pending_candidates=48 checkpoint=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.candidates.jsonl output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1/48 example=CDs_and_Vinyl:train:948:AFOH6AAA4FDSGCJX6OPBF6TD3VNQ cand=0
+completed_candidates=10/48 example=CDs_and_Vinyl:train:3551:AFM4DQKDBHZZWZXXRDIZPZ5AAO4Q cand=0
+failed example=CDs_and_Vinyl:train:1985:AGE2E7EX5IWB4OLKC65WCPZPDBBQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+failed example=CDs_and_Vinyl:train:3030:AHROOHTPWDC3MEYI7PORGBHKIUKQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=20/48 example=CDs_and_Vinyl:train:5314:AH4FUINZLDJWGM3H2LO6Y3UQGTRQ cand=0
+failed example=CDs_and_Vinyl:train:7785:AH2ENAH2MUCHWBSJHZIP6GGXB4GA cand=0: RuntimeError: API failed after retries: HTTPError 400: {"contentFilter":[{"level":1,"role":"assistant"}],"error":{"code":"1301","message":"系统检测到输入或生成内容可能包含不安全或敏感内容，请您避免输入易产生敏感内容的提示语，感谢您的配合。"}}
+failed example=CDs_and_Vinyl:train:6465:AEZH24HENPUFVGMNGMUHVUYOBGVA cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=30/48 example=CDs_and_Vinyl:train:8425:AEEVOHN4KXRUL3JNA6445FDNK7XA cand=0
+completed_candidates=40/48 example=CDs_and_Vinyl:train:10246:AEXX3T7PIHUXWBM5WKLTLZ3235SA cand=0
+failed example=CDs_and_Vinyl:train:10132:AHEOAAUTKNREC3VKGAM2ETR4I7TQ cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+done completed_candidates=43 failed_candidates=5 aggregated_rows=10717 complete_examples=10717/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+train CoT 本轮生成器状态码为 2；检查完整行数后按原参数决定是否 resume。
+train CoT 完整性：10717/10722。
+train CoT 生成或恢复轮次 2/20。
+loaded_examples=10722 existing_candidates=10717 sorted_checkpoint_candidates=10717 pending_candidates=5 checkpoint=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.candidates.jsonl output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1/5 example=CDs_and_Vinyl:train:6465:AEZH24HENPUFVGMNGMUHVUYOBGVA cand=0
+failed example=CDs_and_Vinyl:train:3030:AHROOHTPWDC3MEYI7PORGBHKIUKQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+failed example=CDs_and_Vinyl:train:10132:AHEOAAUTKNREC3VKGAM2ETR4I7TQ cand=0: RuntimeError: API failed after retries: API analysis contains no-rating banned wording pattern: \b(?:rating\w*|rated|feedback|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|customer\w*|catalog\w*|avg_rating|rating_count)\b
+done completed_candidates=3 failed_candidates=2 aggregated_rows=10720 complete_examples=10720/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+train CoT 本轮生成器状态码为 2；检查完整行数后按原参数决定是否 resume。
+train CoT 完整性：10720/10722。
+train CoT 生成或恢复轮次 3/20。
+loaded_examples=10722 existing_candidates=10720 sorted_checkpoint_candidates=10720 pending_candidates=2 checkpoint=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.candidates.jsonl output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+completed_candidates=1/2 example=CDs_and_Vinyl:train:10132:AHEOAAUTKNREC3VKGAM2ETR4I7TQ cand=0
+done completed_candidates=2 failed_candidates=0 aggregated_rows=10722 complete_examples=10722/10722 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl
+train CoT 完整性：10722/10722。
+valid CoT 生成或恢复轮次 1/20。
+loaded_examples=1340 existing_candidates=0 sorted_checkpoint_candidates=0 pending_candidates=1340 checkpoint=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.candidates.jsonl output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.jsonl
+completed_candidates=1/1340 example=CDs_and_Vinyl:valid:10722:AGXWN4PAQRYVBBAI7J63QGEDX4WQ cand=0
+completed_candidates=10/1340 example=CDs_and_Vinyl:valid:10731:AFE6ZHP4G3R2IQIN4SMKSJWGJKZQ cand=0
+completed_candidates=20/1340 example=CDs_and_Vinyl:valid:10743:AF5KTUV7FPX3UVLQVDAO6A6W6ZFA cand=0
+completed_candidates=30/1340 example=CDs_and_Vinyl:valid:10752:AEFBBG45GOEKZEH52KN3K236UH4Q cand=0
+completed_candidates=40/1340 example=CDs_and_Vinyl:valid:10763:AGE5K2THKGILZK3LGZ6AWPG4IVEQ cand=0
+completed_candidates=50/1340 example=CDs_and_Vinyl:valid:10772:AH2GM5DDEKJLYPXLW3NAWNY2YXTQ cand=0
+completed_candidates=60/1340 example=CDs_and_Vinyl:valid:10784:AFYVQXPNPMLQ5SNLHMACVY25KS2A cand=0
+completed_candidates=70/1340 example=CDs_and_Vinyl:valid:10794:AFXJFQS5ETJWNNCIR6J477B7RFSA cand=0
+completed_candidates=80/1340 example=CDs_and_Vinyl:valid:10777:AHM2IZMP7C54G4LAAECH7J4P4GCQ cand=0
+completed_candidates=90/1340 example=CDs_and_Vinyl:valid:10812:AFCCCDA4VDBDCGLQ544OXHBMLQQQ cand=0
+completed_candidates=100/1340 example=CDs_and_Vinyl:valid:10821:AFO3PQZNB7VDGCJTNBSGDVML7LSQ cand=0
+periodic_aggregate completed_candidates=100 aggregated_rows=100 complete_examples=100/1340 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.jsonl
+completed_candidates=110/1340 example=CDs_and_Vinyl:valid:10831:AFMIMMSB5ULQQWSNFYI7ETUZEPQQ cand=0
+completed_candidates=120/1340 example=CDs_and_Vinyl:valid:10839:AEZAMUJUOENDECX2D7RME4PZVHQA cand=0
+completed_candidates=130/1340 example=CDs_and_Vinyl:valid:10853:AFJ2SIQEYDDEKETTUDCO5VNONAVA cand=0
+completed_candidates=140/1340 example=CDs_and_Vinyl:valid:10863:AG23W5SN5G4MDVFNEULOCQ2REUQA cand=0
+completed_candidates=150/1340 example=CDs_and_Vinyl:valid:10872:AGKUW63O2WVYHXMVZ4M3WUCJ77FA cand=0
+completed_candidates=160/1340 example=CDs_and_Vinyl:valid:10884:AGA2N5BC45WF7LP3PMBZQOKYMKXA cand=0
+completed_candidates=170/1340 example=CDs_and_Vinyl:valid:10891:AEFYE7D7C75VZNIJUXD2FYG5XKNQ cand=0
+completed_candidates=180/1340 example=CDs_and_Vinyl:valid:10903:AFQTEXUQ6IBFAMIVIUD6KFBGPWJA cand=0
+completed_candidates=190/1340 example=CDs_and_Vinyl:valid:10913:AEKCCLDCY6UOYGO45IWJ624SCXAQ cand=0
+completed_candidates=200/1340 example=CDs_and_Vinyl:valid:10923:AFL6IKM75KNYY4ZCMZI2GWUN64ZA cand=0
+periodic_aggregate completed_candidates=200 aggregated_rows=200 complete_examples=200/1340 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.jsonl
+completed_candidates=210/1340 example=CDs_and_Vinyl:valid:10932:AH5UL2ASGBS3RWF3W5DOMGUERTYA cand=0
+completed_candidates=220/1340 example=CDs_and_Vinyl:valid:10941:AEIGEPALZDK3AEMWB7UZM6NTPTJA cand=0
+completed_candidates=230/1340 example=CDs_and_Vinyl:valid:10918:AFXZPULIY2Y4QXO3CBMWHOKQEO2A cand=0
+completed_candidates=240/1340 example=CDs_and_Vinyl:valid:10962:AFV7F2MWLJ2AXE5RHG27PA4BC6TA cand=0
+completed_candidates=250/1340 example=CDs_and_Vinyl:valid:10972:AFI4E5Y5EM4L462QE2PDRQLGE4PA cand=0
+completed_candidates=260/1340 example=CDs_and_Vinyl:valid:10984:AEH357KCNXCGRDHSPFFA4BDV6R2Q cand=0
+completed_candidates=270/1340 example=CDs_and_Vinyl:valid:10983:AEH357KCNXCGRDHSPFFA4BDV6R2Q cand=0
+completed_candidates=280/1340 example=CDs_and_Vinyl:valid:11002:AHJXAVDLMYXFTBXM7WBNJD3PVTRQ cand=0
+completed_candidates=290/1340 example=CDs_and_Vinyl:valid:11009:AGBLCT2ULK6TJ26UI52BEEA4OGQA cand=0
+completed_candidates=300/1340 example=CDs_and_Vinyl:valid:11021:AGCKLDJYSCFBAQSYRTGZFFCHIL6A cand=0
+periodic_aggregate completed_candidates=300 aggregated_rows=300 complete_examples=300/1340 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.jsonl
+completed_candidates=310/1340 example=CDs_and_Vinyl:valid:11031:AHRKGXV5X7OBUNVZOC3TDT2NISCA cand=0
+completed_candidates=320/1340 example=CDs_and_Vinyl:valid:11042:AFEN7G6GQJPNLR2IM6NUYVWJPPPQ cand=0
+completed_candidates=330/1340 example=CDs_and_Vinyl:valid:11052:AGFEBCIQJGYUOH7AXNP6Y4MUFVQQ cand=0
+failed example=CDs_and_Vinyl:valid:11050:AFI4E5Y5EM4L462QE2PDRQLGE4PA cand=0: RuntimeError: API failed after retries: API answer contains banned wording pattern: \b(?:rating\w*|review\w*|critic\w*|acclaim\w*|award\w*|popular\w*|popularity|best[- ]selling|customer\w*|catalog\w*|avg_rating|rating_count)\b
+completed_candidates=340/1340 example=CDs_and_Vinyl:valid:11062:AGFEBCIQJGYUOH7AXNP6Y4MUFVQQ cand=0
+completed_candidates=350/1340 example=CDs_and_Vinyl:valid:11073:AGFEBCIQJGYUOH7AXNP6Y4MUFVQQ cand=0
+completed_candidates=360/1340 example=CDs_and_Vinyl:valid:11083:AGNAZ3T4ANUPRUKOFK5H6IPU64VQ cand=0
+completed_candidates=370/1340 example=CDs_and_Vinyl:valid:11095:AHE2EIXF6OKBJHZ2TBXKEBCLOLGA cand=0
+completed_candidates=380/1340 example=CDs_and_Vinyl:valid:11104:AE4WPQGVUGR6DRA2P4IA2EWGHB5Q cand=0
+completed_candidates=390/1340 example=CDs_and_Vinyl:valid:11114:AHBS66JQJBNYM5MJKCBXX54VZ7QA cand=0
+completed_candidates=400/1340 example=CDs_and_Vinyl:valid:11124:AHPOCERGSCUEC3LGILJ76BNPGOSQ cand=0
+periodic_aggregate completed_candidates=400 aggregated_rows=400 complete_examples=400/1340 output=/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/valid_glm47_tagged.jsonl
+completed_candidates=410/1340 example=CDs_and_Vinyl:valid:11131:AFHHWQOBSJ5TVNOVF4YF2X3IRD4Q cand=0
+completed_candidates=420/1340 example=CDs_and_Vinyl:valid:11143:AFWENW37WRNNKCMSSUUDWXNRNKWA cand=0

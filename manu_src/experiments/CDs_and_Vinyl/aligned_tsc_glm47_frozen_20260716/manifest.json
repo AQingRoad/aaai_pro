@@ -1,0 +1,76 @@
+{
+  "name": "aligned_tsc_glm47_frozen_20260716",
+  "dataset": "CDs_and_Vinyl",
+  "run_id": "cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1",
+  "remote_root": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6",
+  "code_commit_at_build": "42ce0a6acfd3cec8e97cde7f60780931a74967d1",
+  "frozen_reason": "用户要求停止继续生成并整理已有资料",
+  "seed": 42,
+  "prompt": {
+    "snapshot": "../prompt_versions_20260716/code_snapshot/rubric_cot_pipeline/prompts.py",
+    "system": "COT_SYSTEM",
+    "user_builder": "build_history_analysis_prompt",
+    "output_format": "tagged",
+    "rating_context": "no_rating",
+    "prompt_fields": [
+      "category",
+      "user_history"
+    ],
+    "target_fields_rendered": []
+  },
+  "generation": {
+    "model": "glm-4.7",
+    "thinking": "disabled",
+    "temperature": 0.6,
+    "top_p": 0.9,
+    "num_candidates": 1,
+    "max_output_words": 1024,
+    "max_new_tokens": 2048
+  },
+  "raw_files": {
+    "train_candidates": {
+      "rows": 10722,
+      "sha256": "80c70cf943c247f00dab058f9c551de7bae2f60f760e6b0cfee75affc5d402b4"
+    },
+    "train_aggregate": {
+      "rows": 10722,
+      "sha256": "536141e9042e54aeb86b965cddf91ca6f0522ffeed83d4d034a990204f6b55fb"
+    },
+    "train_failures": {
+      "rows": 55,
+      "sha256": "0df90ecac5f65c73bd59b12ee8ec0dffab548cedea64b0a3d5d007948ed95527",
+      "notes": "累计重试记录；最终 train 10722 条均已完成"
+    },
+    "valid_candidates": {
+      "rows": 425,
+      "sha256": "b461bfda6573dc2791f035fae7c082f05b1671bfcc96334c6a83563f99f8206f"
+    },
+    "valid_aggregate": {
+      "rows": 400,
+      "sha256": "f95f48a8c9898b9418a5a1ec5618c6e184d17873090ddf97b2596e0c83d95eed",
+      "notes": "聚合每 100 条刷新；停止时 candidates 已到 425 条"
+    },
+    "valid_failures": {
+      "rows": 1,
+      "sha256": "16e0f1fa26e54b6be8950e65318924e8111108aaf4f3ec9072602e25d2af21b0"
+    },
+    "test": {
+      "rows": 0,
+      "notes": "未开始生成"
+    }
+  },
+  "downstream_state": {
+    "cot_embedding_pairs_built": false,
+    "external_cot_checkpoint_trained": false,
+    "external_cot_valid_evaluated": false,
+    "external_cot_test_evaluated": false
+  },
+  "history_branch": {
+    "selected_checkpoint": 249,
+    "selection_metric": "valid NDCG@20",
+    "official_test_ndcg_at_20": 0.1185478669,
+    "official_test_hr_at_20": 0.2281879195,
+    "weight_archived_in_manu_src": false,
+    "weight_sha256_file": "history_checkpoint_metadata/model.safetensors.sha256"
+  }
+}

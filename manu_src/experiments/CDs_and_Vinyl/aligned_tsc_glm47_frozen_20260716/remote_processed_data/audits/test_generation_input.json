@@ -1,0 +1,24 @@
+{
+  "input": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/test.jsonl",
+  "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot_generation_inputs/test.jsonl",
+  "expected_split": "test",
+  "rows": 1341,
+  "unique_example_ids": 1341,
+  "prompt_content_fields": [
+    "user_history",
+    "category"
+  ],
+  "target_fields_rendered_in_prompt": [],
+  "matching_keys_not_rendered_in_prompt": [
+    "target_item_id"
+  ],
+  "query_fields": [
+    "title",
+    "store",
+    "categories"
+  ],
+  "history_include_ratings": false,
+  "history_include_catalog_stats": false,
+  "history_max_item_chars": 0,
+  "failures": {}
+}

@@ -1,0 +1,37 @@
+{
+  "dataset": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/history/train.jsonl",
+  "tokenizer": "/home/user/models_hf/Qwen3-Embedding-0.6B",
+  "rows": 10722,
+  "max_length": 4096,
+  "query_includes_instruction": true,
+  "query_tokens": {
+    "min": 64,
+    "median": 145.0,
+    "p95": 757,
+    "p99": 830,
+    "max": 1330,
+    "over_limit": 0,
+    "at_limit": 0
+  },
+  "positive_tokens": {
+    "min": 17,
+    "median": 102.0,
+    "p95": 318,
+    "p99": 538,
+    "max": 2427,
+    "over_limit": 0,
+    "at_limit": 0
+  },
+  "item_info": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/github_artifacts/CDs_and_Vinyl/rrec_eval/item_info.jsonl",
+  "candidate_items": 12000,
+  "candidate_item_tokens": {
+    "min": 17,
+    "median": 95.0,
+    "p95": 324,
+    "p99": 534,
+    "max": 2461,
+    "over_limit": 0,
+    "at_limit": 0
+  },
+  "safe_without_token_truncation": true
+}

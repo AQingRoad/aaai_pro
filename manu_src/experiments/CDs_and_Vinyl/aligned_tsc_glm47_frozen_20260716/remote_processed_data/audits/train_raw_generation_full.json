@@ -1,0 +1,23 @@
+{
+  "input": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot_generation_inputs/train.jsonl",
+  "output": "/home/user/aaai_pro_runs/aligned_tsc_glm47_42ce0a6/ablantion/datas/processed_datas/cds_aligned_tsc_glm47_singlepos_lr2e5_ep4_seed42_v1/cot/api/train_glm47_tagged.jsonl",
+  "input_sha256": "02aad2d0e3bb215a2b53c9fc70d9b0adf203efd2e08eb45069343e4a99a3be10",
+  "output_sha256": "536141e9042e54aeb86b965cddf91ca6f0522ffeed83d4d034a990204f6b55fb",
+  "input_rows": 10722,
+  "output_rows": 10722,
+  "unique_example_ids": 10722,
+  "unique_cots": 10722,
+  "generator_models": {
+    "glm-4.7": 10722
+  },
+  "generation_modes": {
+    "api": 10722
+  },
+  "prompt_contract": [
+    "category",
+    "user_history"
+  ],
+  "target_fields_in_prompt_contract": false,
+  "failures": {},
+  "clean": true
+}

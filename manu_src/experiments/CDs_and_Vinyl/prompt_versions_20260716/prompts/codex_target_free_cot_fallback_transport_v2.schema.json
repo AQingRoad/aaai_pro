@@ -9,10 +9,9 @@
         "type": "object",
         "properties": {
           "slot": {"type": "integer", "minimum": 0},
-          "analysis": {"type": "string", "minLength": 1},
-          "answer": {"type": "string", "minLength": 1}
+          "cot": {"type": "string", "minLength": 1}
         },
-        "required": ["slot", "analysis", "answer"],
+        "required": ["slot", "cot"],
         "additionalProperties": false
       }
     }
@@ -20,4 +19,3 @@
   "required": ["results"],
   "additionalProperties": false
 }
-
