@@ -98,6 +98,7 @@ EVAL_DEVICE=${EVAL_DEVICE:-cuda:0}
 SELECTION_METRIC=${SELECTION_METRIC:-NDCG@20}
 KS=${KS:-5,10,20}
 RUN_TEST=${RUN_TEST:-1}
+RUN_TEST_ALL_CHECKPOINTS=${RUN_TEST_ALL_CHECKPOINTS:-1}
 
 FORCE_DATA=${FORCE_DATA:-0}
 FORCE_GENERATION=${FORCE_GENERATION:-0}
@@ -199,6 +200,7 @@ print_plan() {
   print_param SEEN_ITEM_MASK 1 "两组排序前屏蔽 history item 和 pad item。"
   print_param SELECTION_METRIC "$SELECTION_METRIC" "两组分别只按 valid 指标选 checkpoint。"
   print_param RUN_TEST "$RUN_TEST" "valid 选模并冻结后是否各运行一次 development test。"
+  print_param RUN_TEST_ALL_CHECKPOINTS "$RUN_TEST_ALL_CHECKPOINTS" "是否在独立目录对每个 checkpoint 跑 test 诊断；诊断指标不得参与选模。"
   print_param RUN_GENERATION "$RUN_GENERATION" "是否调用 GLM 生成 train、valid、test CoT。"
   print_param RUN_TRAIN "$RUN_TRAIN" "是否训练并评测两组 retriever。"
   print_param CONFIRM_RUN "$CONFIRM_RUN" "必须为 1 才执行数据生成、API、训练或评测。"
@@ -257,30 +259,36 @@ generate_cot_split() {
   expected_rows=$(wc -l < "$input")
   for ((pass = 1; pass <= MAX_GENERATION_RECOVERY_PASSES; pass++)); do
     echo "$split CoT 生成或恢复轮次 $pass/$MAX_GENERATION_RECOVERY_PASSES。"
-    "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
-      --input "$input" \
-      --output "$output" \
-      --num-candidates "$NUM_CANDIDATES" \
-      --temperatures "$TEMPERATURE" \
-      --max-workers "$API_MAX_WORKERS" \
-      --aggregate-every 100 \
-      --resume \
-      --api-provider "$API_PROVIDER" \
-      --api-base-url "$API_BASE_URL" \
-      --api-model "$API_MODEL" \
-      --api-timeout "$API_TIMEOUT" \
-      --api-max-retries "$API_MAX_RETRIES" \
-      --api-min-interval "$API_MIN_INTERVAL" \
-      --api-thinking "$API_THINKING" \
-      --cot-output-format "$COT_OUTPUT_FORMAT" \
-      --max-output-words "$MAX_OUTPUT_WORDS" \
-      --rating-context "$RATING_CONTEXT" \
-      --require-literal-tags \
-      --max-new-tokens "$MAX_NEW_TOKENS" \
-      --max-prompt-tokens 0 \
-      --top-p "$TOP_P" \
-      --seed "$SEED" \
-      "$raw_arg"
+    local generation_status=0
+    if "$PYTHON_BIN" scripts/cot/generate_cot_candidate_lists.py \
+        --input "$input" \
+        --output "$output" \
+        --num-candidates "$NUM_CANDIDATES" \
+        --temperatures "$TEMPERATURE" \
+        --max-workers "$API_MAX_WORKERS" \
+        --aggregate-every 100 \
+        --resume \
+        --api-provider "$API_PROVIDER" \
+        --api-base-url "$API_BASE_URL" \
+        --api-model "$API_MODEL" \
+        --api-timeout "$API_TIMEOUT" \
+        --api-max-retries "$API_MAX_RETRIES" \
+        --api-min-interval "$API_MIN_INTERVAL" \
+        --api-thinking "$API_THINKING" \
+        --cot-output-format "$COT_OUTPUT_FORMAT" \
+        --max-output-words "$MAX_OUTPUT_WORDS" \
+        --rating-context "$RATING_CONTEXT" \
+        --require-literal-tags \
+        --max-new-tokens "$MAX_NEW_TOKENS" \
+        --max-prompt-tokens 0 \
+        --top-p "$TOP_P" \
+        --seed "$SEED" \
+        "$raw_arg"; then
+      generation_status=0
+    else
+      generation_status=$?
+      echo "$split CoT 本轮生成器状态码为 $generation_status；检查完整行数后按原参数决定是否 resume。"
+    fi
     output_rows=0
     if [[ -s "$output" ]]; then
       output_rows=$(wc -l < "$output")
@@ -479,6 +487,11 @@ main() {
   if enabled "$RUN_TEST"; then
     eval_selected_test "$HISTORY_TEST" "$HISTORY_BEST" "$HISTORY_EVAL"
     eval_selected_test "$COT_TEST" "$COT_BEST" "$COT_EVAL"
+  fi
+  if enabled "$RUN_TEST_ALL_CHECKPOINTS"; then
+    echo "开始全 checkpoint test 诊断；该目录不参与 checkpoint 选择。"
+    run_eval test "$HISTORY_TEST" "$HISTORY_OUT" "$HISTORY_EVAL/test_all_checkpoints"
+    run_eval test "$COT_TEST" "$COT_OUT" "$COT_EVAL/test_all_checkpoints"
   fi
   echo "严格对齐实验完成。结果目录: $REPORT_DIR"
 }
