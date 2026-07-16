@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""用 query-positive pair 微调 Qwen3 Embedding，保存每轮模型并在末轮后测试。"""
+"""用 query-positive pair 微调 Qwen3 Embedding，支持整段 CoT 随机遮蔽。"""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ QUERY_INSTRUCTION = (
     "retrieve items the user is likely to prefer next."
 )
 QUERY_TRUNCATION = "drop_oldest_item_description_then_details_then_item"
+COT_SEPARATOR = "\n\nRecommendation reasoning:\n"
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -29,22 +30,30 @@ def read_jsonl(path: Path) -> list[dict]:
 
 
 class PairDataset(Dataset):
-    """只保留 embedding 训练需要的 query、positive 和 target_item_id。"""
+    """保留 embedding 训练所需字段，并验证可选的 history/CoT 结构。"""
 
     def __init__(self, path: Path, expected_split: str):
         source_rows = read_jsonl(path)
         self.rows = []
         for line_number, row in enumerate(source_rows, 1):
             query = str(row.get("query") or "").strip()
+            history = str(row.get("history") or "").strip()
+            cot = str(row.get("cot") or "").strip()
             positive = str(row.get("positive") or "").strip()
             target_item_id = row.get("target_item_id")
             if not query or not positive or target_item_id is None:
                 raise ValueError(f"{path} 第 {line_number} 行缺少 query、positive 或 target_item_id")
             if row.get("split") != expected_split:
                 raise ValueError(f"{path} 第 {line_number} 行 split={row.get('split')!r}，预期 {expected_split!r}")
+            if bool(history) != bool(cot):
+                raise ValueError(f"{path} 第 {line_number} 行 history 与 cot 必须同时存在或同时缺失")
+            if history and query != append_recommendation_reasoning(history, cot):
+                raise ValueError(f"{path} 第 {line_number} 行 query 不等于 history + 完整 CoT")
             self.rows.append(
                 {
                     "query": query,
+                    "history": history,
+                    "cot": cot,
                     "positive": positive,
                     "target_item_id": int(target_item_id),
                     "example_id": str(row.get("example_id") or ""),
@@ -62,6 +71,8 @@ def collate(rows: list[dict]) -> dict:
     """保留原始字符串，tokenize 放到训练设备侧执行。"""
     return {
         "queries": [row["query"] for row in rows],
+        "histories": [row["history"] for row in rows],
+        "cots": [row["cot"] for row in rows],
         "positives": [row["positive"] for row in rows],
         "target_item_ids": [row["target_item_id"] for row in rows],
     }
@@ -70,6 +81,13 @@ def collate(rows: list[dict]) -> dict:
 def format_query(query: str) -> str:
     """加入与 Qwen3 Embedding 训练和评测一致的 query instruction。"""
     return f"Instruct: {QUERY_INSTRUCTION}\nQuery: {query}"
+
+
+def append_recommendation_reasoning(history: str, cot: str) -> str:
+    """按项目统一分隔符拼接 history 和完整 CoT。"""
+    history = str(history or "").strip()
+    cot = str(cot or "").strip()
+    return history if not cot else f"{history}{COT_SEPARATOR}{cot}"
 
 
 def _remove_item_field(item_line: str, field: str) -> tuple[str, bool]:
@@ -106,7 +124,16 @@ def truncate_query_by_oldest_item_fields(
     prefix = f"Instruct: {QUERY_INSTRUCTION}\nQuery: "
     if not text.startswith(prefix):
         raise ValueError("query 缺少统一 instruction 前缀")
-    history_lines = text[len(prefix) :].splitlines()
+    body = text[len(prefix) :]
+    if body.count(COT_SEPARATOR) > 1:
+        raise ValueError("query 含多个 Recommendation reasoning 分隔符")
+    if COT_SEPARATOR in body:
+        history_text, cot_text = body.split(COT_SEPARATOR, 1)
+        fixed_suffix = COT_SEPARATOR + cot_text
+    else:
+        history_text = body
+        fixed_suffix = ""
+    history_lines = history_text.splitlines()
     if len(history_lines) < 2:
         raise ValueError("超长 query 缺少可裁剪的历史物品")
     header = history_lines[0]
@@ -114,7 +141,7 @@ def truncate_query_by_oldest_item_fields(
 
     def rebuild() -> str:
         body = "\n".join([header, *item_lines])
-        return prefix + body
+        return prefix + body + fixed_suffix
 
     while item_lines:
         item_lines[0], removed = _remove_item_field(item_lines[0], "Description")
@@ -138,6 +165,24 @@ def truncate_query_by_oldest_item_fields(
             return candidate, stats
 
     raise ValueError("删除全部历史物品后 query 仍超过 max_length")
+
+
+def choose_training_queries(
+    batch: dict,
+    cot_mask_prob: float,
+    generator: torch.Generator,
+) -> tuple[list[str], int]:
+    """按样本随机删除完整 CoT 块；history 内容保持不变。"""
+    if cot_mask_prob <= 0:
+        return list(batch["queries"]), 0
+    if any(not history or not cot for history, cot in zip(batch["histories"], batch["cots"])):
+        raise ValueError("cot-mask-prob > 0 时，训练数据每行都必须含 history 和 cot")
+    mask = torch.rand(len(batch["queries"]), generator=generator).lt(cot_mask_prob).tolist()
+    queries = [
+        history if masked else query
+        for query, history, masked in zip(batch["queries"], batch["histories"], mask)
+    ]
+    return queries, sum(bool(value) for value in mask)
 
 
 def last_token_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -313,7 +358,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="微调 Qwen3 Embedding 检索模型。")
     parser.add_argument("--model", default="/home/user/models_hf/Qwen3-Embedding-0.6B")
     parser.add_argument("--train-file", type=Path, required=True)
-    parser.add_argument("--test-file", type=Path, required=True)
+    parser.add_argument("--test-file", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-length", type=int, default=4096)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -325,12 +370,18 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--attn-implementation", default="flash_attention_2")
+    parser.add_argument("--cot-mask-prob", type=float, default=0.0)
+    parser.add_argument("--skip-test-eval", action="store_true")
     args = parser.parse_args()
 
     if args.seed != 42:
         parser.error("项目随机种子固定为 42")
     if args.batch_size < 1 or args.grad_accum < 1 or args.epochs < 1:
         parser.error("batch-size、grad-accum 和 epochs 必须大于 0")
+    if not 0.0 <= args.cot_mask_prob <= 1.0:
+        parser.error("cot-mask-prob 必须位于 [0, 1]")
+    if not args.skip_test_eval and args.test_file is None:
+        parser.error("未设置 --skip-test-eval 时必须提供 --test-file")
     if not torch.cuda.is_available():
         parser.error("该训练脚本要求 CUDA GPU")
 
@@ -339,7 +390,9 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset = PairDataset(args.train_file, expected_split="train")
-    test_dataset = PairDataset(args.test_file, expected_split="test")
+    test_dataset = None if args.skip_test_eval else PairDataset(args.test_file, expected_split="test")
+    if args.cot_mask_prob > 0 and any(not row["cot"] for row in train_dataset.rows):
+        parser.error("cot-mask-prob > 0 时训练数据必须提供结构化 history 和 cot")
     tokenizer = AutoTokenizer.from_pretrained(
         args.model,
         trust_remote_code=True,
@@ -385,7 +438,7 @@ def main() -> None:
     run_config = {
         **vars(args),
         "train_rows": len(train_dataset),
-        "test_rows": len(test_dataset),
+        "test_rows": 0 if test_dataset is None else len(test_dataset),
         "global_batch_size": args.batch_size * args.grad_accum,
         "updates_per_epoch": updates_per_epoch,
         "total_updates": total_updates,
@@ -394,7 +447,7 @@ def main() -> None:
         "token_audit": audits,
     }
     run_config["train_file"] = str(args.train_file)
-    run_config["test_file"] = str(args.test_file)
+    run_config["test_file"] = "" if args.test_file is None else str(args.test_file)
     run_config["output_dir"] = str(args.output_dir)
     (args.output_dir / "run_config.json").write_text(
         json.dumps(run_config, ensure_ascii=False, indent=2) + "\n",
@@ -409,12 +462,18 @@ def main() -> None:
         epoch_loss = 0.0
         epoch_accuracy = 0.0
         epoch_examples = 0
+        epoch_cot_masked = 0
+        mask_generator = torch.Generator().manual_seed(args.seed + epoch)
 
         for batch_index, batch in enumerate(train_loader):
             # 最后一个累积组不足 grad_accum 时，按实际组大小缩放 loss。
             group_start = (batch_index // args.grad_accum) * args.grad_accum
             group_size = min(args.grad_accum, len(train_loader) - group_start)
-            query_texts = [format_query(text) for text in batch["queries"]]
+            selected_queries, masked_count = choose_training_queries(
+                batch, args.cot_mask_prob, mask_generator
+            )
+            epoch_cot_masked += masked_count
+            query_texts = [format_query(text) for text in selected_queries]
             target_ids = torch.tensor(batch["target_item_ids"], dtype=torch.long, device=device)
 
             query_embeddings = encode(
@@ -450,6 +509,8 @@ def main() -> None:
             "train_loss": epoch_loss / epoch_examples,
             "train_batch_accuracy": epoch_accuracy / epoch_examples,
             "learning_rate": scheduler.get_last_lr()[0],
+            "cot_masked_examples": epoch_cot_masked,
+            "cot_mask_rate": epoch_cot_masked / epoch_examples,
         }
         print(json.dumps(train_metrics, ensure_ascii=False), flush=True)
         with metrics_path.open("a", encoding="utf-8") as file:
@@ -457,6 +518,11 @@ def main() -> None:
 
         save_checkpoint(model, tokenizer, args.output_dir, f"checkpoint-epoch-{epoch:02d}")
 
+    if args.skip_test_eval:
+        print(json.dumps({"test_eval_skipped": True}, ensure_ascii=False), flush=True)
+        return
+
+    assert test_dataset is not None
     # 所有 epoch 完成后才审计并读取测试集，不用测试指标选择 checkpoint。
     test_audit = token_length_audit(tokenizer, test_dataset, args.max_length, "test")
     audits.append(test_audit)
