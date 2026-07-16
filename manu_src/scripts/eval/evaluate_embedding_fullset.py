@@ -19,7 +19,6 @@ sys.path.insert(0, str(SCRIPTS_DIR / "models"))
 sys.path.insert(0, str(SCRIPTS_DIR / "pre_datas"))
 
 from format_positive import format_positive  # noqa: E402
-from fit_embedding_query import fit_embedding_query  # noqa: E402
 from train_embedding import encode, format_query, read_jsonl  # noqa: E402
 
 
@@ -62,38 +61,23 @@ def load_candidates(path: Path) -> tuple[list[int], list[str]]:
     return item_ids, item_texts
 
 
-def token_lengths(
-    tokenizer,
-    texts: list[str],
-    *,
-    add_special_tokens: bool,
-) -> list[int]:
-    """按实际编码口径分批统计 token 长度。"""
+def token_length_audit(tokenizer, texts: list[str], max_length: int, name: str) -> dict:
+    """记录原始 token 长度；候选物品超限时停止评测。"""
     lengths = []
     for start in range(0, len(texts), 256):
-        encoded = tokenizer(
-            texts[start : start + 256],
-            truncation=False,
-            padding=False,
-            add_special_tokens=add_special_tokens,
-        )["input_ids"]
+        encoded = tokenizer(texts[start : start + 256], truncation=False, padding=False)[
+            "input_ids"
+        ]
         lengths.extend(len(ids) for ids in encoded)
-    return lengths
-
-
-def token_length_audit(
-    lengths: list[int], max_length: int, name: str
-) -> dict:
-    """汇总 token 长度；候选物品或压缩后的 query 超限时停止评测。"""
     audit = {
         "name": name,
-        "count": len(lengths),
+        "count": len(texts),
         "max_tokens": max(lengths),
         "over_limit": sum(length > max_length for length in lengths),
         "max_length": max_length,
     }
-    if name in {"items", "queries"} and audit["over_limit"]:
-        raise ValueError(f"{name} 超过 max_length，禁止 token 级硬截断：{audit}")
+    if name == "items" and audit["over_limit"]:
+        raise ValueError(f"候选物品文本超过 max_length，禁止截断：{audit}")
     return audit
 
 
@@ -231,53 +215,10 @@ def main() -> None:
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
-    raw_queries = [str(row["query"]) for row in rows]
-    original_query_texts = [format_query(query) for query in raw_queries]
-    item_lengths = token_lengths(
-        tokenizer, item_texts, add_special_tokens=True
-    )
-    original_query_lengths = token_lengths(
-        tokenizer, original_query_texts, add_special_tokens=False
-    )
-
-    # 只压缩超过预算的样本。推理后缀保持完整，历史按 SFT 的字段和物品粒度处理。
-    fitted_queries = []
-    query_compression_rows = []
-    query_compression_audits = []
-    for row, query, original_tokens in zip(rows, raw_queries, original_query_lengths):
-        try:
-            fitted_query, audit = fit_embedding_query(
-                tokenizer,
-                query,
-                args.max_length,
-                format_query,
-                original_token_count=original_tokens,
-            )
-        except (ValueError, AssertionError) as error:
-            raise ValueError(
-                f"example_id={row['example_id']} 无法压缩到 {args.max_length} tokens：{error}"
-            ) from error
-        fitted_queries.append(fitted_query)
-        query_compression_audits.append(audit)
-        if audit["compression_applied"]:
-            query_compression_rows.append(
-                {
-                    "example_id": row["example_id"],
-                    "codex_mode": row.get("codex_mode"),
-                    **audit,
-                }
-            )
-
-    query_texts = [format_query(query) for query in fitted_queries]
-    final_query_lengths = token_lengths(
-        tokenizer, query_texts, add_special_tokens=False
-    )
+    query_texts = [format_query(str(row["query"])) for row in rows]
     token_audit = [
-        token_length_audit(item_lengths, args.max_length, "items"),
-        token_length_audit(
-            original_query_lengths, args.max_length, "queries_original"
-        ),
-        token_length_audit(final_query_lengths, args.max_length, "queries"),
+        token_length_audit(tokenizer, item_texts, args.max_length, "items"),
+        token_length_audit(tokenizer, query_texts, args.max_length, "queries"),
     ]
     model = AutoModel.from_pretrained(
         args.checkpoint,
@@ -313,17 +254,6 @@ def main() -> None:
         batch_size=args.score_batch_size,
         device=device,
     )
-    for rank_row, audit in zip(rank_rows, query_compression_audits):
-        rank_row.update(
-            {
-                "query_compressed": audit["compression_applied"],
-                "query_original_tokens": audit["original_token_count"],
-                "query_final_tokens": audit["final_token_count"],
-                "removed_history_item_numbers": audit[
-                    "removed_history_item_numbers"
-                ],
-            }
-        )
 
     ks = [int(value) for value in args.ks.split(",") if value.strip()]
     result = {
@@ -333,23 +263,11 @@ def main() -> None:
         "evaluated": len(rows),
         "num_candidates": len(item_ids),
         "max_length": args.max_length,
-        "query_truncation": "sft_style_preserve_reasoning_and_compress_oldest_history",
+        "query_truncation": "keep_instruction_and_most_recent_history_tokens",
         "item_text": "format_positive_desc256_details256",
         "mask_history_items": True,
         "seed": args.seed,
         "token_audit": token_audit,
-        "query_compression": {
-            "policy": (
-                "完整保留 embedding instruction 与推理后缀；从最早历史开始依次删除 "
-                "Details、Description 和未被 CoT 引用的整条物品；只剩一条仍超长时缩短其尾部"
-            ),
-            "compressed_count": len(query_compression_rows),
-            "reasoning_suffix_changed_count": sum(
-                not row["reasoning_suffix_preserved"]
-                for row in query_compression_rows
-            ),
-            "compressed_rows": query_compression_rows,
-        },
         "metrics": metrics_from_ranks(ranks, ks),
         **mask_audit,
     }

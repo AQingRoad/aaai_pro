@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """从原始 JSONL 构建 title_store_categories 口径的训练、验证和测试数据。"""
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
@@ -14,13 +16,6 @@ SPLITS = {
     "train.jsonl": ("train.jsonl", "train"),
     "val.jsonl": ("val.jsonl", "valid"),
     "test.jsonl": ("test.jsonl", "test"),
-}
-
-# 数据目录使用下划线名称；query 首句使用自然语言名称。
-CATEGORY_LABELS = {
-    "CDs_and_Vinyl": "CDs and Vinyl",
-    "Video_Games": "Video Games",
-    "Musical_Instruments": "Musical Instruments",
 }
 
 # 当前构建过程不主动截断 query，出现该标记说明输入数据口径异常。
@@ -67,15 +62,22 @@ def format_rating(value: object) -> str:
     return f"{rating:.1f}"
 
 
-def history_item_text(item: dict, fallback_title: str, rating: object) -> str:
-    """构造包含标题、评分和物品 metadata 的单条历史交互文本。"""
+def history_item_text(
+    item: dict,
+    fallback_title: str,
+    *,
+    rating: object | None = None,
+) -> str:
+    """构造单条历史交互；rating 非空时追加显式评分字段。"""
     # 先分别清理 item_info 标题和 split 自带标题，避免纯空格被当成有效值。
     title = clean(item.get("title")) or clean(fallback_title)
     if not title:
         raise ValueError("历史物品缺少标题和回退标识")
 
     # 标题也添加字段标签，与 positive 的字段边界保持一致。
-    parts = [f"Title: {title}", f"Rating: {format_rating(rating)} star"]
+    parts = [f"Title: {title}"]
+    if rating is not None:
+        parts.append(f"Rating: {format_rating(rating)} star")
     if store := clean(item.get("store")):
         parts.append(f"Store/artist/format: {store}")
     # 保留 item_info 中全部类别层级，不设置最大层数。
@@ -92,19 +94,23 @@ def history_item_text(item: dict, fallback_title: str, rating: object) -> str:
     return clean(ASIN_RE.sub("", "; ".join(parts)))
 
 
-def build_query(row: dict, items: dict[int, dict], category: str) -> tuple[str, list[int]]:
+def build_query(
+    row: dict,
+    items: dict[int, dict],
+    *,
+    include_ratings: bool,
+) -> tuple[str, list[int]]:
     """按原始交互顺序构造用户历史文本。"""
     history_ids = [int(item_id) for item_id in row.get("history_item_id", [])]
     fallback_titles = row.get("history_item_title", [])
     history_ratings = row.get("history_rating", [])
     history_timestamps = [int(timestamp) for timestamp in row.get("history_timestamp", [])]
     target_timestamp = int(row["timestamp"])
-    if len(history_ratings) != len(history_ids):
+    if include_ratings and len(history_ratings) != len(history_ids):
         raise ValueError("history_rating 与 history_item_id 数量不一致")
     if len(history_timestamps) != len(history_ids):
         raise ValueError("history_timestamp 与 history_item_id 数量不一致")
-    category_label = CATEGORY_LABELS.get(category, category.replace("_", " "))
-    lines = [f"This user's Amazon {category_label} interaction history over time is listed below."]
+    lines = ["This user's Amazon CDs and Vinyl interaction history over time is listed below."]
 
     for position, item_id in enumerate(history_ids, 1):
         if item_id not in items:
@@ -114,9 +120,10 @@ def build_query(row: dict, items: dict[int, dict], category: str) -> tuple[str, 
         fallback = clean(fallback) or f"item_{item_id}"
         # RRec 使用相对目标交互的时间差，让不同日期范围的样本共享同一时间尺度。
         time_delta = format_time_delta(history_timestamps[position - 1], target_timestamp)
+        rating = history_ratings[position - 1] if include_ratings else None
         lines.append(
             f"{position}. Time: {time_delta}; "
-            f"{history_item_text(items[item_id], fallback, history_ratings[position - 1])}"
+            f"{history_item_text(items[item_id], fallback, rating=rating)}"
         )
 
     query = "\n".join(lines)
@@ -126,40 +133,50 @@ def build_query(row: dict, items: dict[int, dict], category: str) -> tuple[str, 
     return query, history_ids
 
 
-def build_row(row: dict, items: dict[int, dict], split: str, category: str) -> dict:
+def build_row(
+    row: dict,
+    items: dict[int, dict],
+    split: str,
+    *,
+    include_ratings: bool,
+) -> dict:
     """构建一条 embedding 训练 pair。"""
     target_id = int(row["item_id"])
     if target_id not in items:
         raise ValueError(f"target item_id={target_id} 不在 item_info 中")
 
-    query, history_ids = build_query(row, items, category)
+    query, history_ids = build_query(row, items, include_ratings=include_ratings)
     target_title = clean(items[target_id].get("title") or row.get("item_title"))
     history_timestamps = [int(timestamp) for timestamp in row.get("history_timestamp", [])]
-    history_ratings = [float(rating) for rating in row.get("history_rating", [])]
     target_timestamp = int(row["timestamp"])
-    target_rating = float(format_rating(row["rating"]))
     # 组合 split、interaction_id 和 user_id，得到跨 split 可追踪的唯一样本 ID。
-    example_id = f"{category}:{split}:{row.get('interaction_id', '')}:{row.get('user_id', '')}"
+    example_id = f"CDs_and_Vinyl:{split}:{row.get('interaction_id', '')}:{row.get('user_id', '')}"
 
+    query_fields = ["relative_time", "title"]
+    if include_ratings:
+        query_fields.append("rating")
+    query_fields.extend(["store", "categories", "description", "details"])
     return {
         "example_id": example_id,
         "query": query,
         "positive": format_positive(items[target_id], target_title),
-        "category": category,
+        "category": "CDs_and_Vinyl",
         "split": split,
         "user_id": row.get("user_id", ""),
         "interaction_id": row.get("interaction_id", ""),
         "target_item_id": target_id,
         "target_item_title": target_title,
         "history_item_ids": history_ids,
-        "history_rating": history_ratings,
-        "target_rating": target_rating,
         # 保留 RRec 原始字段名，便于与源 split 和参考实现直接对齐。
         "history_timestamp": history_timestamps,
         "timestamp": target_timestamp,
         "history_item_count": len(history_ids),
-        "ablation_name": "time_title_rating_store_categories_description_details",
-        "query_fields": ["relative_time", "title", "rating", "store", "categories", "description", "details"],
+        "ablation_name": (
+            "time_title_rating_store_categories_description_details"
+            if include_ratings
+            else "time_title_store_categories_description_details"
+        ),
+        "query_fields": query_fields,
     }
 
 
@@ -168,7 +185,8 @@ def build_split(
     output_path: Path,
     items: dict[int, dict],
     split: str,
-    category: str,
+    *,
+    include_ratings: bool,
 ) -> None:
     """转换一个 split，并输出最小审计信息。"""
     source_rows = read_jsonl(input_path)
@@ -176,7 +194,7 @@ def build_split(
 
     with output_path.open("w", encoding="utf-8") as file:
         for row in source_rows:
-            output = build_row(row, items, split, category)
+            output = build_row(row, items, split, include_ratings=include_ratings)
             file.write(json.dumps(output, ensure_ascii=False) + "\n")
 
     print(json.dumps({"split": split, "rows": len(source_rows), "output": str(output_path)}, ensure_ascii=False))
@@ -187,9 +205,10 @@ def main() -> None:
     parser.add_argument("--input-dir", type=Path, required=True, help="包含 train、val、test、item_info JSONL 的目录")
     parser.add_argument("--output-dir", type=Path, required=True, help="处理后 train、val、test JSONL 的输出目录")
     parser.add_argument(
-        "--category",
-        required=True,
-        help="数据集目录名，同时写入 category、example_id 和 query 首句，例如 Video_Games",
+        "--include-ratings",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="在每条 history item 中加入 Rating: x.x star；默认关闭以复现无评分基线。",
     )
     args = parser.parse_args()
 
@@ -202,7 +221,13 @@ def main() -> None:
         input_path = args.input_dir / source_name
         if not input_path.is_file():
             parser.error(f"缺少输入文件: {input_path}")
-        build_split(input_path, args.output_dir / output_name, items, split, args.category)
+        build_split(
+            input_path,
+            args.output_dir / output_name,
+            items,
+            split,
+            include_ratings=args.include_ratings,
+        )
 
 
 if __name__ == "__main__":

@@ -33,7 +33,9 @@ qwen3emb06b_time_title_store_categories_desc256_details256_bs128_ga1_lr2e5_ep5_l
 
 ## 保留数据
 
-`datas/CDs_and_Vinyl/arrow_to_jsonls/` 保存 train、valid、test 和 item_info 基础 JSONL。旧 processed pair 已删除。确定新提示词后，使用保留的构建代码生成新版本数据，避免继承旧 prompt 或 CoT 字段。
+`datas/CDs_and_Vinyl/arrow_to_jsonls/` 保存 train、valid、test 和 item_info 基础 JSONL。`datas/CDs_and_Vinyl/train_datas/{train,val,test}.jsonl` 保存该 embedding 模型实际使用的无评分 processed pair，行数分别为 10722、1340、1341。
+
+`datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/` 保存新增评分的严格配对版本。它只在每条历史物品中加入 `Rating: x.x star`；移除评分片段后，query 与无评分版本逐字节一致，positive 和其它字段也保持一致。
 
 ## 保留代码
 
@@ -42,9 +44,7 @@ scripts/pre_datas/arrow_to_jsonl.py
 scripts/pre_datas/format_positive.py
 scripts/pre_datas/build_title_store_categories.py
 scripts/models/train_embedding.py
-scripts/eval/fit_embedding_query.py
 scripts/eval/evaluate_embedding_fullset.py
-tests/test_fit_embedding_query.py
 ```
 
 代码依赖关系：
@@ -54,13 +54,14 @@ arrow_to_jsonls
   -> build_title_store_categories.py + format_positive.py
   -> train_embedding.py
   -> evaluate_embedding_fullset.py
-       -> fit_embedding_query.py
        -> format_positive.py
        -> train_embedding.py 中的编码函数
 ```
 
 ## 当前输入口径
 
-`build_title_store_categories.py` 当前构造的 history item 包含：相对时间、标题、评分、store/artist/format、类别路径、Description 前 256 字符和 Details 前 256 字符。positive 使用 `format_positive.py` 构造。
+`build_title_store_categories.py` 默认构造无评分 history；传入 `--include-ratings` 后加入评分。两种版本都包含相对时间、标题、store/artist/format、类别路径、Description 前 256 字符和 Details 前 256 字符。positive 使用 `format_positive.py` 构造。
+
+训练和该目录中的五轮评测沿用 `keep_instruction_and_most_recent_history_tokens`：query 超过 4096 tokens 时保留 embedding instruction 与最近历史 token。positive 和候选 item 禁止截断。
 
 下一版提示词定稿前，需要先明确 prompt 使用哪些字段，并同步修改数据构建、训练 query 和评测 query，防止同名实验混用不同输入。

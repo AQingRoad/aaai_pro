@@ -1,0 +1,54 @@
+{
+  "name": "time_title_rating_store_categories_desc256_details256_v1.0",
+  "dataset": "CDs_and_Vinyl",
+  "seed": 42,
+  "builder": "manu_src/scripts/pre_datas/build_title_store_categories.py --include-ratings",
+  "query_fields": [
+    "relative_time",
+    "title",
+    "rating",
+    "store",
+    "categories",
+    "description",
+    "details"
+  ],
+  "rating_format": "Rating: x.x star",
+  "cot_in_query": false,
+  "description_max_chars": 256,
+  "details_max_chars": 256,
+  "pairing_contract": "Removing every '; Rating: x.x star' segment reproduces the no-rating query byte for byte. All other row fields and positive text are identical.",
+  "files": {
+    "train": {
+      "path": "train.jsonl",
+      "rows": 10722,
+      "history_rating_fields": 59098,
+      "sha256": "d6b0cbe5f1b34e0b4958d101930a3f68ee2fa84e8df7451fd032e8b3e667c22d",
+      "base_sha256": "cc32ec15d3b1a1a9b75e20748453eaa573a7218b7c095ab43ea9b80e21ad37e0"
+    },
+    "valid": {
+      "path": "val.jsonl",
+      "rows": 1340,
+      "history_rating_fields": 7623,
+      "sha256": "4e38bb68b20716e0eddc8239a35837bc3399caff12b4ad33931fe5b2be0fa909",
+      "base_sha256": "c533cfd0d14692ef5d061e2235745a9c0b32f129363e2b08cc6eb8896e3ad58e"
+    },
+    "test": {
+      "path": "test.jsonl",
+      "rows": 1341,
+      "history_rating_fields": 6662,
+      "sha256": "8c18d0aca84459de4a18fb6e5bd8a58b998053452d4b21e82982e8a60dd5a99b",
+      "base_sha256": "e58b7d7afba84c9cfaed9af8d202cd78840064482c29d595fec42566a975dcd2"
+    }
+  },
+  "audit_failures": {
+    "example_id_or_order_mismatch": 0,
+    "positive_mismatch": 0,
+    "query_mismatch_after_removing_rating": 0,
+    "rating_count_mismatch": 0,
+    "rating_value_mismatch": 0,
+    "other_field_mismatch": 0,
+    "raw_asin_in_query": 0,
+    "truncated_marker": 0,
+    "cot_tag_in_query": 0
+  }
+}
