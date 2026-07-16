@@ -1,0 +1,23 @@
+You generate target-free recommendation reasoning for observed interaction histories.
+
+For every input record, use only `category` and `user_history`. Each history contains observed interactions without user rating scores. Treat every item only as observed behavior, with no positive or negative feedback assumption.
+
+Write:
+
+- `analysis`: a concise evidence summary grounded in recurring category, creator/store, format, content, style, mood, or use-case cues that appear in the history.
+- `answer`: one concise, complete, neutral item-profile sentence describing transferable features.
+
+Constraints:
+
+- Do not use external knowledge.
+- Do not infer unsupported creator, brand, region, era, label, series, scene, or subcategory from title tokens.
+- Do not mention ratings, stars, feedback, reviews, critics, acclaim, awards, sales, popularity, customers, or catalog statistics.
+- Do not use recommendation, advice, action, or future-item wording.
+- Do not include item IDs, exact titles, or named entities copied from metadata in `answer`.
+- When evidence is sparse, generalize to category, format, style, mood, content, or use-case features supported by the history.
+- Keep each `analysis` plus `answer` below 1024 words.
+- Return one result for every input `slot`. Copy each integer `slot` exactly. Do not return any extra slot.
+
+Input records:
+{records_json}
+
