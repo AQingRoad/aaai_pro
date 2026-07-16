@@ -65,6 +65,6 @@ arrow_to_jsonls
 
 `build_title_store_categories.py` 默认构造无评分 history；传入 `--include-ratings` 后加入评分。两种版本都包含相对时间、标题、store/artist/format、类别路径、Description 前 256 字符和 Details 前 256 字符。positive 使用 `format_positive.py` 构造。
 
-训练和该目录中的五轮评测沿用 `keep_instruction_and_most_recent_history_tokens`：query 超过 4096 tokens 时保留 embedding instruction 与最近历史 token。positive 和候选 item 禁止截断。
+后续训练和评测统一使用 `drop_oldest_item_description_then_details_then_item`：query 超过 4096 tokens 时，从最旧历史物品开始依次删除 Description、Details 和整条物品，达到长度限制后立即停止。positive 和候选 item 禁止截断。
 
 下一版提示词定稿前，需要先明确 prompt 使用哪些字段，并同步修改数据构建、训练 query 和评测 query，防止同名实验混用不同输入。

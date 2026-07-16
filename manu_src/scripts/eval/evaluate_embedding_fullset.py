@@ -19,7 +19,7 @@ sys.path.insert(0, str(SCRIPTS_DIR / "models"))
 sys.path.insert(0, str(SCRIPTS_DIR / "pre_datas"))
 
 from format_positive import format_positive  # noqa: E402
-from train_embedding import encode, format_query, read_jsonl  # noqa: E402
+from train_embedding import QUERY_TRUNCATION, encode, format_query, read_jsonl  # noqa: E402
 
 
 def set_seed(seed: int) -> None:
@@ -263,7 +263,7 @@ def main() -> None:
         "evaluated": len(rows),
         "num_candidates": len(item_ids),
         "max_length": args.max_length,
-        "query_truncation": "keep_instruction_and_most_recent_history_tokens",
+        "query_truncation": QUERY_TRUNCATION,
         "item_text": "format_positive_desc256_details256",
         "mask_history_items": True,
         "seed": args.seed,

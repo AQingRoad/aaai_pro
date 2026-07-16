@@ -19,6 +19,7 @@ QUERY_INSTRUCTION = (
     "Given a user's past item interactions and optional recommendation reasoning, "
     "retrieve items the user is likely to prefer next."
 )
+QUERY_TRUNCATION = "drop_oldest_item_description_then_details_then_item"
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -71,6 +72,74 @@ def format_query(query: str) -> str:
     return f"Instruct: {QUERY_INSTRUCTION}\nQuery: {query}"
 
 
+def _remove_item_field(item_line: str, field: str) -> tuple[str, bool]:
+    """从单条历史物品中删除 Description 或末尾 Details 字段。"""
+    marker = f"; {field}:"
+    start = item_line.find(marker)
+    if start < 0:
+        return item_line, False
+    if field == "Description":
+        end = item_line.find("; Details:", start + len(marker))
+        if end < 0:
+            end = len(item_line)
+    elif field == "Details":
+        end = len(item_line)
+    else:
+        raise ValueError(f"不支持删除 query 字段: {field}")
+    return item_line[:start] + item_line[end:], True
+
+
+def truncate_query_by_oldest_item_fields(
+    tokenizer,
+    text: str,
+    max_length: int,
+) -> tuple[str, dict[str, int]]:
+    """超长时依次裁剪最旧物品的 Description、Details 和整条物品。"""
+    stats = {"descriptions_removed": 0, "details_removed": 0, "items_removed": 0}
+
+    def token_count(value: str) -> int:
+        return len(tokenizer(value, add_special_tokens=False)["input_ids"])
+
+    if token_count(text) <= max_length:
+        return text, stats
+
+    prefix = f"Instruct: {QUERY_INSTRUCTION}\nQuery: "
+    if not text.startswith(prefix):
+        raise ValueError("query 缺少统一 instruction 前缀")
+    history_lines = text[len(prefix) :].splitlines()
+    if len(history_lines) < 2:
+        raise ValueError("超长 query 缺少可裁剪的历史物品")
+    header = history_lines[0]
+    item_lines = history_lines[1:]
+
+    def rebuild() -> str:
+        body = "\n".join([header, *item_lines])
+        return prefix + body
+
+    while item_lines:
+        item_lines[0], removed = _remove_item_field(item_lines[0], "Description")
+        if removed:
+            stats["descriptions_removed"] += 1
+            candidate = rebuild()
+            if token_count(candidate) <= max_length:
+                return candidate, stats
+
+        item_lines[0], removed = _remove_item_field(item_lines[0], "Details")
+        if removed:
+            stats["details_removed"] += 1
+            candidate = rebuild()
+            if token_count(candidate) <= max_length:
+                return candidate, stats
+
+        item_lines.pop(0)
+        stats["items_removed"] += 1
+        candidate = rebuild()
+        if token_count(candidate) <= max_length:
+            return candidate, stats
+
+    raise ValueError("删除全部历史物品后 query 仍超过 max_length")
+
+
 def last_token_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
     """Qwen3 Embedding 使用每个序列最后一个有效 token 的向量。"""
     if bool((attention_mask[:, -1] == 1).all()):
@@ -80,30 +149,17 @@ def last_token_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor) -
 
 
 def tokenize_for_embedding(tokenizer, texts: list[str], max_length: int, is_query: bool) -> dict:
-    """query 保留 instruction 和最近历史；positive 保持完整。"""
+    """query 按字段裁剪最旧物品；positive 保持完整。"""
     if not is_query:
         batch = tokenizer(texts, padding=True, truncation=False, return_tensors="pt")
         if batch["input_ids"].shape[1] > max_length:
             raise ValueError("positive 超过 max_length，禁止截断")
         return batch
 
-    prefix = f"Instruct: {QUERY_INSTRUCTION}\nQuery: "
-    prefix_ids = tokenizer(prefix, add_special_tokens=False)["input_ids"]
-    if len(prefix_ids) >= max_length:
-        raise ValueError("query instruction 已占满 max_length")
-
     input_ids = []
-    recent_history_budget = max_length - len(prefix_ids)
     for text in texts:
-        if not text.startswith(prefix):
-            raise ValueError("query 缺少统一 instruction 前缀")
-        full_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
-        if len(full_ids) <= max_length:
-            input_ids.append(full_ids)
-        else:
-            # 从左侧移除最旧历史，保留 instruction 和靠近目标交互的最近历史。
-            history_ids = tokenizer(text[len(prefix) :], add_special_tokens=False)["input_ids"]
-            input_ids.append(prefix_ids + history_ids[-recent_history_budget:])
+        truncated_text, _ = truncate_query_by_oldest_item_fields(tokenizer, text, max_length)
+        input_ids.append(tokenizer(truncated_text, add_special_tokens=False)["input_ids"])
     return tokenizer.pad({"input_ids": input_ids}, padding=True, return_tensors="pt")
 
 
@@ -141,24 +197,46 @@ def multi_positive_info_nce(
 
 
 def token_length_audit(tokenizer, dataset: PairDataset, max_length: int, split: str) -> dict:
-    """训练前测量真实长度，任一 query 或 positive 超限时直接停止。"""
+    """训练前记录原始长度、字段裁剪量和裁剪后最大长度。"""
     query_lengths = []
     positive_lengths = []
     longest_query = (0, "")
     longest_positive = (0, "")
+    final_query_max = 0
+    truncation_stats = {
+        "queries_truncated": 0,
+        "descriptions_removed": 0,
+        "details_removed": 0,
+        "items_removed": 0,
+    }
 
     for start in range(0, len(dataset), 256):
         rows = dataset.rows[start : start + 256]
         queries = [format_query(row["query"]) for row in rows]
         positives = [row["positive"] for row in rows]
-        query_ids = tokenizer(queries, truncation=False, padding=False)["input_ids"]
+        query_ids = tokenizer(
+            queries, truncation=False, padding=False, add_special_tokens=False
+        )["input_ids"]
         positive_ids = tokenizer(positives, truncation=False, padding=False)["input_ids"]
 
-        for row, ids in zip(rows, query_ids):
+        for row, query_text, ids in zip(rows, queries, query_ids):
             length = len(ids)
             query_lengths.append(length)
             if length > longest_query[0]:
                 longest_query = (length, row["example_id"])
+            if length <= max_length:
+                final_query_max = max(final_query_max, length)
+            else:
+                final_text, stats = truncate_query_by_oldest_item_fields(
+                    tokenizer, query_text, max_length
+                )
+                final_query_max = max(
+                    final_query_max,
+                    len(tokenizer(final_text, add_special_tokens=False)["input_ids"]),
+                )
+                truncation_stats["queries_truncated"] += 1
+                for key, value in stats.items():
+                    truncation_stats[key] += value
         for row, ids in zip(rows, positive_ids):
             length = len(ids)
             positive_lengths.append(length)
@@ -173,10 +251,12 @@ def token_length_audit(tokenizer, dataset: PairDataset, max_length: int, split: 
         "positive_max_tokens": longest_positive[0],
         "positive_max_example_id": longest_positive[1],
         "query_over_limit": sum(length > max_length for length in query_lengths),
+        "query_final_max_tokens": final_query_max,
+        "query_truncation_stats": truncation_stats,
         "positive_over_limit": sum(length > max_length for length in positive_lengths),
         "max_length": max_length,
     }
-    audit["query_truncation"] = "keep_instruction_and_most_recent_history_tokens"
+    audit["query_truncation"] = QUERY_TRUNCATION
     if audit["positive_over_limit"]:
         raise ValueError(f"token 长度超过 max_length：{json.dumps(audit, ensure_ascii=False)}")
     return audit
