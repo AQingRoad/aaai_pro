@@ -1,0 +1,38 @@
+{
+  "input": "manu_src/datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/train.jsonl",
+  "bootstrap": "manu_src/datas/CDs_and_Vinyl/cot/api/cot_non_target_glm52_train_sample100_seed42_temp1.jsonl",
+  "bootstrap_deleted_after_exact_merge_verification": true,
+  "output": "manu_src/datas/CDs_and_Vinyl/cot/api/history_only_next_item_feature_cot__input_time_title_rating_store_categories_desc256_details256_v1/cot_non_target_glm52_train_full_seed42_temp1.jsonl",
+  "partial_output": "manu_src/datas/CDs_and_Vinyl/cot/api/history_only_next_item_feature_cot__input_time_title_rating_store_categories_desc256_details256_v1/cot_non_target_glm52_train_full_seed42_temp1.partial.jsonl",
+  "source_rows": 10722,
+  "bootstrap_rows": 100,
+  "completed_at_start": 821,
+  "pending_at_start": 9901,
+  "providers": [
+    "ks_tokenverse",
+    "glm_official"
+  ],
+  "seed": 42,
+  "request_interval_seconds": 1.0,
+  "max_workers": 10,
+  "attempts_per_round": 4,
+  "retry_round_delay_seconds": 30.0,
+  "item_type": "CD or vinyl release",
+  "language": "en",
+  "temperature": 1.0,
+  "top_p": 0.9,
+  "max_tokens": 2048,
+  "max_output_words": 512,
+  "thinking": "disabled",
+  "target_fields_in_messages": false,
+  "success_rows": 10722,
+  "failure_rows": 0,
+  "provider_success": {
+    "ks_tokenverse": 6627,
+    "glm_official": 4095
+  },
+  "max_observed_words": 384,
+  "target_title_exact_match_rows": 242,
+  "raw_asin_history_rows": 0,
+  "completed_at_unix": 1784214345.358996
+}
