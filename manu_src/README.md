@@ -33,7 +33,7 @@ qwen3emb06b_time_title_store_categories_desc256_details256_bs128_ga1_lr2e5_ep5_l
 
 ## 保留数据
 
-`datas/CDs_and_Vinyl/arrow_to_jsonls/` 保存 train、valid、test 和 item_info 基础 JSONL。`datas/CDs_and_Vinyl/train_datas/{train,val,test}.jsonl` 保存该 embedding 模型实际使用的无评分 processed pair，行数分别为 10722、1340、1341。
+`datas/CDs_and_Vinyl/arrow_to_jsonls/` 保存 train、valid、test 和 item_info 基础 JSONL。`datas/CDs_and_Vinyl/train_datas/time_title_store_categories_desc256_details256_v1.0/` 保存该 embedding 模型实际使用的无评分 processed pair，train、valid、test 行数分别为 10722、1340、1341。
 
 `datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/` 保存新增评分的严格配对版本。它只在每条历史物品中加入 `Rating: x.x star`；移除评分片段后，query 与无评分版本逐字节一致，positive 和其它字段也保持一致。
 

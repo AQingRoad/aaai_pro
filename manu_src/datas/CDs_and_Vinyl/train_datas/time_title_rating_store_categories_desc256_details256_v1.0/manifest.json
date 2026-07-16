@@ -16,6 +16,7 @@
   "cot_in_query": false,
   "description_max_chars": 256,
   "details_max_chars": 256,
+  "paired_base_version": "../time_title_store_categories_desc256_details256_v1.0",
   "token_length_audit": {
     "path": "token_length_distribution_qwen3_embedding_0p6b.json",
     "sha256": "faca50e53687eb6ef8ca4cde095a4724c66b415ab060ae89b6f9e95940376023",
