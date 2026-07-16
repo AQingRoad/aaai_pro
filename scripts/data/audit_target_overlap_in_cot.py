@@ -10,10 +10,11 @@ from typing import Any
 
 
 RAW_ASIN_RE = re.compile(r"\bB0[A-Z0-9]{8}\b", re.IGNORECASE)
-RATING_RE = re.compile(
-    r"\b(?:rating|rated|reviews?|stars?|feedback|high-rated|low-rated|avg_rating|rating_count)\b",
+EXPLICIT_RATING_RE = re.compile(
+    r"\b(?:rating|rated|reviews?|feedback|high-rated|low-rated|avg_rating|rating_count)\b",
     re.IGNORECASE,
 )
+AMBIGUOUS_STAR_RE = re.compile(r"\bstars?\b", re.IGNORECASE)
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]")
 
 
@@ -83,7 +84,8 @@ def main() -> None:
     overlaps: list[dict[str, Any]] = []
     normalized_cots: list[str] = []
     raw_asin_rows = 0
-    rating_term_rows = 0
+    explicit_rating_term_rows = 0
+    ambiguous_star_term_rows = 0
 
     if len(history_by_key) != len(history_rows):
         failures["duplicate_history_key"] += len(history_rows) - len(history_by_key)
@@ -108,7 +110,8 @@ def main() -> None:
             failures["missing_tagged_cot"] += 1
         normalized_cots.append(" ".join(normalized_tokens(cot)))
         raw_asin_rows += int(bool(RAW_ASIN_RE.search(cot)))
-        rating_term_rows += int(bool(RATING_RE.search(cot)))
+        explicit_rating_term_rows += int(bool(EXPLICIT_RATING_RE.search(cot)))
+        ambiguous_star_term_rows += int(bool(AMBIGUOUS_STAR_RE.search(cot)))
 
         title = text(history.get("target_item_title")).strip()
         if not title or not contains_token_sequence(cot, title):
@@ -143,7 +146,13 @@ def main() -> None:
         "unique_cot_texts": len(set(normalized_cots)),
         "duplicate_cot_texts": len(normalized_cots) - len(set(normalized_cots)),
         "raw_asin_rows": raw_asin_rows,
-        "rating_term_rows": rating_term_rows,
+        "explicit_rating_term_rows": explicit_rating_term_rows,
+        "ambiguous_star_term_rows": ambiguous_star_term_rows,
+        "rating_term_interpretation": (
+            "Explicit rating terms exclude standalone star/stars because music titles, artist names, "
+            "and soundtrack franchises frequently contain those tokens. Ambiguous star rows remain "
+            "reported separately for manual context review."
+        ),
         "exact_target_title_in_cot": len(overlaps),
         "target_title_also_in_base_history": len(overlaps) - len(target_only),
         "target_title_absent_from_base_history": len(target_only),
