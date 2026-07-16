@@ -7,7 +7,7 @@ BASE_MODEL=${BASE_MODEL:-/home/user/models_hf/Qwen2.5-3B-Instruct}
 SFT_OUT=${SFT_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_lora_history_only_next_item_feature_cot_time_title_rating_store_categories_desc256_details256_v1_bs32_ga1_lr2e5_ep5_len4096_seed42}
 TEST_FILE=${TEST_FILE:-$ROOT/manu_src/datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/test.jsonl}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
-EMBEDDING_SCORER=${EMBEDDING_SCORER:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs64_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-05}
+EMBEDDING_SCORER=${EMBEDDING_SCORER:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-05}
 EVAL_ROOT=${EVAL_ROOT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/eval/qwen25_3b_lora_history_only_next_item_feature_cot_time_title_rating_store_categories_desc256_details256_v1}
 
 MODE=${MODE:-all}

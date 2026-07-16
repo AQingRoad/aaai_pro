@@ -13,8 +13,8 @@ SFT_DATA=$ROOT/manu_src/datas/CDs_and_Vinyl/sft/history_only_next_item_feature_c
 EMBED_DATA=$ROOT/manu_src/datas/CDs_and_Vinyl/embedding/history_plus_non_target_cot__input_time_title_rating_store_categories_desc256_details256_v1/train.jsonl
 
 SFT_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_lora_history_only_next_item_feature_cot_time_title_rating_store_categories_desc256_details256_v1_bs32_ga1_lr2e5_ep5_len4096_seed42
-EMBED_FULL_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs64_ga1_lr2e5_ep5_len4096_seed42
-EMBED_MASK_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_whole_cot_mask_p0p5_input_time_title_rating_store_categories_desc256_details256_v1_bs64_ga1_lr2e5_ep5_len4096_seed42
+EMBED_FULL_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42
+EMBED_MASK_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_whole_cot_mask_p0p5_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42
 EVAL_ROOT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/eval/qwen25_3b_lora_history_only_next_item_feature_cot_time_title_rating_store_categories_desc256_details256_v1
 STATE_DIR=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/scheduler_state/cds_sft_embedding_suite_seed42
 
@@ -37,7 +37,7 @@ done
 echo "CDs_and_Vinyl 统一实验调度参数："
 print_param STAGE_1 "SFT LoRA" "Qwen2.5-3B-Instruct，batch=32，grad_accum=1，max_length=4096 左截断，lr=2e-5，5 epoch。"
 print_param STAGE_2 "vLLM test CoT" "对 5 个 SFT checkpoint 逐一生成 1341 条 test CoT；prompt 与 API 训练数据一致。"
-print_param STAGE_3 "embedding history+CoT" "Qwen3-Embedding-0.6B，batch=64，grad_accum=1，max_length=4096，lr=2e-5，5 epoch。"
+print_param STAGE_3 "embedding history+CoT" "Qwen3-Embedding-0.6B，batch=128，grad_accum=1，max_length=4096，lr=2e-5，5 epoch。"
 print_param STAGE_4 "embedding CoT mask p=0.5" "与 stage 3 参数一致，每个 epoch 按样本重新随机删除完整 CoT。"
 print_param STAGE_5 "5 checkpoint retrieval eval" "固定使用 stage 3 的 checkpoint-epoch-05，在 12000 个候选上计算 HR/NDCG@5,10,20。"
 print_param INPUT_SCHEMA "time_title_rating_store_categories_desc256_details256_v1" "history 保留时间、标题、评分、store、类别、Description256 和 Details256。"

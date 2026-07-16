@@ -7,7 +7,7 @@ MODEL=${MODEL:-/home/user/models_hf/Qwen3-Embedding-0.6B}
 TRAIN_FILE=${TRAIN_FILE:-$ROOT/manu_src/datas/CDs_and_Vinyl/embedding/history_plus_non_target_cot__input_time_title_rating_store_categories_desc256_details256_v1/train.jsonl}
 COT_MASK_PROB=${COT_MASK_PROB:-0.0}
 
-BATCH_SIZE=${BATCH_SIZE:-64}
+BATCH_SIZE=${BATCH_SIZE:-128}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
 MAX_LENGTH=${MAX_LENGTH:-4096}
 EPOCHS=${EPOCHS:-5}
@@ -17,10 +17,10 @@ CONFIRM_RUN=${CONFIRM_RUN:-0}
 
 if [[ "$COT_MASK_PROB" == "0" || "$COT_MASK_PROB" == "0.0" ]]; then
   RUN_VARIANT=history_plus_cot
-  DEFAULT_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs64_ga1_lr2e5_ep5_len4096_seed42
+  DEFAULT_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42
 elif [[ "$COT_MASK_PROB" == "0.5" ]]; then
   RUN_VARIANT=history_plus_cot_whole_cot_mask_p0p5
-  DEFAULT_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_whole_cot_mask_p0p5_input_time_title_rating_store_categories_desc256_details256_v1_bs64_ga1_lr2e5_ep5_len4096_seed42
+  DEFAULT_OUT=$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_whole_cot_mask_p0p5_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42
 else
   echo "本组实验只允许 COT_MASK_PROB=0.0 或 0.5。" >&2
   exit 1
@@ -40,6 +40,10 @@ for path in "$ROOT/AGENTS.md" "$VENV/bin/python" "$MODEL" "$TRAIN_FILE"; do
 done
 if [[ "$SEED" != "42" ]]; then
   echo "项目随机种子必须为 42。" >&2
+  exit 1
+fi
+if [[ "$BATCH_SIZE" != "128" || "$GRAD_ACCUM" != "1" ]]; then
+  echo "本组两个 embedding 实验固定 batch_size=128、grad_accum=1。" >&2
   exit 1
 fi
 ROWS=$(wc -l < "$TRAIN_FILE" | tr -d ' ')
