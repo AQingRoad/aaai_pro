@@ -18,6 +18,7 @@ WARMUP_RATIO=${WARMUP_RATIO:-0.03}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 SEED=${SEED:-42}
 SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-6}
+EXPECTED_ROWS=${EXPECTED_ROWS:-10722}
 CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
 
@@ -38,8 +39,8 @@ if [[ "$SEED" != "42" || "$GRAD_ACCUM" != "1" || "$BATCH_SIZE" != "32" ]]; then
 fi
 
 ROWS=$(wc -l < "$DATASET" | tr -d ' ')
-if [[ "$ROWS" != "10722" ]]; then
-  echo "SFT 数据应为 10722 条，当前为 $ROWS。" >&2
+if [[ "$ROWS" != "$EXPECTED_ROWS" ]]; then
+  echo "SFT 数据应为 $EXPECTED_ROWS 条，当前为 $ROWS。" >&2
   exit 1
 fi
 SAVE_STEPS=$(((ROWS + BATCH_SIZE - 1) / BATCH_SIZE))
@@ -47,7 +48,8 @@ SAVE_STEPS=$(((ROWS + BATCH_SIZE - 1) / BATCH_SIZE))
 echo "Qwen2.5-3B LoRA SFT 正式训练参数："
 print_param ROOT "$ROOT" "A100 上的项目根目录。"
 print_param MODEL "$MODEL" "Qwen2.5-3B-Instruct 基座模型。"
-print_param DATASET "$DATASET" "全量 10722 条英文 history-only <analysis>/<answer> SFT messages。"
+print_param DATASET "$DATASET" "$ROWS 条英文 history-only <analysis>/<answer> SFT messages。"
+print_param EXPECTED_ROWS "$EXPECTED_ROWS" "训练数据预期行数；用于阻止误用全量或错误子集。"
 print_param OUT "$OUT" "LoRA checkpoint 与训练日志输出目录。"
 print_param BATCH_SIZE "$BATCH_SIZE" "单卡 micro batch；已用最长序列完成 2 step 压力测试。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1，有效 batch 为 32。"
@@ -56,7 +58,7 @@ print_param EPOCHS "$EPOCHS" "完整训练轮数；每轮保存一次。"
 print_param LEARNING_RATE "$LEARNING_RATE" "LoRA AdamW 峰值学习率。"
 print_param LORA_RANK "$LORA_RANK" "LoRA 低秩维度。"
 print_param LORA_ALPHA "$LORA_ALPHA" "LoRA 缩放系数。"
-print_param SAVE_STEPS "$SAVE_STEPS" "每 336 optimizer steps 保存一次，对应一个 epoch。"
+print_param SAVE_STEPS "$SAVE_STEPS" "按样本数与 batch 自动计算，每个 epoch 保存一次。"
 print_param SAVE_TOTAL_LIMIT "$SAVE_TOTAL_LIMIT" "最多保留 6 个 checkpoint，覆盖 5 个 epoch。"
 print_param TRUNCATION_STRATEGY left "仅 SFT chat 序列使用左截断。"
 print_param ATTN_IMPL flash_attn "使用 FlashAttention 降低长序列显存和耗时。"
