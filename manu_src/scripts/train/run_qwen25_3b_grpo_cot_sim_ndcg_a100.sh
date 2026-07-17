@@ -49,6 +49,7 @@ USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
 VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4608}
 VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-8}
+VLLM_ENABLE_SLEEP_MODE=${VLLM_ENABLE_SLEEP_MODE:-false}
 CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
 
@@ -85,6 +86,10 @@ if ((GENERATION_BATCH_SIZE % NUM_GENERATIONS != 0)); then
   echo "GENERATION_BATCH_SIZE 必须能被 NUM_GENERATIONS 整除。" >&2
   exit 1
 fi
+if ((GENERATION_BATCH_SIZE % BATCH_SIZE != 0)); then
+  echo "GENERATION_BATCH_SIZE 必须能被单卡 BATCH_SIZE 整除，以便 TRL 自动计算 steps_per_generation。" >&2
+  exit 1
+fi
 if [[ "$MAX_LENGTH" != "4096" ]]; then
   echo "当前实验必须与 SFT 和 embedding 保持 max_length=4096。" >&2
   exit 1
@@ -112,6 +117,7 @@ fi
 
 prompts_per_step=$((BATCH_SIZE / NUM_GENERATIONS * GRAD_ACCUM))
 approx_steps=$(((EXPECTED_ROWS + prompts_per_step - 1) / prompts_per_step))
+steps_per_generation=$((GENERATION_BATCH_SIZE / BATCH_SIZE))
 
 echo "Qwen2.5-3B LoRA GRPO 试验参数："
 print_param ROOT "$ROOT" "A100 项目根目录；执行前再次读取 AGENTS.md。"
@@ -135,7 +141,8 @@ print_param GENERATION_TEMPERATURE "$GENERATION_TEMPERATURE" "rollout 采样温�
 print_param GENERATION_TOP_K "$GENERATION_TOP_K" "rollout 每步保留概率最高的 200 个 token。"
 print_param GENERATION_TOP_P "$GENERATION_TOP_P" "不额外裁剪 nucleus 概率质量。"
 print_param BATCH_SIZE "$BATCH_SIZE" "每个 optimizer step 反向传播的 completion 数；对应 $((BATCH_SIZE / NUM_GENERATIONS)) 个完整四候选组。"
-print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 单次 rollout 生成 8 个 completion，对应两个完整四候选组，并在一个 optimizer step 中反向传播。"
+print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 每轮生成的 completion 总数；对应 $((GENERATION_BATCH_SIZE / NUM_GENERATIONS)) 个完整四候选组。"
+print_param STEPS_PER_GENERATION "$steps_per_generation" "由 TRL 自动计算；每轮 rollout 拆成 $steps_per_generation 个 batch，每个 batch 含 $BATCH_SIZE 条 completion。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 上限，与 SFT 和 reward embedding 保持 4096。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条生成的最大 token 数；提示词仍要求 analysis+answer 不超过 512 words。"
@@ -148,9 +155,10 @@ print_param LORA_RANK "$LORA_RANK" "继续训练 rank 64 的 SFT LoRA。"
 print_param LORA_ALPHA "$LORA_ALPHA" "LoRA 缩放系数 128。"
 print_param SAVE_STEPS "$SAVE_STEPS" "每 300 个 optimizer step 保存一次 checkpoint。"
 print_param USE_VLLM "$USE_VLLM" "使用 colocate vLLM 生成 rollout。"
-print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 总预留降至 GPU 显存的 10%，为 batch 8 的长 completion 反向传播保留更多显存。"
+print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 总预留占 GPU 显存的比例；当前固定 10%。"
 print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "vLLM 总上下文为 4096-token prompt 加 512-token completion；prompt 超过 4096 时沿用左侧截断。"
-print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 同时调度的最大序列数，与 generation batch 8 对齐。"
+print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 同时调度的最大序列数，与本轮 generation batch 对齐。"
+print_param VLLM_ENABLE_SLEEP_MODE "$VLLM_ENABLE_SLEEP_MODE" "rollout 完成后释放 vLLM 权重和 KV cache，为策略模型反向传播腾出显存。"
 print_param COT_SIM_NDCG_ITEM_BATCH_SIZE "$COT_SIM_NDCG_ITEM_BATCH_SIZE" "首次构建冻结候选 embedding 表的批量。"
 print_param COT_SIM_NDCG_QUERY_BATCH_SIZE "$COT_SIM_NDCG_QUERY_BATCH_SIZE" "每次 reward 编码 completion query 的批量。"
 print_param COMPONENT_LOG "$COT_SIM_NDCG_COMPONENT_LOG" "记录 cosine、log-softmax、rank、NDCG、组内 z-score、冲突率和最终 reward。"
@@ -251,6 +259,7 @@ export COT_SIM_NDCG_DEVICE=cuda:0
   --vllm_gpu_memory_utilization "$VLLM_GPU_MEMORY_UTILIZATION" \
   --vllm_max_model_len "$VLLM_MAX_MODEL_LEN" \
   --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
+  --vllm_enable_sleep_mode "$VLLM_ENABLE_SLEEP_MODE" \
   --vllm_enable_lora true \
   --vllm_max_lora_rank "$LORA_RANK" \
   --seed "$SEED" \
