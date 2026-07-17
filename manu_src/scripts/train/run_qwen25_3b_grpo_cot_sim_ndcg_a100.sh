@@ -13,7 +13,7 @@ DATASET=${DATASET:-$SPLIT_DIR/grpo_cot_sim_ndcg_messages_train80_seed42_n8578.js
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
-OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs8_bs8_ga1_vllm0p10_lr2e5_ep1_vllmlen4096_clen512_seed42}
+OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs8_bs8_ga1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
 SEED=${SEED:-42}
@@ -47,7 +47,7 @@ COT_SIM_NDCG_COMPONENT_LOG=${COT_SIM_NDCG_COMPONENT_LOG:-$OUT/cot_sim_ndcg_compo
 
 USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
-VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4096}
+VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4608}
 VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-8}
 CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
@@ -149,7 +149,7 @@ print_param LORA_ALPHA "$LORA_ALPHA" "LoRA 缩放系数 128。"
 print_param SAVE_STEPS "$SAVE_STEPS" "每 300 个 optimizer step 保存一次 checkpoint。"
 print_param USE_VLLM "$USE_VLLM" "使用 colocate vLLM 生成 rollout。"
 print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 总预留降至 GPU 显存的 10%，为 batch 8 的长 completion 反向传播保留更多显存。"
-print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "vLLM 总上下文上限固定为 4096；超长输入沿用左侧截断。"
+print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "vLLM 总上下文为 4096-token prompt 加 512-token completion；prompt 超过 4096 时沿用左侧截断。"
 print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 同时调度的最大序列数，与 generation batch 8 对齐。"
 print_param COT_SIM_NDCG_ITEM_BATCH_SIZE "$COT_SIM_NDCG_ITEM_BATCH_SIZE" "首次构建冻结候选 embedding 表的批量。"
 print_param COT_SIM_NDCG_QUERY_BATCH_SIZE "$COT_SIM_NDCG_QUERY_BATCH_SIZE" "每次 reward 编码 completion query 的批量。"
