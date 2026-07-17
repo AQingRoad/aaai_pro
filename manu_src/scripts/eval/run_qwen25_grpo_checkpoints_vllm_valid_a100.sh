@@ -8,7 +8,7 @@ GRPO_RUN=${GRPO_RUN:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_l
 VALID_FILE=${VALID_FILE:-$ROOT/manu_src/datas/CDs_and_Vinyl/train_datas/time_title_rating_store_categories_desc256_details256_v1.0/val.jsonl}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 EMBEDDING_SCORER=${EMBEDDING_SCORER:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
-EVAL_ROOT=${EVAL_ROOT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/eval/qwen25_3b_standard_grpo_sft20_valid_cottrained_epoch01_seed42}
+EVAL_ROOT=${EVAL_ROOT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/eval/qwen25_3b_standard_grpo_sft20_valid_oneshot_raw_completion_cottrained_epoch01_seed42}
 
 MODE=${MODE:-all}
 CHECKPOINT_STEPS=${CHECKPOINT_STEPS:-300,600,900}
@@ -67,6 +67,7 @@ print_param VALID_FILE "$VALID_FILE" "1340 条 valid history；target 字段不�
 print_param EMBEDDING_SCORER "$EMBEDDING_SCORER" "固定使用 GRPO reward 对应的 CoT-trained embedding epoch-01。"
 print_param ITEM_INFO "$ITEM_INFO" "12000 个真实候选；沿用训练 positive formatter，并屏蔽历史物品。"
 print_param GRPO_UPDATE "all_group_completions" "这些 checkpoint 使用标准 GRPO；同组 4 条 completion 均按组相对优势参与更新。"
+print_param COMPLETION_POLICY "one_shot_raw_completion" "每条 valid history 只采样一次；格式不完整的非空 completion 仍原样进入检索，并单独统计格式合规率。"
 print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 单批生成的 valid query 数。"
 print_param TEMPERATURE "$TEMPERATURE" "与 GRPO rollout 一致的生成温度。"
 print_param TOP_K "$TOP_K" "与 GRPO rollout 一致，每步保留概率最高的 200 个 token。"
@@ -118,7 +119,8 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
       --vllm-max-model-len "$VLLM_MAX_MODEL_LEN" \
       --vllm-max-num-seqs "$GENERATION_BATCH_SIZE" \
       --gpu-memory-utilization "$GPU_MEMORY_UTILIZATION" \
-      --max-attempts 3 \
+      --max-attempts 1 \
+      --allow-noncanonical-output \
       --expected-split valid \
       --seed "$SEED"
   fi
@@ -155,7 +157,20 @@ root = Path(sys.argv[1])
 rows = []
 for path in sorted(root.glob("checkpoint-*/retrieval_metrics.json")):
     result = json.loads(path.read_text(encoding="utf-8"))
-    rows.append({"checkpoint": path.parent.name, **result["metrics"]})
+    audit_path = path.parent / "valid_generated_cot.audit.json"
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    rows.append(
+        {
+            "checkpoint": path.parent.name,
+            "format_valid_rate": audit["format_valid_rows"] / audit["output_rows"],
+            "format_valid_rows": audit["format_valid_rows"],
+            "invalid_format_rows": audit["invalid_format_rows"],
+            "mean_cot_words": audit["mean_cot_words"],
+            "mean_generation_tokens": audit["mean_generation_tokens"],
+            "finish_reason_counts": audit["finish_reason_counts"],
+            **result["metrics"],
+        }
+    )
 (root / "all_checkpoint_metrics.json").write_text(
     json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
 )

@@ -53,6 +53,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--save-every", type=int, default=100)
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--allow-noncanonical-output",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="保留格式不完整但非空的原始 completion，并将其用于 retrieval query。",
+    )
     parser.add_argument("--expected-split", default="test")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
@@ -96,6 +102,27 @@ def canonicalize_cot(raw: str, max_words: int) -> tuple[str, str, str, int]:
     return analysis, answer, cot, words
 
 
+def parse_generated_output(
+    raw: str,
+    max_words: int,
+    allow_noncanonical: bool,
+) -> tuple[str, str, str, int, bool]:
+    """解析 completion；按需保留不完整格式的原始文本。"""
+    raw_text = str(raw or "").strip()
+    if not raw_text:
+        raise ValueError("输出为空")
+    try:
+        analysis, answer, _, words = canonicalize_cot(raw_text, max_words)
+        return analysis, answer, raw_text, words, True
+    except ValueError:
+        if not allow_noncanonical:
+            raise
+        words = len(WORD_RE.findall(raw_text))
+        if words > max_words:
+            raise ValueError(f"原始 completion 共 {words} words，超过 {max_words}")
+        return "", "", raw_text, words, False
+
+
 def truncate_prompt(tokenizer, prompt: str, max_prompt_tokens: int) -> tuple[str, int, int]:
     ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
     raw_length = len(ids)
@@ -116,7 +143,11 @@ def build_prompt(tokenizer, row: dict[str, Any], args: argparse.Namespace) -> tu
     return truncate_prompt(tokenizer, prompt, args.max_prompt_tokens)
 
 
-def load_existing(path: Path, max_words: int) -> dict[str, dict[str, Any]]:
+def load_existing(
+    path: Path,
+    max_words: int,
+    allow_noncanonical: bool,
+) -> dict[str, dict[str, Any]]:
     if not path.exists():
         return {}
     existing = {}
@@ -124,7 +155,7 @@ def load_existing(path: Path, max_words: int) -> dict[str, dict[str, Any]]:
         key = example_id(row)
         cot = str(row.get("cot") or "")
         try:
-            canonicalize_cot(cot, max_words)
+            parse_generated_output(cot, max_words, allow_noncanonical)
         except ValueError:
             continue
         if key:
@@ -154,9 +185,15 @@ def build_output(
     prompt_final_tokens: int,
     attempt: int,
     elapsed: float,
+    finish_reason: str,
+    generated_tokens: int,
     args: argparse.Namespace,
 ) -> dict[str, Any]:
-    analysis, answer, cot, words = canonicalize_cot(raw, args.max_output_words)
+    analysis, answer, cot, words, format_valid = parse_generated_output(
+        raw,
+        args.max_output_words,
+        args.allow_noncanonical_output,
+    )
     history = get_history(source)
     output = dict(source)
     output.update(
@@ -167,12 +204,15 @@ def build_output(
             "cot": cot,
             "analysis": analysis,
             "answer": answer,
+            "cot_format_valid": format_valid,
             "cot_word_count": words,
             "generator_model": args.model,
             "generator_adapter": args.adapter,
             "generation_mode": "vllm_lora",
             "generation_attempt": attempt,
             "generation_seconds": round(elapsed, 6),
+            "generation_finish_reason": finish_reason,
+            "generation_tokens": generated_tokens,
             "prompt_raw_tokens": prompt_raw_tokens,
             "prompt_final_tokens": prompt_final_tokens,
             "prompt_truncated_left": prompt_raw_tokens > prompt_final_tokens,
@@ -200,6 +240,8 @@ def audit(source: list[dict[str, Any]], output: list[dict[str, Any]], args: argp
         "duplicate_output_ids": len(output_ids) - len(set(output_ids)),
         "order_matches_source": output_ids == source_ids,
         "invalid_format_rows": 0,
+        "format_valid_rows": 0,
+        "noncanonical_rows_used_for_retrieval": 0,
         "over_512_word_rows": 0,
         "empty_cot_rows": 0,
         "raw_asin_in_history_or_cot_rows": 0,
@@ -207,27 +249,51 @@ def audit(source: list[dict[str, Any]], output: list[dict[str, Any]], args: argp
         "target_id_in_prompt_contract": False,
         "target_title_in_prompt_contract": False,
         "max_cot_words": 0,
+        "mean_cot_words": 0.0,
+        "max_generation_tokens": 0,
+        "mean_generation_tokens": 0.0,
+        "finish_reason_counts": {},
         "prompt_left_truncated_rows": 0,
         "temperature": args.temperature,
         "top_k": args.top_k,
         "top_p": args.top_p,
         "expected_split": args.expected_split,
+        "allow_noncanonical_output": args.allow_noncanonical_output,
         "seed": args.seed,
     }
+    cot_word_counts = []
+    generation_token_counts = []
     for row in output:
         cot = str(row.get("cot") or "")
         history = str(row.get("user_history") or "")
         if not cot:
             stats["empty_cot_rows"] += 1
-        try:
-            _, _, canonical, words = canonicalize_cot(cot, args.max_output_words)
-            if canonical != cot:
-                stats["invalid_format_rows"] += 1
-            stats["max_cot_words"] = max(stats["max_cot_words"], words)
-            if words > args.max_output_words:
-                stats["over_512_word_rows"] += 1
-        except ValueError:
+        words = int(row.get("cot_word_count") or len(WORD_RE.findall(cot)))
+        cot_word_counts.append(words)
+        stats["max_cot_words"] = max(stats["max_cot_words"], words)
+        if words > args.max_output_words:
+            stats["over_512_word_rows"] += 1
+        format_valid = row.get("cot_format_valid")
+        if format_valid is None:
+            try:
+                canonicalize_cot(cot, args.max_output_words)
+                format_valid = True
+            except ValueError:
+                format_valid = False
+        if format_valid:
+            stats["format_valid_rows"] += 1
+        else:
             stats["invalid_format_rows"] += 1
+            stats["noncanonical_rows_used_for_retrieval"] += 1
+        generation_tokens = int(row.get("generation_tokens") or 0)
+        generation_token_counts.append(generation_tokens)
+        stats["max_generation_tokens"] = max(
+            stats["max_generation_tokens"], generation_tokens
+        )
+        finish_reason = str(row.get("generation_finish_reason") or "unknown")
+        stats["finish_reason_counts"][finish_reason] = (
+            stats["finish_reason_counts"].get(finish_reason, 0) + 1
+        )
         if RAW_ASIN_RE.search(f"{history}\n{cot}"):
             stats["raw_asin_in_history_or_cot_rows"] += 1
         title = str(row.get("target_item_title") or "").strip()
@@ -235,6 +301,12 @@ def audit(source: list[dict[str, Any]], output: list[dict[str, Any]], args: argp
             stats["target_title_in_cot_rows"] += 1
         if row.get("prompt_truncated_left"):
             stats["prompt_left_truncated_rows"] += 1
+    if cot_word_counts:
+        stats["mean_cot_words"] = sum(cot_word_counts) / len(cot_word_counts)
+    if generation_token_counts:
+        stats["mean_generation_tokens"] = sum(generation_token_counts) / len(
+            generation_token_counts
+        )
     return stats
 
 
@@ -312,7 +384,15 @@ def main() -> None:
         disable_log_stats=True,
     )
     lora_request = LoRARequest("sft_adapter", 1, args.adapter)
-    generated = load_existing(args.output, args.max_output_words) if args.resume else {}
+    generated = (
+        load_existing(
+            args.output,
+            args.max_output_words,
+            args.allow_noncanonical_output,
+        )
+        if args.resume
+        else {}
+    )
     pending = [row for row in source if example_id(row) not in generated]
     print(json.dumps({"source": len(source), "existing": len(generated), "pending": len(pending)}, ensure_ascii=False), flush=True)
 
@@ -341,7 +421,8 @@ def main() -> None:
                 )
                 elapsed = (time.perf_counter() - started) / len(batch)
                 for row, prompt_record, result in zip(batch, prompt_records, results):
-                    raw = result.outputs[0].text if result.outputs else ""
+                    result_output = result.outputs[0] if result.outputs else None
+                    raw = result_output.text if result_output is not None else ""
                     try:
                         generated[example_id(row)] = build_output(
                             row,
@@ -350,6 +431,8 @@ def main() -> None:
                             prompt_record[2],
                             attempt,
                             elapsed,
+                            str(getattr(result_output, "finish_reason", "") or "unknown"),
+                            len(getattr(result_output, "token_ids", []) or []),
                             args,
                         )
                     except ValueError:
@@ -368,7 +451,10 @@ def main() -> None:
     args.audit_output.parent.mkdir(parents=True, exist_ok=True)
     args.audit_output.write_text(json.dumps(stats, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(stats, ensure_ascii=False, indent=2), flush=True)
-    if written != len(source) or pending or stats["invalid_format_rows"] or stats["over_512_word_rows"]:
+    invalid_format_failure = (
+        stats["invalid_format_rows"] and not args.allow_noncanonical_output
+    )
+    if written != len(source) or pending or invalid_format_failure or stats["over_512_word_rows"]:
         raise RuntimeError(f"vLLM 推理未完整通过审计，剩余 {len(pending)} 条")
 
 
