@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用 vLLM 加载 Qwen2.5 LoRA，为 test history 生成下一物品特征 CoT。"""
+"""使用 vLLM 加载 Qwen2.5 LoRA，为指定 split 的 history 生成下一物品特征 CoT。"""
 
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-prompt-tokens", type=int, default=4096)
     parser.add_argument("--max-new-tokens", type=int, default=2048)
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top-k", type=int, default=-1)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--max-output-words", type=int, default=512)
     parser.add_argument("--vllm-max-model-len", type=int, default=6144)
@@ -52,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--save-every", type=int, default=100)
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--expected-split", default="test")
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -207,7 +209,9 @@ def audit(source: list[dict[str, Any]], output: list[dict[str, Any]], args: argp
         "max_cot_words": 0,
         "prompt_left_truncated_rows": 0,
         "temperature": args.temperature,
+        "top_k": args.top_k,
         "top_p": args.top_p,
+        "expected_split": args.expected_split,
         "seed": args.seed,
     }
     for row in output:
@@ -277,6 +281,8 @@ def main() -> None:
         raise ValueError("项目随机种子必须为 42")
     if args.vllm_max_model_len < args.max_prompt_tokens + args.max_new_tokens:
         raise ValueError("vllm-max-model-len 必须覆盖 max-prompt-tokens + max-new-tokens")
+    if args.top_k == 0 or args.top_k < -1:
+        raise ValueError("top-k 必须为 -1（关闭）或正整数")
 
     os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
     os.environ.setdefault("NCCL_P2P_DISABLE", "1")
@@ -286,8 +292,8 @@ def main() -> None:
     from vllm.lora.request import LoRARequest
 
     source = read_jsonl(args.input)
-    if not source or any(row.get("split") != "test" for row in source):
-        raise ValueError("输入必须是非空 test JSONL")
+    if not source or any(row.get("split") != args.expected_split for row in source):
+        raise ValueError(f"输入必须是非空 {args.expected_split} JSONL")
     if len({example_id(row) for row in source}) != len(source):
         raise ValueError("输入 example_id 为空或重复")
 
@@ -317,6 +323,7 @@ def main() -> None:
             next_pending = []
             sampling = SamplingParams(
                 temperature=args.temperature,
+                top_k=args.top_k,
                 top_p=args.top_p,
                 max_tokens=args.max_new_tokens,
                 seed=args.seed + attempt - 1,

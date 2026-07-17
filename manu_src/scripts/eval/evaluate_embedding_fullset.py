@@ -29,12 +29,14 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def load_test_rows(path: Path) -> list[dict]:
-    """读取 test pair，并检查全量评测需要的字段。"""
+def load_test_rows(path: Path, expected_split: str) -> list[dict]:
+    """读取指定 split 的 pair，并检查全量评测需要的字段。"""
     rows = read_jsonl(path)
     for line_number, row in enumerate(rows, 1):
-        if row.get("split") != "test":
-            raise ValueError(f"{path} 第 {line_number} 行 split 不是 test")
+        if row.get("split") != expected_split:
+            raise ValueError(
+                f"{path} 第 {line_number} 行 split 不是 {expected_split}"
+            )
         for field in ("example_id", "query", "target_item_id", "history_item_ids"):
             if field not in row:
                 raise ValueError(f"{path} 第 {line_number} 行缺少 {field}")
@@ -186,6 +188,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="在12000个候选物品上评测 embedding checkpoint。")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--test-file", type=Path, required=True)
+    parser.add_argument("--expected-split", default="test")
     parser.add_argument("--item-info", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ranks-output", type=Path, required=True)
@@ -205,7 +208,7 @@ def main() -> None:
     set_seed(args.seed)
     device = torch.device("cuda:0")
 
-    rows = load_test_rows(args.test_file)
+    rows = load_test_rows(args.test_file, args.expected_split)
     item_ids, item_texts = load_candidates(args.item_info)
     tokenizer = AutoTokenizer.from_pretrained(
         args.checkpoint,
@@ -259,6 +262,7 @@ def main() -> None:
     result = {
         "checkpoint": str(args.checkpoint),
         "test_file": str(args.test_file),
+        "split": args.expected_split,
         "item_info": str(args.item_info),
         "evaluated": len(rows),
         "num_candidates": len(item_ids),
