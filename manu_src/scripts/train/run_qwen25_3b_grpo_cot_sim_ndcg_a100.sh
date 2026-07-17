@@ -13,13 +13,13 @@ DATASET=${DATASET:-$SPLIT_DIR/grpo_cot_sim_ndcg_messages_train80_seed42_n8578.js
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
-OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_lr2e5_ep1_len4096_seed42}
+OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs8_ga1_lr2e5_ep1_len4096_seed42}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
 SEED=${SEED:-42}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-16}
-BATCH_SIZE=${BATCH_SIZE:-16}
+BATCH_SIZE=${BATCH_SIZE:-8}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
 MAX_LENGTH=${MAX_LENGTH:-4096}
 MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-1024}
@@ -134,8 +134,8 @@ print_param NUM_GENERATIONS "$NUM_GENERATIONS" "每个历史采样 4 条 CoT，�
 print_param GENERATION_TEMPERATURE "$GENERATION_TEMPERATURE" "rollout 采样温度；初始试验与 API CoT 生成温度保持 1.0。"
 print_param GENERATION_TOP_K "$GENERATION_TOP_K" "rollout 每步保留概率最高的 200 个 token。"
 print_param GENERATION_TOP_P "$GENERATION_TOP_P" "不额外裁剪 nucleus 概率质量。"
-print_param BATCH_SIZE "$BATCH_SIZE" "每个 optimizer step 处理的 completion 数；对应 4 个独立 prompt。"
-print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 单次 rollout completion 批量。"
+print_param BATCH_SIZE "$BATCH_SIZE" "每个 optimizer step 反向传播的 completion 数；对应 $((BATCH_SIZE / NUM_GENERATIONS)) 个完整四候选组。"
+print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 单次 rollout 生成 16 个 completion；缓存后分成 $((GENERATION_BATCH_SIZE / BATCH_SIZE)) 个 optimizer step，以降低长 completion 的训练激活显存。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 上限，与 SFT 和 reward embedding 保持 4096。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条生成的最大 token 数；提示词仍要求 analysis+answer 不超过 512 words。"
