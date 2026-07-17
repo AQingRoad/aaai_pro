@@ -49,7 +49,7 @@ USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
 VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4608}
 VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-8}
-VLLM_ENABLE_SLEEP_MODE=${VLLM_ENABLE_SLEEP_MODE:-false}
+VLLM_SLEEP_LEVEL=${VLLM_SLEEP_LEVEL:-0}
 CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
 
@@ -88,6 +88,10 @@ if ((GENERATION_BATCH_SIZE % NUM_GENERATIONS != 0)); then
 fi
 if ((GENERATION_BATCH_SIZE % BATCH_SIZE != 0)); then
   echo "GENERATION_BATCH_SIZE 必须能被单卡 BATCH_SIZE 整除，以便 TRL 自动计算 steps_per_generation。" >&2
+  exit 1
+fi
+if [[ "$VLLM_SLEEP_LEVEL" != "0" && "$VLLM_SLEEP_LEVEL" != "1" && "$VLLM_SLEEP_LEVEL" != "2" ]]; then
+  echo "VLLM_SLEEP_LEVEL 只能为 0、1 或 2。" >&2
   exit 1
 fi
 if [[ "$MAX_LENGTH" != "4096" ]]; then
@@ -158,7 +162,7 @@ print_param USE_VLLM "$USE_VLLM" "使用 colocate vLLM 生成 rollout。"
 print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 总预留占 GPU 显存的比例；当前固定 10%。"
 print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "vLLM 总上下文为 4096-token prompt 加 512-token completion；prompt 超过 4096 时沿用左侧截断。"
 print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 同时调度的最大序列数，与本轮 generation batch 对齐。"
-print_param VLLM_ENABLE_SLEEP_MODE "$VLLM_ENABLE_SLEEP_MODE" "rollout 完成后释放 vLLM 权重和 KV cache，为策略模型反向传播腾出显存。"
+print_param VLLM_SLEEP_LEVEL "$VLLM_SLEEP_LEVEL" "Swift 的 vLLM 休眠级别；1 表示 rollout 后释放 vLLM 权重和 KV cache，为策略模型反向传播腾出显存。"
 print_param COT_SIM_NDCG_ITEM_BATCH_SIZE "$COT_SIM_NDCG_ITEM_BATCH_SIZE" "首次构建冻结候选 embedding 表的批量。"
 print_param COT_SIM_NDCG_QUERY_BATCH_SIZE "$COT_SIM_NDCG_QUERY_BATCH_SIZE" "每次 reward 编码 completion query 的批量。"
 print_param COMPONENT_LOG "$COT_SIM_NDCG_COMPONENT_LOG" "记录 cosine、log-softmax、rank、NDCG、组内 z-score、冲突率和最终 reward。"
@@ -259,7 +263,7 @@ export COT_SIM_NDCG_DEVICE=cuda:0
   --vllm_gpu_memory_utilization "$VLLM_GPU_MEMORY_UTILIZATION" \
   --vllm_max_model_len "$VLLM_MAX_MODEL_LEN" \
   --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
-  --vllm_enable_sleep_mode "$VLLM_ENABLE_SLEEP_MODE" \
+  --sleep_level "$VLLM_SLEEP_LEVEL" \
   --vllm_enable_lora true \
   --vllm_max_lora_rank "$LORA_RANK" \
   --seed "$SEED" \
