@@ -12,13 +12,13 @@ DATASET=${DATASET:-$SPLIT_DIR/grpo_cot_sim_ndcg_messages_train80_seed42_n8578.js
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
-OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
+OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
 SEED=${SEED:-42}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
-GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-16}
-BATCH_SIZE=${BATCH_SIZE:-4}
+GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-32}
+BATCH_SIZE=${BATCH_SIZE:-8}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
 MAX_LENGTH=${MAX_LENGTH:-4096}
 MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-512}
@@ -47,7 +47,7 @@ COT_SIM_NDCG_COMPONENT_LOG=${COT_SIM_NDCG_COMPONENT_LOG:-$OUT/cot_sim_ndcg_compo
 USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
 VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4608}
-VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-16}
+VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-32}
 VLLM_SLEEP_LEVEL=${VLLM_SLEEP_LEVEL:-1}
 CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
@@ -153,9 +153,9 @@ print_param GROUP_STANDARDIZATION per_example_id "相似度与 NDCG 分别在同
 print_param SEEN_ITEM_MASK enabled "屏蔽历史物品并保留监督 target。"
 print_param REWARD_QUERY "history + full generated completion" "reward embedding 输入保留完整生成，超长时按既定字段级规则截断历史。"
 print_param NUM_GENERATIONS "$NUM_GENERATIONS" "每个 prompt 采样 4 条候选并全部进入标准 GRPO loss。"
-print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 每轮生成 16 条 completion，对应 4 个 prompt 组。"
-print_param BATCH_SIZE "$BATCH_SIZE" "每次反向传播 4 条 completion，对应 1 个完整候选组。"
-print_param STEPS_PER_GENERATION "$steps_per_generation" "每轮 rollout 拆成 4 个反向传播 step。"
+print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 每轮生成 $GENERATION_BATCH_SIZE 条 completion，对应 $((GENERATION_BATCH_SIZE / NUM_GENERATIONS)) 个 prompt 组。"
+print_param BATCH_SIZE "$BATCH_SIZE" "每次反向传播 $BATCH_SIZE 条 completion，对应 $((BATCH_SIZE / NUM_GENERATIONS)) 个完整候选组。"
+print_param STEPS_PER_GENERATION "$steps_per_generation" "每轮 rollout 拆成 $steps_per_generation 个反向传播 step。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 上限；超长输入从左侧截断。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条 CoT 最多生成 512 tokens。"
@@ -163,18 +163,18 @@ print_param GENERATION_TEMPERATURE "$GENERATION_TEMPERATURE" "rollout 采样温�
 print_param GENERATION_TOP_K "$GENERATION_TOP_K" "每步保留概率最高的 200 个 token。"
 print_param GENERATION_TOP_P "$GENERATION_TOP_P" "不额外裁剪 nucleus 概率质量。"
 print_param EPOCHS "$EPOCHS" "后 80% 数据训练 1 个 GRPO epoch。"
-print_param APPROX_STEPS "$approx_steps" "每 step 消耗 1 个 prompt 组时的单 epoch optimizer steps。"
+print_param APPROX_STEPS "$approx_steps" "每 step 消耗 $prompts_per_step 个 prompt 组时的单 epoch optimizer steps。"
 print_param TRAIN_TYPE lora "仅更新新建的 GRPO LoRA，完整 SFT 基座保持冻结。"
 print_param LEARNING_RATE "$LEARNING_RATE" "GRPO LoRA AdamW 峰值学习率。"
 print_param BETA "$BETA" "KL 系数；reference 为不启用 GRPO adapter 的完整 SFT 模型。"
 print_param LORA_RANK "$LORA_RANK" "新建 GRPO LoRA 的 rank。"
 print_param LORA_ALPHA "$LORA_ALPHA" "新建 GRPO LoRA 的缩放系数。"
-print_param SAVE_STEPS "$SAVE_STEPS" "每 300 个 optimizer step 保存 checkpoint。"
+print_param SAVE_STEPS "$SAVE_STEPS" "每 $SAVE_STEPS 个 optimizer step 保存 checkpoint。"
 print_param USE_VLLM "$USE_VLLM" "使用 colocate vLLM 生成 rollout。"
 print_param VLLM_ENABLE_LORA true "vLLM 只同步新建的 GRPO LoRA；SFT 已固化在完整基座。"
-print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 预留 10% GPU 显存。"
+print_param VLLM_GPU_MEMORY_UTILIZATION "$VLLM_GPU_MEMORY_UTILIZATION" "vLLM 按该比例预留 GPU 显存。"
 print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "vLLM 总上下文为 4096-token prompt 加 512-token completion。"
-print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 最多同时调度 16 条序列。"
+print_param VLLM_MAX_NUM_SEQS "$VLLM_MAX_NUM_SEQS" "vLLM 最多同时调度 $VLLM_MAX_NUM_SEQS 条序列。"
 print_param VLLM_SLEEP_LEVEL "$VLLM_SLEEP_LEVEL" "rollout 后释放 vLLM 权重和 KV cache，为反向传播腾出显存。"
 print_param COMPONENT_LOG "$COT_SIM_NDCG_COMPONENT_LOG" "逐步记录 raw similarity、rank、NDCG、组内 z-score 和最终 reward。"
 print_param OUT "$OUT" "GRPO LoRA checkpoint、trainer 日志和 reward 组件日志目录。"

@@ -6,12 +6,12 @@ SFT_SCRIPT=${SFT_SCRIPT:-$ROOT/manu_src/scripts/train/run_qwen25_3b_full_sft20_a
 GRPO_SCRIPT=${GRPO_SCRIPT:-$ROOT/manu_src/scripts/train/run_qwen25_3b_grpo_lora_from_full_sft20_a100.sh}
 
 SFT_OUT=${SFT_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_full_sft20_disjoint_time_title_rating_store_categories_desc256_details256_v1_bs16_ga1_lr2e5_ep1_len4096_seed42}
-GRPO_OUT=${GRPO_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
+GRPO_OUT=${GRPO_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
 
 SFT_BATCH_SIZE=${SFT_BATCH_SIZE:-16}
 SFT_LEARNING_RATE=${SFT_LEARNING_RATE:-2e-5}
-GRPO_BATCH_SIZE=${GRPO_BATCH_SIZE:-4}
-GRPO_GENERATION_BATCH_SIZE=${GRPO_GENERATION_BATCH_SIZE:-16}
+GRPO_BATCH_SIZE=${GRPO_BATCH_SIZE:-8}
+GRPO_GENERATION_BATCH_SIZE=${GRPO_GENERATION_BATCH_SIZE:-32}
 GRPO_LEARNING_RATE=${GRPO_LEARNING_RATE:-2e-5}
 SEED=${SEED:-42}
 ALLOW_EXISTING_OUTPUT=${ALLOW_EXISTING_OUTPUT:-0}
@@ -46,8 +46,8 @@ print_param SFT_BATCH_SIZE "$SFT_BATCH_SIZE" "全参数 SFT 单卡 micro batch�
 print_param SFT_LEARNING_RATE "$SFT_LEARNING_RATE" "全参数 SFT AdamW 峰值学习率。"
 print_param SFT_EPOCHS 1 "前 20% 数据训练 1 个完整 epoch。"
 print_param SFT_MAX_LENGTH 4096 "SFT chat 序列最大 token 数，采用左截断。"
-print_param GRPO_BATCH_SIZE "$GRPO_BATCH_SIZE" "每次反向传播 4 条 completion，即 1 个完整四候选组。"
-print_param GRPO_GENERATION_BATCH_SIZE "$GRPO_GENERATION_BATCH_SIZE" "每轮 rollout 生成 16 条 completion，即 4 个四候选组。"
+print_param GRPO_BATCH_SIZE "$GRPO_BATCH_SIZE" "每次反向传播 $GRPO_BATCH_SIZE 条 completion，即 $((GRPO_BATCH_SIZE / 4)) 个完整四候选组。"
+print_param GRPO_GENERATION_BATCH_SIZE "$GRPO_GENERATION_BATCH_SIZE" "每轮 rollout 生成 $GRPO_GENERATION_BATCH_SIZE 条 completion，即 $((GRPO_GENERATION_BATCH_SIZE / 4)) 个四候选组。"
 print_param GRPO_LEARNING_RATE "$GRPO_LEARNING_RATE" "新建 GRPO LoRA 的 AdamW 峰值学习率。"
 print_param GRPO_EPOCHS 1 "后 80% 数据训练 1 个完整 epoch。"
 print_param GRPO_REWARD "0.8 similarity + 0.2 NDCG@100" "两项分别做组内 z-score；不加入格式、margin 或 rubric 奖励。"
