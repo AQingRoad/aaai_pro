@@ -12,7 +12,7 @@ DATASET=${DATASET:-$SPLIT_DIR/grpo_cot_sim_ndcg_messages_train80_seed42_n8578.js
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
-OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
+OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
 SEED=${SEED:-42}

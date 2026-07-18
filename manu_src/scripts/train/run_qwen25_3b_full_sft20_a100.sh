@@ -6,14 +6,14 @@ VENV=${VENV:-/home/user/.conda/envs/aaai_pro}
 MODEL=${MODEL:-/home/user/models_hf/Qwen2.5-3B-Instruct}
 SPLIT_DIR=${SPLIT_DIR:-$ROOT/manu_src/datas/CDs_and_Vinyl/sft_grpo/disjoint_example20_80__input_time_title_rating_store_categories_desc256_details256_v1}
 DATASET=${DATASET:-$SPLIT_DIR/sft_train20_seed42_n2144.jsonl}
-OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_full_sft20_disjoint_time_title_rating_store_categories_desc256_details256_v1_bs4_ga1_lr1e5_ep1_len4096_seed42}
+OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_full_sft20_disjoint_time_title_rating_store_categories_desc256_details256_v1_bs16_ga1_lr2e5_ep1_len4096_seed42}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-2144}
-BATCH_SIZE=${BATCH_SIZE:-4}
+BATCH_SIZE=${BATCH_SIZE:-16}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
 MAX_LENGTH=${MAX_LENGTH:-4096}
 EPOCHS=${EPOCHS:-1}
-LEARNING_RATE=${LEARNING_RATE:-1e-5}
+LEARNING_RATE=${LEARNING_RATE:-2e-5}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 WARMUP_RATIO=${WARMUP_RATIO:-0.03}
 SEED=${SEED:-42}
@@ -76,7 +76,7 @@ print_param BATCH_SIZE "$BATCH_SIZE" "单卡 micro batch；未执行额外显存
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1，有效 batch 等于 micro batch。"
 print_param MAX_LENGTH "$MAX_LENGTH" "完整 chat 序列 token 上限；超长样本从左侧截断并保留 assistant CoT。"
 print_param EPOCHS "$EPOCHS" "SFT 训练 1 个完整 epoch。"
-print_param LEARNING_RATE "$LEARNING_RATE" "全参数 AdamW 峰值学习率，低于上一轮 LoRA SFT 的 2e-5。"
+print_param LEARNING_RATE "$LEARNING_RATE" "全参数 AdamW 峰值学习率；本轮按确认值使用 2e-5。"
 print_param WEIGHT_DECAY "$WEIGHT_DECAY" "AdamW 权重衰减。"
 print_param WARMUP_RATIO "$WARMUP_RATIO" "前 3% optimizer step 线性 warmup。"
 print_param SAVE_STEPS "$save_steps" "在单个 epoch 结束时保存完整模型 checkpoint。"

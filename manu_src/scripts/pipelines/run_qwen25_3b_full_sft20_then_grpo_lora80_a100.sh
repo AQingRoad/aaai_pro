@@ -5,11 +5,11 @@ ROOT=${ROOT:-/home/user/aaai_pro}
 SFT_SCRIPT=${SFT_SCRIPT:-$ROOT/manu_src/scripts/train/run_qwen25_3b_full_sft20_a100.sh}
 GRPO_SCRIPT=${GRPO_SCRIPT:-$ROOT/manu_src/scripts/train/run_qwen25_3b_grpo_lora_from_full_sft20_a100.sh}
 
-SFT_OUT=${SFT_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_full_sft20_disjoint_time_title_rating_store_categories_desc256_details256_v1_bs4_ga1_lr1e5_ep1_len4096_seed42}
-GRPO_OUT=${GRPO_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
+SFT_OUT=${SFT_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/sft/qwen25_3b_full_sft20_disjoint_time_title_rating_store_categories_desc256_details256_v1_bs16_ga1_lr2e5_ep1_len4096_seed42}
+GRPO_OUT=${GRPO_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_fullsft20_bs16_lr2e5_grpolora80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42}
 
-SFT_BATCH_SIZE=${SFT_BATCH_SIZE:-4}
-SFT_LEARNING_RATE=${SFT_LEARNING_RATE:-1e-5}
+SFT_BATCH_SIZE=${SFT_BATCH_SIZE:-16}
+SFT_LEARNING_RATE=${SFT_LEARNING_RATE:-2e-5}
 GRPO_BATCH_SIZE=${GRPO_BATCH_SIZE:-4}
 GRPO_GENERATION_BATCH_SIZE=${GRPO_GENERATION_BATCH_SIZE:-16}
 GRPO_LEARNING_RATE=${GRPO_LEARNING_RATE:-2e-5}
