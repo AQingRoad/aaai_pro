@@ -12,6 +12,7 @@ from manu_src.api_info.rubric_target_relevance_api import (
 
 from manu_src.scripts.train.cot_rubric_ndcg1000_gain_reward import (
     _api_score_norm,
+    _apply_group_ndcg_only_fallback,
     _combine_group_rewards,
     _joint_gain,
     _parse_api_keys,
@@ -56,6 +57,16 @@ class _FakeHTTPResponse:
 
 
 class CotRubricNdcg1000GainRewardTest(unittest.TestCase):
+    def test_missing_rubric_score_falls_back_for_entire_group(self) -> None:
+        scores, fallback_mask, fallback_groups = _apply_group_ndcg_only_fallback(
+            [0.8, None, 0.6, 0.9, 0.2, 0.4, 0.6, 0.8],
+            {("example", 0): [0, 1, 2, 3], ("example", 1): [4, 5, 6, 7]},
+        )
+        self.assertEqual(scores[:4], [1.0, 1.0, 1.0, 1.0])
+        self.assertEqual(scores[4:], [0.2, 0.4, 0.6, 0.8])
+        self.assertEqual(fallback_mask, [True] * 4 + [False] * 4)
+        self.assertEqual(fallback_groups, 1)
+
     def test_tokenverse_rubric_request_disables_reasoning(self) -> None:
         captured_payloads: list[dict] = []
 
@@ -116,7 +127,15 @@ class CotRubricNdcg1000GainRewardTest(unittest.TestCase):
                 "choices": [
                     {
                         "message": {
-                            "content": "",
+                            "content": json.dumps(
+                                {
+                                    "preference_grounding": 5,
+                                    "taste_specificity": 5,
+                                    "transitional_reasoning": 5,
+                                    "discriminative_framing": 5,
+                                    "conciseness": 5,
+                                }
+                            ),
                             "reasoning_content": json.dumps(
                                 {
                                     "preference_grounding": 5,

@@ -240,6 +240,26 @@ def _combine_group_rewards(
     return rewards, similarity_z, joint_z
 
 
+def _apply_group_ndcg_only_fallback(
+    rubric_scores: list[float | None],
+    grouped_indices: dict[tuple[str, str | int], list[int]],
+) -> tuple[list[float], list[bool], int]:
+    """Use q=1 for a whole GRPO group when any API rubric score is missing."""
+    resolved = [0.0 for _ in rubric_scores]
+    fallback_mask = [False for _ in rubric_scores]
+    fallback_groups = 0
+    for indices in grouped_indices.values():
+        use_fallback = any(rubric_scores[index] is None for index in indices)
+        fallback_groups += int(use_fallback)
+        for index in indices:
+            score = 1.0 if use_fallback else rubric_scores[index]
+            if score is None:
+                raise RuntimeError("unresolved rubric score after group fallback")
+            resolved[index] = min(1.0, max(0.0, float(score)))
+            fallback_mask[index] = use_fallback
+    return resolved, fallback_mask, fallback_groups
+
+
 class FrozenRubricScorer:
     """Frozen no-target rubric scorer; online API judge is the default."""
 
@@ -354,10 +374,20 @@ class FrozenRubricScorer:
         self.api_fallback = _env("API_FALLBACK", "error").strip().lower()
         if timeout <= 0 or max_retries < 0 or self.api_concurrency_per_key <= 0:
             raise ValueError("API timeout/concurrency must be positive and retries non-negative")
-        if self.api_fallback not in {"error", "raise", "none", "rules", "rule", "local"}:
+        if self.api_fallback not in {
+            "error",
+            "raise",
+            "none",
+            "rules",
+            "rule",
+            "local",
+            "ndcg_only_group",
+            "group_ndcg",
+            "ndcg",
+        }:
             raise ValueError(
                 f"Unsupported {ENV_PREFIX}_API_FALLBACK={self.api_fallback}; "
-                "use error or rules"
+                "use error, rules, or ndcg_only_group"
             )
 
         # judge_api.py reads these two request-shape controls from the shared
@@ -430,7 +460,7 @@ class FrozenRubricScorer:
         history: str,
         completion: str,
         target_item: str,
-    ) -> tuple[float, str, float]:
+    ) -> tuple[float | None, str, float]:
         cache_key = (
             self.api_provider,
             self.api_model,
@@ -471,6 +501,12 @@ class FrozenRubricScorer:
             if self.api_fallback in {"rules", "rule", "local"}:
                 score = float(rule_score(history, completion)["score_norm"])
                 source = "fallback_rules"
+            elif self.api_fallback in {
+                "ndcg_only_group",
+                "group_ndcg",
+                "ndcg",
+            }:
+                return None, "fallback_ndcg_only_pending", elapsed
             else:
                 safe_error = " | ".join(errors)[:1000]
                 raise RuntimeError(
@@ -488,10 +524,10 @@ class FrozenRubricScorer:
         histories: list[str],
         completions: list[str],
         target_items: list[str],
-    ) -> list[float]:
+    ) -> list[float | None]:
         n = len(completions)
         concurrency = max(1, min(self.api_concurrency, n))
-        scores = [0.0 for _ in range(n)]
+        scores: list[float | None] = [None for _ in range(n)]
         sources = ["" for _ in range(n)]
         item_seconds = [0.0 for _ in range(n)]
 
@@ -526,7 +562,9 @@ class FrozenRubricScorer:
             "concurrency": concurrency,
             "concurrency_per_key": self.api_concurrency_per_key,
             "key_attempts_per_item": self.api_key_attempts,
+            "fallback": self.api_fallback,
             "source_counts": dict(Counter(sources)),
+            "failed_items": sum(score is None for score in scores),
             "api_item_sec_mean": _safe_mean(item_seconds),
             "api_item_sec_max": max(item_seconds, default=0.0),
         }
@@ -538,7 +576,7 @@ class FrozenRubricScorer:
         completions: list[str],
         query_embeddings,
         target_items: list[str] | None = None,
-    ) -> list[float]:
+    ) -> list[float | None]:
         if len(histories) != len(completions):
             raise ValueError("history and completion batch sizes differ")
         targets = target_items or ["" for _ in completions]
@@ -746,6 +784,7 @@ def _log_components(summary: dict[str, Any], items: list[dict[str, Any]]) -> Non
             f"win_rate={summary['reference_win_rate']:.6f} "
             f"delta_ndcg_mean={summary['delta_ndcg_mean']:.6f} "
             f"rubric_mean={summary['rubric_mean']:.6f} "
+            f"rubric_fallback_groups={summary['rubric_fallback_groups']} "
             f"zero_joint_groups={summary['zero_joint_std_groups']} "
             f"total_sec={summary['total_sec']:.3f}",
             flush=True,
@@ -854,11 +893,14 @@ class CotRubricNdcg1000GainReward(ORM):
 
         rubric_started = time.perf_counter()
         rubric_scorer = _get_rubric_scorer(state)
-        rubric_scores = rubric_scorer.score(
+        raw_rubric_scores = rubric_scorer.score(
             histories,
             completion_texts,
             query_embeddings,
             target_items,
+        )
+        rubric_scores, rubric_fallback_mask, rubric_fallback_groups = (
+            _apply_group_ndcg_only_fallback(raw_rubric_scores, grouped_indices)
         )
         rubric_sec = time.perf_counter() - rubric_started
 
@@ -957,6 +999,7 @@ class CotRubricNdcg1000GainReward(ORM):
                 f"reference_ndcg@{ndcg_k}": reference_ndcgs[index],
                 "delta_ndcg": delta_ndcgs[index],
                 "rubric_score": rubric_scores[index],
+                "rubric_fallback_ndcg_only": rubric_fallback_mask[index],
                 "joint_gain": joint_gains[index],
                 "similarity_z": similarity_z[index],
                 "joint_z": joint_z[index],
@@ -990,6 +1033,8 @@ class CotRubricNdcg1000GainReward(ORM):
             "reference_loss_rate": losses / n,
             "reference_tie_rate": ties / n,
             "rubric_mean": _safe_mean(rubric_scores),
+            "rubric_fallback_groups": rubric_fallback_groups,
+            "rubric_fallback_items": sum(rubric_fallback_mask),
             "joint_gain_mean": _safe_mean(joint_gains),
             "new_rank_mean": _safe_mean([float(rank) for rank in new_ranks]),
             "pairwise_conflict_rate": _safe_mean(group_conflicts),

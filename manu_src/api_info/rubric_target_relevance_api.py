@@ -30,6 +30,8 @@ def _extract_score(raw_response: str) -> dict[str, Any] | None:
         message = payload["choices"][0].get("message", {})
     except (json.JSONDecodeError, KeyError, IndexError, TypeError):
         return None
+    if str(message.get("reasoning_content") or "").strip():
+        return None
     for field in ("content",):
         parsed = parse_judge_json(str(message.get(field) or ""))
         if parsed:

@@ -19,7 +19,7 @@ DATASET_BUILDER=${DATASET_BUILDER:-$ROOT/manu_src/scripts/pre_datas/build_grpo_r
 REFERENCE_PRECOMPUTE=${REFERENCE_PRECOMPUTE:-$ROOT/manu_src/scripts/pre_datas/precompute_grpo_reference_ndcg.py}
 API_CONFIG=${API_CONFIG:-$ROOT/manu_src/api_info/API_CONFIG.py}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_ks_glm5_2_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_ks_glm5_2_apifallbackndcg_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 PROBE_OUT=${PROBE_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/probes/${RUN_NAME}_compat10step}
 
@@ -67,7 +67,7 @@ RUBRIC_API_MAX_RETRIES=${RUBRIC_API_MAX_RETRIES:-12}
 RUBRIC_API_CONCURRENCY_PER_KEY=${RUBRIC_API_CONCURRENCY_PER_KEY:-10}
 RUBRIC_API_MAX_TOKENS=${RUBRIC_API_MAX_TOKENS:-128}
 RUBRIC_API_THINKING=${RUBRIC_API_THINKING:-disabled}
-RUBRIC_API_FALLBACK=${RUBRIC_API_FALLBACK:-error}
+RUBRIC_API_FALLBACK=${RUBRIC_API_FALLBACK:-ndcg_only_group}
 RUBRIC_HTTPS_PROXY=${RUBRIC_HTTPS_PROXY:-http://127.0.0.1:18766}
 RUBRIC_API_RETRY_BASE_SECONDS=${RUBRIC_API_RETRY_BASE_SECONDS:-5}
 RUBRIC_API_RETRY_MAX_SECONDS=${RUBRIC_API_RETRY_MAX_SECONDS:-60}
@@ -213,7 +213,7 @@ print_param RUBRIC_API_KEY_ATTEMPTS "$api_key_count" "单次评分失败后轮�
 print_param RUBRIC_API_TIMEOUT "$RUBRIC_API_TIMEOUT seconds" "单次网络请求最多等待 300 秒，覆盖本地网络切换造成的短暂阻塞。"
 print_param RUBRIC_API_RETRY "$RUBRIC_API_MAX_RETRIES retries, ${RUBRIC_API_RETRY_BASE_SECONDS}s to ${RUBRIC_API_RETRY_MAX_SECONDS}s backoff" "失败后在同一 key 上指数退避；退避累计约 9 分钟且不含每次请求本身的等待时间，随后轮询其它 key。"
 print_param RUBRIC_API_MAX_TOKENS "$RUBRIC_API_MAX_TOKENS" "关闭 API reasoning 后，128 tokens 只用于最终五维 JSON；客户端不读取 reasoning_content。"
-print_param RUBRIC_API_FALLBACK "$RUBRIC_API_FALLBACK" "关闭规则分数回退，避免同一训练混合两种 q 标准。"
+print_param RUBRIC_API_FALLBACK "$RUBRIC_API_FALLBACK" "轮询全部 key 后仍有候选失败时，该候选所在四候选组统一令 q=1；当前负增益权重为 1，因此联合项退化为纯 NDCG@1000 gain。"
 print_param PROBE "$PROBE_ROWS prompts, gen_batch=$PROBE_GENERATION_BATCH_SIZE, train_batch=$PROBE_BATCH_SIZE, max_steps=$PROBE_MAX_STEPS" "随机种子 42 抽取 32 个 prompt，GPU0 连续执行 10 个 optimizer steps；batch 与单卡已跑通正式设置一致。"
 print_param NUM_GENERATIONS "$NUM_GENERATIONS" "每个 history 采样 4 条候选，构成一个标准 GRPO group。"
 print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "双卡全局每轮生成 32 条 completion，即 8 个四候选组；每张卡处理 16 条。"
