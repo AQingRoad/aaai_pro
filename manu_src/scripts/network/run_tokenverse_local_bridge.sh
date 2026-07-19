@@ -21,7 +21,15 @@ cleanup() {
     fi
   done
 }
-trap cleanup EXIT INT TERM
+
+stop_bridge() {
+  cleanup
+  trap - EXIT
+  exit 0
+}
+
+trap cleanup EXIT
+trap stop_bridge INT TERM
 
 supervise_proxy() {
   while true; do
