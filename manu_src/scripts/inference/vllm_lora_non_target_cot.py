@@ -347,6 +347,31 @@ def patch_transformers_tokenizer_compat() -> None:
     PreTrainedTokenizerBase.all_special_tokens_extended = all_special_tokens_extended
 
 
+def normalized_model_reference(reference: str) -> str:
+    """把本地模型路径规范化；Hub ID 保持为去除尾部斜杠的字符串。"""
+    path = Path(reference).expanduser()
+    return str(path.resolve()) if path.exists() else reference.rstrip("/")
+
+
+def validate_lora_base_model(model: str, adapter: str) -> str:
+    """阻止 LoRA 被挂载到与训练时不同的基座模型。"""
+    config_path = Path(adapter).expanduser() / "adapter_config.json"
+    if not config_path.is_file():
+        raise ValueError(f"LoRA adapter 缺少配置文件：{config_path}")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    expected = str(config.get("base_model_name_or_path") or "").strip()
+    if not expected:
+        raise ValueError(f"{config_path} 缺少 base_model_name_or_path")
+    actual_normalized = normalized_model_reference(model)
+    expected_normalized = normalized_model_reference(expected)
+    if actual_normalized != expected_normalized:
+        raise ValueError(
+            "推理基座与 LoRA 训练基座不一致："
+            f"model={actual_normalized}, adapter_base={expected_normalized}"
+        )
+    return expected_normalized
+
+
 def main() -> None:
     args = parse_args()
     if args.seed != 42:
@@ -355,6 +380,7 @@ def main() -> None:
         raise ValueError("vllm-max-model-len 必须覆盖 max-prompt-tokens + max-new-tokens")
     if args.top_k == 0 or args.top_k < -1:
         raise ValueError("top-k 必须为 -1（关闭）或正整数")
+    validate_lora_base_model(args.model, args.adapter)
 
     os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
     os.environ.setdefault("NCCL_P2P_DISABLE", "1")
@@ -383,7 +409,7 @@ def main() -> None:
         seed=args.seed,
         disable_log_stats=True,
     )
-    lora_request = LoRARequest("sft_adapter", 1, args.adapter)
+    lora_request = LoRARequest("runtime_adapter", 1, args.adapter)
     generated = (
         load_existing(
             args.output,

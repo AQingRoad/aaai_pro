@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=${ROOT:-/home/user/aaai_pro}
 VENV=${VENV:-/home/user/.conda/envs/aaai_pro}
-BASE_MODEL=${BASE_MODEL:-/home/user/models_hf/Qwen2.5-3B-Instruct}
+BASE_MODEL=${BASE_MODEL:-}
 GRPO_RUN=${GRPO_RUN:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42/v0-20260717-155416}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 EMBEDDING_SCORER=${EMBEDDING_SCORER:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
@@ -57,7 +57,7 @@ if [[ "$SEED" != "42" ]]; then
   echo "项目随机种子必须为 42。" >&2
   exit 1
 fi
-for path in "$ROOT/AGENTS.md" "$VENV/bin/python" "$BASE_MODEL" "$GRPO_RUN" "$EVAL_FILE" "$ITEM_INFO" "$EMBEDDING_SCORER"; do
+for path in "$ROOT/AGENTS.md" "$VENV/bin/python" "$GRPO_RUN" "$EVAL_FILE" "$ITEM_INFO" "$EMBEDDING_SCORER"; do
   if [[ ! -e "$path" ]]; then
     echo "缺少评测依赖：$path" >&2
     exit 1
@@ -76,13 +76,53 @@ for step in "${STEPS[@]}"; do
     echo "缺少完整 checkpoint：$checkpoint" >&2
     exit 1
   fi
+  if [[ ! -s "$checkpoint/adapter_config.json" ]]; then
+    echo "缺少 LoRA 配置：$checkpoint/adapter_config.json" >&2
+    exit 1
+  fi
   CHECKPOINTS+=("$checkpoint")
 done
+
+DERIVED_BASE_MODEL=$("$VENV/bin/python" - "${CHECKPOINTS[@]}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+base_models = []
+for checkpoint_text in sys.argv[1:]:
+    checkpoint = Path(checkpoint_text)
+    config = json.loads((checkpoint / "adapter_config.json").read_text(encoding="utf-8"))
+    base_model = str(config.get("base_model_name_or_path") or "").strip()
+    if not base_model:
+        raise SystemExit(f"{checkpoint}/adapter_config.json 缺少 base_model_name_or_path")
+    base_path = Path(base_model).expanduser()
+    base_models.append(str(base_path.resolve()) if base_path.exists() else base_model.rstrip("/"))
+
+if len(set(base_models)) != 1:
+    raise SystemExit(f"LoRA checkpoint 的基座不一致：{base_models}")
+print(base_models[0])
+PY
+)
+
+if [[ -z "$BASE_MODEL" ]]; then
+  BASE_MODEL=$DERIVED_BASE_MODEL
+fi
+if [[ ! -e "$BASE_MODEL" ]]; then
+  echo "缺少 LoRA 声明的基座模型：$BASE_MODEL" >&2
+  exit 1
+fi
+if [[ "$(readlink -f "$BASE_MODEL")" != "$(readlink -f "$DERIVED_BASE_MODEL")" ]]; then
+  echo "BASE_MODEL 与 LoRA adapter_config 不一致。" >&2
+  echo "  BASE_MODEL=$BASE_MODEL" >&2
+  echo "  adapter base=$DERIVED_BASE_MODEL" >&2
+  exit 1
+fi
 
 echo "Qwen2.5-3B 标准 GRPO checkpoint $EVAL_SPLIT 评测参数："
 print_param MODE "$MODE" "all 表示依次生成 CoT 并执行完整候选检索评测。"
 print_param EVAL_SPLIT "$EVAL_SPLIT" "当前评测数据划分。"
-print_param CHECKPOINTS "$CHECKPOINT_STEPS" "评测已保存的三个标准 GRPO LoRA checkpoint。"
+print_param CHECKPOINTS "$CHECKPOINT_STEPS" "按给定顺序评测这些标准 GRPO LoRA checkpoint。"
+print_param BASE_MODEL "$BASE_MODEL" "从各 checkpoint 的 adapter_config.json 自动读取并交叉验证；必须是 GRPO 训练使用的 full-SFT 基座。"
 print_param EVAL_FILE "$EVAL_FILE" "$EXPECTED_ROWS 条 $EVAL_SPLIT history；target 字段不进入生成 prompt。"
 print_param EMBEDDING_SCORER "$EMBEDDING_SCORER" "固定使用 GRPO reward 对应的 CoT-trained embedding epoch-01。"
 print_param ITEM_INFO "$ITEM_INFO" "12000 个真实候选；沿用训练 positive formatter，并屏蔽历史物品。"
@@ -97,7 +137,7 @@ print_param MAX_NEW_TOKENS "$MAX_NEW_TOKENS" "每条 CoT 最多生成 512 token�
 print_param VLLM_MAX_MODEL_LEN "$VLLM_MAX_MODEL_LEN" "总上下文覆盖 4096-token prompt 与 512-token completion。"
 print_param KS "$KS" "输出 HR/NDCG@5、10、20、50、100，并输出 MRR、mean rank 和 median rank。"
 print_param SEED "$SEED" "生成、embedding 编码和排序随机种子固定为 42。"
-print_param EVAL_ROOT "$EVAL_ROOT" "三个 checkpoint 的生成、审计、rank 和指标输出目录。"
+print_param EVAL_ROOT "$EVAL_ROOT" "全部 checkpoint 的生成、审计、rank 和指标输出目录。"
 print_param CONFIRM_RUN "$CONFIRM_RUN" "必须为 1 才开始长耗时评测。"
 
 if [[ "$CONFIRM_RUN" != "1" ]]; then
@@ -176,7 +216,10 @@ from pathlib import Path
 root = Path(sys.argv[1])
 eval_split = sys.argv[2]
 rows = []
-for path in sorted(root.glob("checkpoint-*/retrieval_metrics.json")):
+for path in sorted(
+    root.glob("checkpoint-*/retrieval_metrics.json"),
+    key=lambda value: int(value.parent.name.rsplit("-", 1)[1]),
+):
     result = json.loads(path.read_text(encoding="utf-8"))
     audit_path = path.parent / f"{eval_split}_generated_cot.audit.json"
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
