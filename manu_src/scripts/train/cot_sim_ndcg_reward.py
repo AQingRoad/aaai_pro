@@ -197,7 +197,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 class CotRetrievalRewardState:
     """Frozen CoT-trained embedder and its full-catalog item table."""
 
-    def __init__(self) -> None:
+    def __init__(self, env_prefix: str = "COT_SIM_NDCG") -> None:
         import torch
         from transformers import AutoModel, AutoTokenizer
 
@@ -206,26 +206,32 @@ class CotRetrievalRewardState:
         self.torch = torch
         self.encode = encode
         self.format_query = format_query
-        self.model_path = os.getenv("COT_SIM_NDCG_EMBEDDING_MODEL", "").strip()
-        self.item_info_path = Path(os.getenv("COT_SIM_NDCG_ITEM_INFO", "").strip())
-        self.max_length = int(os.getenv("COT_SIM_NDCG_MAX_LENGTH", "4096"))
-        self.item_batch_size = int(os.getenv("COT_SIM_NDCG_ITEM_BATCH_SIZE", "128"))
-        self.query_batch_size = int(os.getenv("COT_SIM_NDCG_QUERY_BATCH_SIZE", "16"))
+        self.env_prefix = str(env_prefix or "COT_SIM_NDCG").strip().upper()
+
+        def env(name: str, default: str = "") -> str:
+            return os.getenv(f"{self.env_prefix}_{name}", default)
+
+        self.model_path = env("EMBEDDING_MODEL").strip()
+        self.item_info_path = Path(env("ITEM_INFO").strip())
+        self.max_length = int(env("MAX_LENGTH", "4096"))
+        self.item_batch_size = int(env("ITEM_BATCH_SIZE", "128"))
+        self.query_batch_size = int(env("QUERY_BATCH_SIZE", "16"))
         self.device = torch.device(
-            os.getenv("COT_SIM_NDCG_DEVICE", f"cuda:{os.getenv('LOCAL_RANK', '0')}")
+            env("DEVICE", f"cuda:{os.getenv('LOCAL_RANK', '0')}")
         )
-        self.dtype_name = os.getenv("COT_SIM_NDCG_TORCH_DTYPE", "bfloat16").lower()
-        self.attn_implementation = os.getenv(
-            "COT_SIM_NDCG_ATTN_IMPLEMENTATION", "flash_attention_2"
-        )
-        self.expected_items = int(os.getenv("COT_SIM_NDCG_EXPECTED_ITEMS", "12000"))
+        self.dtype_name = env("TORCH_DTYPE", "bfloat16").lower()
+        self.attn_implementation = env("ATTN_IMPLEMENTATION", "flash_attention_2")
+        self.expected_items = int(env("EXPECTED_ITEMS", "12000"))
 
         if not self.model_path or not Path(self.model_path).is_dir():
             raise RuntimeError(
-                "COT_SIM_NDCG_EMBEDDING_MODEL must point to a frozen CoT-trained checkpoint"
+                f"{self.env_prefix}_EMBEDDING_MODEL must point to a frozen "
+                "CoT-trained checkpoint"
             )
         if not self.item_info_path.is_file():
-            raise RuntimeError("COT_SIM_NDCG_ITEM_INFO must point to item_info.jsonl")
+            raise RuntimeError(
+                f"{self.env_prefix}_ITEM_INFO must point to item_info.jsonl"
+            )
         if self.max_length <= 0 or self.item_batch_size <= 0 or self.query_batch_size <= 0:
             raise ValueError("embedding lengths and batch sizes must be positive")
         if self.device.type == "cuda" and not torch.cuda.is_available():
@@ -240,7 +246,9 @@ class CotRetrievalRewardState:
             "float32": torch.float32,
         }
         if self.dtype_name not in dtype_map:
-            raise ValueError(f"Unsupported COT_SIM_NDCG_TORCH_DTYPE={self.dtype_name}")
+            raise ValueError(
+                f"Unsupported {self.env_prefix}_TORCH_DTYPE={self.dtype_name}"
+            )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_path,
@@ -315,7 +323,7 @@ class CotRetrievalRewardState:
         ndcg_k: int,
     ) -> tuple[list[float], list[float], list[float], list[int], list[int]]:
         if temperature <= 0:
-            raise ValueError("COT_SIM_NDCG_TEMPERATURE must be positive")
+            raise ValueError(f"{self.env_prefix}_TEMPERATURE must be positive")
         with self.torch.inference_mode():
             scores = query_embeddings @ self.item_embeddings.T
             target_indices: list[int] = []
