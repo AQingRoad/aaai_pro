@@ -19,7 +19,7 @@ DATASET_BUILDER=${DATASET_BUILDER:-$ROOT/manu_src/scripts/pre_datas/build_grpo_r
 REFERENCE_PRECOMPUTE=${REFERENCE_PRECOMPUTE:-$ROOT/manu_src/scripts/pre_datas/precompute_grpo_reference_ndcg.py}
 API_CONFIG=${API_CONFIG:-$ROOT/manu_src/api_info/API_CONFIG.py}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_ks_glm5_2_apifallbackndcg_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_ks_glm5_2_apifallbackndcg_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep5_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 PROBE_OUT=${PROBE_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/probes/${RUN_NAME}_compat10step}
 
@@ -38,7 +38,7 @@ MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-512}
 GENERATION_TEMPERATURE=${GENERATION_TEMPERATURE:-1.0}
 GENERATION_TOP_K=${GENERATION_TOP_K:-200}
 GENERATION_TOP_P=${GENERATION_TOP_P:-1.0}
-EPOCHS=${EPOCHS:-1}
+EPOCHS=${EPOCHS:-5}
 LEARNING_RATE=${LEARNING_RATE:-2e-5}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 WARMUP_STEPS=${WARMUP_STEPS:-64}
@@ -47,7 +47,7 @@ LORA_RANK=${LORA_RANK:-64}
 LORA_ALPHA=${LORA_ALPHA:-128}
 LORA_DROPOUT=${LORA_DROPOUT:-0}
 SAVE_STEPS=${SAVE_STEPS:-300}
-SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-30}
+SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-50}
 
 NDCG_K=${NDCG_K:-1000}
 SIMILARITY_TEMPERATURE=${SIMILARITY_TEMPERATURE:-0.05}
@@ -181,7 +181,8 @@ if ((GENERATION_BATCH_SIZE % global_train_batch != 0)); then
   exit 1
 fi
 prompts_per_step=$((global_train_batch / NUM_GENERATIONS * GRAD_ACCUM))
-approx_steps=$((EXPECTED_ROWS / prompts_per_step))
+steps_per_epoch=$(((EXPECTED_ROWS + prompts_per_step - 1) / prompts_per_step))
+approx_steps=$((steps_per_epoch * EPOCHS))
 steps_per_generation=$((GENERATION_BATCH_SIZE / global_train_batch))
 
 echo "Qwen2.5-3B 新 Rubric × NDCG@1000 Gain LoRA GRPO 参数："
@@ -220,14 +221,14 @@ print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "双卡全局每轮�
 print_param BATCH_SIZE "$BATCH_SIZE per device" "每张卡每次反向传播 8 条 completion；全局 batch 为 $global_train_batch 条、4 个完整候选组。"
 print_param STEPS_PER_GENERATION "$steps_per_generation" "全局一轮 32 条 rollout 拆成 2 个 optimizer steps。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
-print_param EPOCHS "$EPOCHS" "正式 GRPO 训练 1 个 epoch；双卡每 step 消耗 4 个 history，预计 $approx_steps 个 optimizer steps。"
+print_param EPOCHS "$EPOCHS" "正式 GRPO 训练 $EPOCHS 个 epoch；双卡每 step 消耗 4 个 history，每 epoch 约 $steps_per_epoch step，总计约 $approx_steps 个 optimizer steps。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 与 reward query 上限 4096 tokens；沿用既定左截断/字段级截断逻辑。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条生成最多 512 tokens。"
 print_param ROLLOUT_SAMPLING "temperature=$GENERATION_TEMPERATURE, top_k=$GENERATION_TOP_K, top_p=$GENERATION_TOP_P" "沿用上一轮正式 GRPO 的 rollout 采样设置。"
 print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, weight_decay=$WEIGHT_DECAY" "LoRA GRPO 的学习率、KL 系数、warmup step 和权重衰减。"
 print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建 GRPO LoRA。"
 print_param VLLM "colocate per GPU, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "每个 DDP rank 在本地 GPU 创建 vLLM；每卡最多调度 16 条序列，生成后释放权重和 KV cache。"
-print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "正式训练每 300 step 保存模型，最多保留 30 个 checkpoint。"
+print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "正式训练每 300 step 保存模型，最多保留 50 个 checkpoint，可覆盖约 36 个周期 checkpoint。"
 print_param OUTPUT "$OUT" "正式 checkpoint、trainer 日志与逐候选 reward 组件日志目录。"
 print_param SEED "$SEED" "数据抽样、DataLoader、rollout 和训练随机种子均固定为 42。"
 print_param CONFIRM_RUN "$CONFIRM_RUN" "只有设置为 1 才构建数据、请求 Rubric API、预计算 reference 并训练。"
