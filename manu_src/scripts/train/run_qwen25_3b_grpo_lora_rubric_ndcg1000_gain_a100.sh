@@ -19,7 +19,7 @@ DATASET_BUILDER=${DATASET_BUILDER:-$ROOT/manu_src/scripts/pre_datas/build_grpo_r
 REFERENCE_PRECOMPUTE=${REFERENCE_PRECOMPUTE:-$ROOT/manu_src/scripts/pre_datas/precompute_grpo_reference_ndcg.py}
 API_CONFIG=${API_CONFIG:-$ROOT/manu_src/api_info/API_CONFIG.py}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_glm52_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_ks_glm5_2_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 PROBE_OUT=${PROBE_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/probes/${RUN_NAME}_compat10step}
 
@@ -60,14 +60,15 @@ REWARD_ITEM_BATCH_SIZE=${REWARD_ITEM_BATCH_SIZE:-128}
 REWARD_QUERY_BATCH_SIZE=${REWARD_QUERY_BATCH_SIZE:-16}
 REFERENCE_BATCH_SIZE=${REFERENCE_BATCH_SIZE:-16}
 
-RUBRIC_API_PROVIDER=${RUBRIC_API_PROVIDER:-zhipu_glm}
-RUBRIC_API_MODEL=${RUBRIC_API_MODEL:-glm-5.2}
+RUBRIC_API_PROVIDER=${RUBRIC_API_PROVIDER:-ks_tokenverse}
+RUBRIC_API_MODEL=${RUBRIC_API_MODEL:-glm-5-2}
 RUBRIC_API_TIMEOUT=${RUBRIC_API_TIMEOUT:-180}
 RUBRIC_API_MAX_RETRIES=${RUBRIC_API_MAX_RETRIES:-0}
 RUBRIC_API_CONCURRENCY_PER_KEY=${RUBRIC_API_CONCURRENCY_PER_KEY:-10}
 RUBRIC_API_MAX_TOKENS=${RUBRIC_API_MAX_TOKENS:-128}
 RUBRIC_API_THINKING=${RUBRIC_API_THINKING:-disabled}
 RUBRIC_API_FALLBACK=${RUBRIC_API_FALLBACK:-error}
+RUBRIC_HTTPS_PROXY=${RUBRIC_HTTPS_PROXY:-http://127.0.0.1:18766}
 
 USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
@@ -158,13 +159,17 @@ fi
 
 api_key_count=$(
   cd "$ROOT"
-  PYTHONPATH="$ROOT" "$VENV/bin/python" - <<'PY'
+  PYTHONPATH="$ROOT" RUBRIC_API_PROVIDER="$RUBRIC_API_PROVIDER" "$VENV/bin/python" - <<'PY'
+import os
 from manu_src.api_info import API_CONFIG
-print(len(getattr(API_CONFIG, "GLM_OFFICIAL_API_KEY_LIST", []) or []))
+provider = os.environ["RUBRIC_API_PROVIDER"]
+name = "ks_tokenverse" if provider in {"ks", "ks_tokenverse", "tokenverse"} else "glm_official"
+config = getattr(API_CONFIG, "API_PROVIDER_CONFIGS", {}).get(name, {})
+print(len(config.get("api_key_list", []) or []))
 PY
 )
 if ((api_key_count <= 0)); then
-  echo "API_CONFIG.py 中没有 GLM official API key。" >&2
+  echo "API_CONFIG.py 中没有 $RUBRIC_API_PROVIDER API key。" >&2
   exit 1
 fi
 
@@ -199,6 +204,7 @@ print_param NEGATIVE_GAIN_WEIGHT "$NEGATIVE_GAIN_WEIGHT" "NDCG 下降不乘 q，
 print_param TRAINER_SCALE_REWARDS group "组合 reward 交给标准 GRPO，再计算同组 advantage；四条候选全部进入 loss。"
 print_param RUBRIC_PROMPT_LANGUAGE English "API 运行时使用 manu_src/prompts 中的英文 Target-Relevance Rubric prompt。"
 print_param RUBRIC_API "$RUBRIC_API_PROVIDER/$RUBRIC_API_MODEL" "Rubric judge 看到 history、生成 CoT 和真实 target，只返回五维 1-5 JSON。"
+print_param RUBRIC_HTTPS_PROXY "$RUBRIC_HTTPS_PROXY" "服务器仅连接本机反向隧道；域名解析、TLS 上游连接与 Tokenverse 请求均从本地发出。"
 print_param RUBRIC_API_KEYS "$api_key_count key(s)" "轮询配置文件中的 key；日志不记录 key 内容。"
 print_param RUBRIC_API_CONCURRENCY "$RUBRIC_API_CONCURRENCY_PER_KEY per key total" "单卡检查使用 10；双卡正式阶段每进程使用 5，因此每个 key 的服务器总并发仍为 10。"
 print_param RUBRIC_API_KEY_ATTEMPTS "$api_key_count" "单次评分失败后轮询其它 key；全部失败才终止该训练 step。"
@@ -271,6 +277,8 @@ export COT_RUBRIC_NDCG_GAIN_API_MAX_TOKENS="$RUBRIC_API_MAX_TOKENS"
 export COT_RUBRIC_NDCG_GAIN_API_THINKING="$RUBRIC_API_THINKING"
 export COT_RUBRIC_NDCG_GAIN_API_FALLBACK="$RUBRIC_API_FALLBACK"
 export COT_RUBRIC_NDCG_GAIN_LOG_EVERY=1
+export HTTPS_PROXY="$RUBRIC_HTTPS_PROXY"
+export https_proxy="$RUBRIC_HTTPS_PROXY"
 
 run_swift() {
   local dataset=$1 output=$2 generation_batch=$3 train_batch=$4 max_num_seqs=$5 mode=$6 visible_devices=$7 world_size=$8 api_per_key=$9

@@ -154,12 +154,25 @@ def _parse_api_keys(value: Any) -> list[str]:
     return list(dict.fromkeys(key for key in candidates if key))
 
 
-def _project_glm_api_defaults() -> tuple[str, str, list[str]]:
-    """Read the project's GLM endpoint/model/key pool without logging secrets."""
+def _project_api_defaults(provider: str) -> tuple[str, str, list[str]]:
+    """Read one project API endpoint/model/key pool without logging secrets."""
     try:
         from manu_src.api_info import API_CONFIG
     except Exception:
         return "", "", []
+    normalized_provider = str(provider or "").strip().lower()
+    config_name = "ks_tokenverse" if normalized_provider in {
+        "ks", "ks_tokenverse", "tokenverse"
+    } else "glm_official"
+    provider_configs = getattr(API_CONFIG, "API_PROVIDER_CONFIGS", {})
+    if isinstance(provider_configs, dict):
+        provider_config = provider_configs.get(config_name, {})
+        if isinstance(provider_config, dict) and provider_config:
+            return (
+                str(provider_config.get("base_url") or "").strip(),
+                str(provider_config.get("model") or "").strip(),
+                _parse_api_keys(provider_config.get("api_key_list", [])),
+            )
     base_url = str(getattr(API_CONFIG, "GLM_OFFICIAL_API_BASE_URL", "") or "").strip()
     model = str(getattr(API_CONFIG, "OFFICIAL_DEFAULT_MODEL", "") or "").strip()
     keys = _parse_api_keys(getattr(API_CONFIG, "GLM_OFFICIAL_API_KEY_LIST", []))
@@ -305,13 +318,15 @@ class FrozenRubricScorer:
             parameter.requires_grad_(False)
 
     def _init_api_clients(self) -> None:
-        project_base_url, project_model, project_keys = _project_glm_api_defaults()
         self.api_provider = (
             _env("API_PROVIDER")
             or os.getenv("RUBRIC_REWARD_API_PROVIDER", "")
             or os.getenv("RUBRIC_JUDGE_API_PROVIDER", "")
             or "zhipu_glm"
         ).strip().lower()
+        project_base_url, project_model, project_keys = _project_api_defaults(
+            self.api_provider
+        )
         base_url = (
             _env("API_BASE_URL")
             or os.getenv("RUBRIC_REWARD_API_BASE_URL", "")

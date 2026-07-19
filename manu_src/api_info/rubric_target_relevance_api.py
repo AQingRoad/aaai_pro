@@ -165,9 +165,20 @@ def build_target_relevance_judge_api_client(
             timeout=timeout,
             max_retries=max_retries,
         )
-    if normalized_provider in {"openai", "openai_compatible", "chat_completions"}:
+    if normalized_provider in {
+        "openai",
+        "openai_compatible",
+        "chat_completions",
+        "ks",
+        "ks_tokenverse",
+        "tokenverse",
+    }:
         return TargetRelevanceJudgeAPIClient(
-            provider="openai_compatible",
+            provider=(
+                "ks_tokenverse"
+                if normalized_provider in {"ks", "ks_tokenverse", "tokenverse"}
+                else "openai_compatible"
+            ),
             base_url=base_url,
             api_key=api_key,
             model=model,
