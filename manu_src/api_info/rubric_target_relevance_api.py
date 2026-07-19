@@ -30,7 +30,7 @@ def _extract_score(raw_response: str) -> dict[str, Any] | None:
         message = payload["choices"][0].get("message", {})
     except (json.JSONDecodeError, KeyError, IndexError, TypeError):
         return None
-    for field in ("content", "reasoning_content"):
+    for field in ("content",):
         parsed = parse_judge_json(str(message.get(field) or ""))
         if parsed:
             normalized = normalize_judge_score(parsed)
@@ -99,6 +99,10 @@ class TargetRelevanceJudgeAPIClient:
         ).strip()
         if thinking.lower() not in {"", "0", "false", "off", "none", "null"}:
             payload["thinking"] = {"type": thinking}
+        if self.provider == "ks_tokenverse" and thinking.lower() == "disabled":
+            payload["enable_thinking"] = False
+            payload["reasoning_effort"] = "none"
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
 
         headers = {"Content-Type": "application/json"}
         if self.api_key:

@@ -18,6 +18,7 @@ class ConnectHandler(socketserver.BaseRequestHandler):
     allowed_host: ClassVar[str]
     allowed_port: ClassVar[int]
     connect_timeout: ClassVar[float]
+    idle_timeout: ClassVar[float]
 
     def _read_headers(self) -> bytes:
         payload = bytearray()
@@ -57,7 +58,9 @@ class ConnectHandler(socketserver.BaseRequestHandler):
             self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             sockets = [self.request, upstream]
             while True:
-                readable, _, exceptional = select.select(sockets, [], sockets, 60.0)
+                readable, _, exceptional = select.select(
+                    sockets, [], sockets, self.idle_timeout
+                )
                 if exceptional or not readable:
                     break
                 for source in readable:
@@ -88,6 +91,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allowed-host", default="tokenverse.corp.kuaishou.com")
     parser.add_argument("--allowed-port", type=int, default=443)
     parser.add_argument("--connect-timeout", type=float, default=10.0)
+    parser.add_argument("--idle-timeout", type=float, default=600.0)
     return parser.parse_args()
 
 
@@ -95,11 +99,12 @@ def main() -> None:
     args = parse_args()
     if not 1 <= args.listen_port <= 65535 or not 1 <= args.allowed_port <= 65535:
         raise ValueError("ports must be in [1, 65535]")
-    if args.connect_timeout <= 0:
-        raise ValueError("connect timeout must be positive")
+    if args.connect_timeout <= 0 or args.idle_timeout <= 0:
+        raise ValueError("connect and idle timeouts must be positive")
     ConnectHandler.allowed_host = args.allowed_host.strip().lower()
     ConnectHandler.allowed_port = args.allowed_port
     ConnectHandler.connect_timeout = args.connect_timeout
+    ConnectHandler.idle_timeout = args.idle_timeout
     with ThreadingConnectServer(
         (args.listen_host, args.listen_port), ConnectHandler
     ) as server:

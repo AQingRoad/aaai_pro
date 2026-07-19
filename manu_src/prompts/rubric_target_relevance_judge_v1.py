@@ -6,7 +6,7 @@ from __future__ import annotations
 
 SYSTEM_PROMPT_ZH = (
     "你是一名严格的推荐推理质量评估专家。"
-    "请在内部完成评估，只返回一个紧凑的 JSON 对象。"
+    "不要生成分析或推理过程，直接返回一个紧凑的 JSON 对象。"
 )
 
 
@@ -93,7 +93,7 @@ conciseness：
 
 SYSTEM_PROMPT_EN = (
     "You are a strict evaluator of recommendation reasoning quality. "
-    "Evaluate internally and return only one compact JSON object."
+    "Do not generate analysis or reasoning. Return one compact JSON object directly."
 )
 
 
