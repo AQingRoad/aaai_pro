@@ -11,7 +11,7 @@ RAW_INPUT=${RAW_INPUT:-$SPLIT_DIR/grpo_train80_seed42_n8578.jsonl}
 REFERENCE_COT_INPUT=${REFERENCE_COT_INPUT:-$ROOT/manu_src/datas/CDs_and_Vinyl/cot/api/history_only_next_item_feature_cot__input_time_title_rating_store_categories_desc256_details256_v1/cot_non_target_glm52_train_full_seed42_temp1.jsonl}
 ENRICHED_DATASET=${ENRICHED_DATASET:-$SPLIT_DIR/grpo_rubric_ndcg1000_gain_reference_cot_messages_train80_seed42_n8578.jsonl}
 CACHED_DATASET=${CACHED_DATASET:-$SPLIT_DIR/grpo_rubric_ndcg1000_gain_cached_reference_messages_train80_seed42_n8578.jsonl}
-PROBE_DATASET=${PROBE_DATASET:-$SPLIT_DIR/probe/grpo_rubric_ndcg1000_gain_reference_cot_messages_seed42_n8.jsonl}
+PROBE_DATASET=${PROBE_DATASET:-$SPLIT_DIR/probe/grpo_rubric_ndcg1000_gain_reference_cot_messages_seed42_n32.jsonl}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_rubric_ndcg1000_gain_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
@@ -19,20 +19,20 @@ DATASET_BUILDER=${DATASET_BUILDER:-$ROOT/manu_src/scripts/pre_datas/build_grpo_r
 REFERENCE_PRECOMPUTE=${REFERENCE_PRECOMPUTE:-$ROOT/manu_src/scripts/pre_datas/precompute_grpo_reference_ndcg.py}
 API_CONFIG=${API_CONFIG:-$ROOT/manu_src/api_info/API_CONFIG.py}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_single_gpu_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_glm52_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_dual_gpu_ddp_colocate_cottrained_simz0p6_rubric_ndcg1000gainz0p4_glm52_g4_globalgenbs32_perdevbs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
-PROBE_OUT=${PROBE_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/probes/${RUN_NAME}_compat2step}
+PROBE_OUT=${PROBE_OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/probes/${RUN_NAME}_compat10step}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
-PROBE_ROWS=${PROBE_ROWS:-8}
+PROBE_ROWS=${PROBE_ROWS:-32}
 SEED=${SEED:-42}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-32}
 BATCH_SIZE=${BATCH_SIZE:-8}
 GRAD_ACCUM=${GRAD_ACCUM:-1}
-PROBE_GENERATION_BATCH_SIZE=${PROBE_GENERATION_BATCH_SIZE:-8}
-PROBE_BATCH_SIZE=${PROBE_BATCH_SIZE:-4}
-PROBE_MAX_STEPS=${PROBE_MAX_STEPS:-2}
+PROBE_GENERATION_BATCH_SIZE=${PROBE_GENERATION_BATCH_SIZE:-32}
+PROBE_BATCH_SIZE=${PROBE_BATCH_SIZE:-8}
+PROBE_MAX_STEPS=${PROBE_MAX_STEPS:-10}
 MAX_LENGTH=${MAX_LENGTH:-4096}
 MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-512}
 GENERATION_TEMPERATURE=${GENERATION_TEMPERATURE:-1.0}
@@ -72,9 +72,11 @@ RUBRIC_API_FALLBACK=${RUBRIC_API_FALLBACK:-error}
 USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
 VLLM_MAX_MODEL_LEN=${VLLM_MAX_MODEL_LEN:-4608}
-VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-32}
+VLLM_MAX_NUM_SEQS=${VLLM_MAX_NUM_SEQS:-16}
 VLLM_SLEEP_LEVEL=${VLLM_SLEEP_LEVEL:-1}
-CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+PROBE_CUDA_VISIBLE_DEVICES=${PROBE_CUDA_VISIBLE_DEVICES:-0}
+FORMAL_CUDA_VISIBLE_DEVICES=${FORMAL_CUDA_VISIBLE_DEVICES:-0,1}
+FORMAL_WORLD_SIZE=${FORMAL_WORLD_SIZE:-2}
 WORKFLOW=${WORKFLOW:-probe_then_full}
 CONFIRM_RUN=${CONFIRM_RUN:-0}
 
@@ -117,6 +119,10 @@ if [[ "$SEED" != "42" ]]; then
 fi
 if [[ "$GRAD_ACCUM" != "1" || "$NUM_GENERATIONS" != "4" ]]; then
   echo "当前实验固定 gradient_accumulation_steps=1、num_generations=4。" >&2
+  exit 1
+fi
+if [[ "$PROBE_CUDA_VISIBLE_DEVICES" != "0" || "$FORMAL_CUDA_VISIBLE_DEVICES" != "0,1" || "$FORMAL_WORLD_SIZE" != "2" ]]; then
+  echo "当前流程固定 GPU0 单卡 10-step 检查，随后 GPU0+GPU1 双卡 DDP 正式训练。" >&2
   exit 1
 fi
 for value in "$BATCH_SIZE" "$GENERATION_BATCH_SIZE" "$PROBE_BATCH_SIZE" "$PROBE_GENERATION_BATCH_SIZE"; do
@@ -162,13 +168,19 @@ if ((api_key_count <= 0)); then
   exit 1
 fi
 
-prompts_per_step=$((BATCH_SIZE / NUM_GENERATIONS * GRAD_ACCUM))
-approx_steps=$(((EXPECTED_ROWS + prompts_per_step - 1) / prompts_per_step))
-steps_per_generation=$((GENERATION_BATCH_SIZE / BATCH_SIZE))
+global_train_batch=$((BATCH_SIZE * FORMAL_WORLD_SIZE))
+if ((GENERATION_BATCH_SIZE % global_train_batch != 0)); then
+  echo "generation_batch_size 必须能被双卡 global train batch 整除。" >&2
+  exit 1
+fi
+prompts_per_step=$((global_train_batch / NUM_GENERATIONS * GRAD_ACCUM))
+approx_steps=$((EXPECTED_ROWS / prompts_per_step))
+steps_per_generation=$((GENERATION_BATCH_SIZE / global_train_batch))
 
 echo "Qwen2.5-3B 新 Rubric × NDCG@1000 Gain LoRA GRPO 参数："
-print_param WORKFLOW "$WORKFLOW" "先跑 2-step 功能适配；probe_then_full 在适配成功和 reference 预计算完成后自动进入正式训练。"
-print_param GPU "$CUDA_VISIBLE_DEVICES" "只使用物理 GPU0；policy、colocate vLLM 与冻结 reward embedding 位于同一张卡。"
+print_param WORKFLOW "$WORKFLOW" "GPU0 先跑 10-step 功能适配；probe_then_full 在适配成功和 reference 预计算完成后自动进入双卡正式训练。"
+print_param PROBE_GPU "$PROBE_CUDA_VISIBLE_DEVICES" "10-step 阶段只使用物理 GPU0，检查生成、API Rubric、reference gain 和反向传播。"
+print_param FORMAL_GPUS "$FORMAL_CUDA_VISIBLE_DEVICES" "正式阶段启动两个 DDP 进程；GPU0 与 GPU1 都执行 rollout、reward 与反向传播。"
 print_param MODEL "$MODEL" "前 20% 数据训练 1 epoch 的全参数 SFT checkpoint；GRPO 新建 LoRA。"
 print_param INPUT_SCHEMA time_title_rating_store_categories_desc256_details256_v1 "history 与 SFT、API CoT、reward embedding 使用相同字段口径。"
 print_param POLICY_INPUT "$MESSAGES_INPUT" "policy messages 只包含 user history，不包含 target 或固定 reference CoT。"
@@ -188,23 +200,23 @@ print_param TRAINER_SCALE_REWARDS group "组合 reward 交给标准 GRPO，再�
 print_param RUBRIC_PROMPT_LANGUAGE English "API 运行时使用 manu_src/prompts 中的英文 Target-Relevance Rubric prompt。"
 print_param RUBRIC_API "$RUBRIC_API_PROVIDER/$RUBRIC_API_MODEL" "Rubric judge 看到 history、生成 CoT 和真实 target，只返回五维 1-5 JSON。"
 print_param RUBRIC_API_KEYS "$api_key_count key(s)" "轮询配置文件中的 key；日志不记录 key 内容。"
-print_param RUBRIC_API_CONCURRENCY "$RUBRIC_API_CONCURRENCY_PER_KEY per key" "每个 key 最多并发 10 个请求；不同请求可同时占用多个 key。"
+print_param RUBRIC_API_CONCURRENCY "$RUBRIC_API_CONCURRENCY_PER_KEY per key total" "单卡检查使用 10；双卡正式阶段每进程使用 5，因此每个 key 的服务器总并发仍为 10。"
 print_param RUBRIC_API_KEY_ATTEMPTS "$api_key_count" "单次评分失败后轮询其它 key；全部失败才终止该训练 step。"
 print_param RUBRIC_API_TIMEOUT "$RUBRIC_API_TIMEOUT seconds" "单个 key 的请求超时；每个 key 内不等待重试。"
 print_param RUBRIC_API_FALLBACK "$RUBRIC_API_FALLBACK" "关闭规则分数回退，避免同一训练混合两种 q 标准。"
-print_param PROBE "$PROBE_ROWS prompts, gen_batch=$PROBE_GENERATION_BATCH_SIZE, train_batch=$PROBE_BATCH_SIZE, max_steps=$PROBE_MAX_STEPS" "随机种子 42 抽取 8 个 prompt，先检查 metadata 透传、API JSON、reference gain 与反向传播。"
+print_param PROBE "$PROBE_ROWS prompts, gen_batch=$PROBE_GENERATION_BATCH_SIZE, train_batch=$PROBE_BATCH_SIZE, max_steps=$PROBE_MAX_STEPS" "随机种子 42 抽取 32 个 prompt，GPU0 连续执行 10 个 optimizer steps；batch 与单卡已跑通正式设置一致。"
 print_param NUM_GENERATIONS "$NUM_GENERATIONS" "每个 history 采样 4 条候选，构成一个标准 GRPO group。"
-print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "正式训练每轮由 vLLM 生成 32 条 completion，即 8 个四候选组。"
-print_param BATCH_SIZE "$BATCH_SIZE" "正式训练每次反向传播 8 条 completion，即 2 个完整候选组。"
-print_param STEPS_PER_GENERATION "$steps_per_generation" "一轮 32 条 rollout 拆成 4 个 optimizer step。"
+print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "双卡全局每轮生成 32 条 completion，即 8 个四候选组；每张卡处理 16 条。"
+print_param BATCH_SIZE "$BATCH_SIZE per device" "每张卡每次反向传播 8 条 completion；全局 batch 为 $global_train_batch 条、4 个完整候选组。"
+print_param STEPS_PER_GENERATION "$steps_per_generation" "全局一轮 32 条 rollout 拆成 2 个 optimizer steps。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
-print_param EPOCHS "$EPOCHS" "正式 GRPO 训练 1 个 epoch，预计约 $approx_steps 个 optimizer step。"
+print_param EPOCHS "$EPOCHS" "正式 GRPO 训练 1 个 epoch；双卡每 step 消耗 4 个 history，预计 $approx_steps 个 optimizer steps。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 与 reward query 上限 4096 tokens；沿用既定左截断/字段级截断逻辑。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条生成最多 512 tokens。"
 print_param ROLLOUT_SAMPLING "temperature=$GENERATION_TEMPERATURE, top_k=$GENERATION_TOP_K, top_p=$GENERATION_TOP_P" "沿用上一轮正式 GRPO 的 rollout 采样设置。"
 print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, weight_decay=$WEIGHT_DECAY" "LoRA GRPO 的学习率、KL 系数、warmup step 和权重衰减。"
 print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建 GRPO LoRA。"
-print_param VLLM "colocate, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "GPU0 上生成 rollout，生成后释放 vLLM 权重和 KV cache。"
+print_param VLLM "colocate per GPU, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "每个 DDP rank 在本地 GPU 创建 vLLM；每卡最多调度 16 条序列，生成后释放权重和 KV cache。"
 print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "正式训练每 300 step 保存模型，最多保留 30 个 checkpoint。"
 print_param OUTPUT "$OUT" "正式 checkpoint、trainer 日志与逐候选 reward 组件日志目录。"
 print_param SEED "$SEED" "数据抽样、DataLoader、rollout 和训练随机种子均固定为 42。"
@@ -217,8 +229,6 @@ fi
 
 source /opt/miniforge3/bin/activate "$VENV"
 cd "$ROOT"
-export CUDA_VISIBLE_DEVICES
-export NPROC_PER_NODE=1
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 
@@ -249,7 +259,6 @@ export COT_RUBRIC_NDCG_GAIN_STRICT_GROUP_SIZE=1
 export COT_RUBRIC_NDCG_GAIN_EXPECTED_ITEMS=12000
 export COT_RUBRIC_NDCG_GAIN_TORCH_DTYPE=bfloat16
 export COT_RUBRIC_NDCG_GAIN_ATTN_IMPLEMENTATION=flash_attention_2
-export COT_RUBRIC_NDCG_GAIN_DEVICE=cuda:0
 export COT_RUBRIC_NDCG_GAIN_RUBRIC_SCORER=api
 export COT_RUBRIC_NDCG_GAIN_STRICT_API_TARGET=1
 export COT_RUBRIC_NDCG_GAIN_API_PROVIDER="$RUBRIC_API_PROVIDER"
@@ -264,14 +273,20 @@ export COT_RUBRIC_NDCG_GAIN_API_FALLBACK="$RUBRIC_API_FALLBACK"
 export COT_RUBRIC_NDCG_GAIN_LOG_EVERY=1
 
 run_swift() {
-  local dataset=$1 output=$2 generation_batch=$3 train_batch=$4 max_num_seqs=$5 mode=$6
+  local dataset=$1 output=$2 generation_batch=$3 train_batch=$4 max_num_seqs=$5 mode=$6 visible_devices=$7 world_size=$8 api_per_key=$9
   local save_args
   if [[ "$mode" == "probe" ]]; then
     save_args=(--max_steps "$PROBE_MAX_STEPS" --save_strategy no)
   else
     save_args=(--num_train_epochs "$EPOCHS" --save_strategy steps --save_steps "$SAVE_STEPS" --save_total_limit "$SAVE_TOTAL_LIMIT" --save_only_model true)
   fi
-  "$VENV/bin/swift" rlhf \
+  export COT_RUBRIC_NDCG_GAIN_API_CONCURRENCY_PER_KEY="$api_per_key"
+  if [[ "$world_size" == "1" ]]; then
+    export COT_RUBRIC_NDCG_GAIN_DEVICE=cuda:0
+  else
+    unset COT_RUBRIC_NDCG_GAIN_DEVICE
+  fi
+  CUDA_VISIBLE_DEVICES="$visible_devices" NPROC_PER_NODE="$world_size" "$VENV/bin/swift" rlhf \
     --rlhf_type grpo \
     --model "$MODEL" \
     --model_type qwen2_5 \
@@ -329,17 +344,18 @@ run_swift() {
 if [[ "$WORKFLOW" == "probe" || "$WORKFLOW" == "probe_then_full" ]]; then
   rm -rf "$PROBE_OUT"
   mkdir -p "$PROBE_OUT"
-  export COT_RUBRIC_NDCG_GAIN_COMPONENT_LOG="$PROBE_OUT/reward_components.jsonl"
+  export COT_RUBRIC_NDCG_GAIN_COMPONENT_LOG="$PROBE_OUT/reward_components_rank{rank}.jsonl"
   nvidia-smi -q -d ECC > "$PROBE_OUT/gpu_ecc_before_probe.txt"
   nvidia-smi -q -d ROW_REMAPPER > "$PROBE_OUT/gpu_row_remapper_before_probe.txt"
-  run_swift "$PROBE_DATASET" "$PROBE_OUT" "$PROBE_GENERATION_BATCH_SIZE" "$PROBE_BATCH_SIZE" "$PROBE_GENERATION_BATCH_SIZE" probe
+  run_swift "$PROBE_DATASET" "$PROBE_OUT" "$PROBE_GENERATION_BATCH_SIZE" "$PROBE_BATCH_SIZE" "$PROBE_GENERATION_BATCH_SIZE" probe "$PROBE_CUDA_VISIBLE_DEVICES" 1 "$RUBRIC_API_CONCURRENCY_PER_KEY"
   touch "$PROBE_OUT/COMPATIBILITY_PROBE_SUCCEEDED"
 fi
 
 if [[ "$WORKFLOW" == "full" || "$WORKFLOW" == "probe_then_full" ]]; then
   if [[ ! -s "$CACHED_DATASET" ]]; then
+    export COT_RUBRIC_NDCG_GAIN_DEVICE=cuda:0
     export COT_RUBRIC_NDCG_GAIN_QUERY_BATCH_SIZE="$REFERENCE_BATCH_SIZE"
-    "$VENV/bin/python" "$REFERENCE_PRECOMPUTE" \
+    CUDA_VISIBLE_DEVICES=0 "$VENV/bin/python" "$REFERENCE_PRECOMPUTE" \
       --input "$ENRICHED_DATASET" \
       --output "$CACHED_DATASET" \
       --expected-rows "$EXPECTED_ROWS" \
@@ -359,8 +375,13 @@ if [[ "$WORKFLOW" == "full" || "$WORKFLOW" == "probe_then_full" ]]; then
     exit 1
   fi
   mkdir -p "$OUT"
-  export COT_RUBRIC_NDCG_GAIN_COMPONENT_LOG="$OUT/reward_components.jsonl"
+  export COT_RUBRIC_NDCG_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.jsonl"
   nvidia-smi -q -d ECC > "$OUT/gpu_ecc_before_train.txt"
   nvidia-smi -q -d ROW_REMAPPER > "$OUT/gpu_row_remapper_before_train.txt"
-  run_swift "$CACHED_DATASET" "$OUT" "$GENERATION_BATCH_SIZE" "$BATCH_SIZE" "$VLLM_MAX_NUM_SEQS" full
+  formal_api_per_key=$((RUBRIC_API_CONCURRENCY_PER_KEY / FORMAL_WORLD_SIZE))
+  if ((formal_api_per_key * FORMAL_WORLD_SIZE != RUBRIC_API_CONCURRENCY_PER_KEY)); then
+    echo "每-key总并发必须能被正式 DDP 进程数整除。" >&2
+    exit 1
+  fi
+  run_swift "$CACHED_DATASET" "$OUT" "$GENERATION_BATCH_SIZE" "$BATCH_SIZE" "$VLLM_MAX_NUM_SEQS" full "$FORMAL_CUDA_VISIBLE_DEVICES" "$FORMAL_WORLD_SIZE" "$formal_api_per_key"
 fi

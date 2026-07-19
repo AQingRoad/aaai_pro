@@ -707,13 +707,15 @@ def _resolve_reference_ndcgs(
 def _log_components(summary: dict[str, Any], items: list[dict[str, Any]]) -> None:
     log_path = _env("COMPONENT_LOG").strip()
     if log_path:
-        path = Path(log_path)
+        rank = os.getenv("RANK", "0")
+        local_rank = os.getenv("LOCAL_RANK", "0")
+        path = Path(log_path.format(rank=rank, local_rank=local_rank))
         path.parent.mkdir(parents=True, exist_ok=True)
         record: dict[str, Any] = {
             "kind": "cot_rubric_ndcg1000_gain",
             "call_index": _CALL_COUNT,
-            "rank": os.getenv("RANK", ""),
-            "local_rank": os.getenv("LOCAL_RANK", ""),
+            "rank": rank,
+            "local_rank": local_rank,
             "summary": summary,
         }
         if _env_bool(f"{ENV_PREFIX}_COMPONENT_LOG_DETAILS", True):
