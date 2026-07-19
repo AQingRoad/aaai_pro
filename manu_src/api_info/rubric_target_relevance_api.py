@@ -6,6 +6,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -104,7 +105,17 @@ class TargetRelevanceJudgeAPIClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         last_error = ""
+        retry_base_seconds = float(
+            os.getenv("COT_RUBRIC_NDCG_GAIN_API_RETRY_BASE_SECONDS", "5")
+        )
+        retry_max_seconds = float(
+            os.getenv("COT_RUBRIC_NDCG_GAIN_API_RETRY_MAX_SECONDS", "60")
+        )
+        if retry_base_seconds <= 0 or retry_max_seconds <= 0:
+            raise ValueError("Rubric API retry delays must be positive")
         for attempt in range(self.max_retries + 1):
+            retry_after_seconds = 0.0
+            retryable = True
             request = urllib.request.Request(
                 self.chat_completions_url,
                 data=body,
@@ -125,15 +136,25 @@ class TargetRelevanceJudgeAPIClient:
                 except Exception:
                     response_body = ""
                 last_error = f"HTTPError {exc.code}: {response_body[:500]}"
+                retryable = exc.code in {408, 409, 425, 429} or exc.code >= 500
+                try:
+                    retry_after_seconds = float(exc.headers.get("Retry-After") or 0)
+                except (TypeError, ValueError):
+                    retry_after_seconds = 0.0
             except (
                 urllib.error.URLError,
                 TimeoutError,
                 http.client.RemoteDisconnected,
+                ConnectionError,
+                ssl.SSLError,
                 json.JSONDecodeError,
             ) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
+            if not retryable:
+                break
             if attempt < self.max_retries:
-                time.sleep(min(2**attempt, 8))
+                delay = min(retry_base_seconds * (2**attempt), retry_max_seconds)
+                time.sleep(max(delay, retry_after_seconds))
         return JudgeAPIResult(
             score=None,
             raw=json.dumps(
