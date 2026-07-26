@@ -11,7 +11,7 @@ ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_i
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg1000_gain_reward.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_single_gpu_colocate_cottrained_simz0p6_ndcg1000gainz0p4_no_rubric_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_loradrop0_seed42}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_single_gpu_colocate_cottrained_simz0p6_ndcg1000gainz0p4_no_rubric_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep3_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
@@ -26,7 +26,7 @@ MAX_COMPLETION_LENGTH=${MAX_COMPLETION_LENGTH:-512}
 GENERATION_TEMPERATURE=${GENERATION_TEMPERATURE:-1.0}
 GENERATION_TOP_K=${GENERATION_TOP_K:-200}
 GENERATION_TOP_P=${GENERATION_TOP_P:-1.0}
-EPOCHS=${EPOCHS:-1}
+EPOCHS=${EPOCHS:-3}
 LEARNING_RATE=${LEARNING_RATE:-2e-5}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 WARMUP_STEPS=${WARMUP_STEPS:-64}
@@ -35,7 +35,7 @@ LORA_RANK=${LORA_RANK:-64}
 LORA_ALPHA=${LORA_ALPHA:-128}
 LORA_DROPOUT=${LORA_DROPOUT:-0}
 SAVE_STEPS=${SAVE_STEPS:-300}
-SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-20}
+SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-50}
 
 NDCG_K=${NDCG_K:-1000}
 SIMILARITY_TEMPERATURE=${SIMILARITY_TEMPERATURE:-0.05}
@@ -109,8 +109,8 @@ if [[ "$NDCG_K" != "1000" || "$SIMILARITY_WEIGHT" != "0.6" || "$GAIN_WEIGHT" != 
   echo "无 Rubric 对照固定 K=1000、similarity weight=0.6、gain weight=0.4。" >&2
   exit 1
 fi
-if [[ "$EPOCHS" != "1" ]]; then
-  echo "首次无 Rubric 对照固定训练 1 epoch；如需延长训练请先获得用户确认。" >&2
+if [[ "$EPOCHS" != "3" ]]; then
+  echo "当前无 Rubric 对照按用户确认固定训练 3 个 epoch。" >&2
   exit 1
 fi
 
@@ -183,6 +183,7 @@ PY
 
 prompts_per_step=$((BATCH_SIZE / NUM_GENERATIONS * GRAD_ACCUM))
 steps_per_epoch=$(((EXPECTED_ROWS + prompts_per_step - 1) / prompts_per_step))
+total_steps=$((steps_per_epoch * EPOCHS))
 steps_per_generation=$((GENERATION_BATCH_SIZE / BATCH_SIZE))
 
 echo "Qwen2.5-3B 无 Rubric NDCG@1000 Gain LoRA GRPO 参数："
@@ -205,14 +206,14 @@ print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 每轮生成 32
 print_param BATCH_SIZE "$BATCH_SIZE" "单卡每次反向传播八条 completion，对应两个完整候选组。"
 print_param STEPS_PER_GENERATION "$steps_per_generation" "每轮 32 条 rollout 拆成四个 optimizer step。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
-print_param EPOCHS "$EPOCHS" "首次对照训练一个 epoch，约 $steps_per_epoch 个 optimizer step，覆盖现有 Rubric checkpoint 区间。"
+print_param EPOCHS "$EPOCHS" "每个 epoch 约 $steps_per_epoch 个 optimizer step，三个 epoch 总计约 $total_steps step。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 与 reward query 上限 4096 tokens；policy 沿用左截断规则。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条 CoT 最多生成 512 tokens。"
 print_param ROLLOUT_SAMPLING "temperature=$GENERATION_TEMPERATURE, top_k=$GENERATION_TOP_K, top_p=$GENERATION_TOP_P" "沿用 Rubric 版本的 rollout 采样设置，固定奖励函数以外的生成变量。"
 print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, weight_decay=$WEIGHT_DECAY" "LoRA GRPO 的学习率、KL 系数、warmup step 和 AdamW 权重衰减。"
 print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建的 GRPO LoRA 参数。"
 print_param VLLM "colocate, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "vLLM 与训练位于同一张 A100；rollout 后释放权重和 KV cache。"
-print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "每 300 optimizer step 保存 checkpoint，单 epoch 预计保存约 14 个周期 checkpoint。"
+print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "每 300 optimizer step 保存 checkpoint，三个 epoch 预计产生约 43 个周期 checkpoint；上限 50 可保留全部 checkpoint。"
 print_param OUTPUT "$OUT" "独立保存无 Rubric checkpoint、trainer 日志和逐候选 reward 组件。"
 print_param API_USAGE disabled "训练不请求 Tokenverse、GLM 或其它外部 API，也不依赖本地代理。"
 print_param SEED "$SEED" "数据顺序、DataLoader、rollout 和训练随机种子固定为 42。"
