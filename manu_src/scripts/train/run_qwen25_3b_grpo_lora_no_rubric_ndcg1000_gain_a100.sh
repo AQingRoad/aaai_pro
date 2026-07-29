@@ -9,9 +9,20 @@ SPLIT_DIR=${SPLIT_DIR:-$ROOT/manu_src/datas/CDs_and_Vinyl/sft_grpo/disjoint_exam
 DATASET=${DATASET:-$SPLIT_DIR/grpo_rubric_ndcg1000_gain_cached_reference_messages_train80_seed42_n8578.jsonl}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 REWARD_PLUGIN=${REWARD_PLUGIN:-$ROOT/manu_src/scripts/train/cot_sim_ndcg1000_gain_reward.py}
+CHECKPOINT_STATE_PLUGIN=${CHECKPOINT_STATE_PLUGIN:-$ROOT/manu_src/scripts/train/keep_latest_optimizer_state_callback.py}
 REWARD_EMBEDDING=${REWARD_EMBEDDING:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
 
-RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_single_gpu_colocate_cottrained_simz0p6_ndcg1000gainz0p4_no_rubric_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep3_vllmlen4608_clen512_loradrop0_seed42}
+NDCG_K=${NDCG_K:-1000}
+SIMILARITY_TEMPERATURE=${SIMILARITY_TEMPERATURE:-0.05}
+SIMILARITY_WEIGHT=${SIMILARITY_WEIGHT:-0.6}
+GAIN_WEIGHT=${GAIN_WEIGHT:-0.4}
+ZSCORE_EPSILON=${ZSCORE_EPSILON:-1e-6}
+REWARD_ITEM_BATCH_SIZE=${REWARD_ITEM_BATCH_SIZE:-128}
+REWARD_QUERY_BATCH_SIZE=${REWARD_QUERY_BATCH_SIZE:-16}
+
+similarity_weight_tag=${SIMILARITY_WEIGHT//./p}
+gain_weight_tag=${GAIN_WEIGHT//./p}
+RUN_NAME=${RUN_NAME:-qwen25_3b_fullsft20_grpolora80_single_gpu_colocate_cottrained_simz${similarity_weight_tag}_ndcg${NDCG_K}gainz${gain_weight_tag}_no_rubric_g4_genbs32_bs8_ga1_vllmsleep1_vllm0p10_lr2e5_ep3_vllmlen4608_clen512_loradrop0_seed42}
 OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
@@ -36,14 +47,6 @@ LORA_ALPHA=${LORA_ALPHA:-128}
 LORA_DROPOUT=${LORA_DROPOUT:-0}
 SAVE_STEPS=${SAVE_STEPS:-300}
 SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-50}
-
-NDCG_K=${NDCG_K:-1000}
-SIMILARITY_TEMPERATURE=${SIMILARITY_TEMPERATURE:-0.05}
-SIMILARITY_WEIGHT=${SIMILARITY_WEIGHT:-0.6}
-GAIN_WEIGHT=${GAIN_WEIGHT:-0.4}
-ZSCORE_EPSILON=${ZSCORE_EPSILON:-1e-6}
-REWARD_ITEM_BATCH_SIZE=${REWARD_ITEM_BATCH_SIZE:-128}
-REWARD_QUERY_BATCH_SIZE=${REWARD_QUERY_BATCH_SIZE:-16}
 
 USE_VLLM=${USE_VLLM:-true}
 VLLM_GPU_MEMORY_UTILIZATION=${VLLM_GPU_MEMORY_UTILIZATION:-0.10}
@@ -74,6 +77,7 @@ for dependency in \
   "$DATASET" \
   "$ITEM_INFO" \
   "$REWARD_PLUGIN" \
+  "$CHECKPOINT_STATE_PLUGIN" \
   "$REWARD_EMBEDDING"; do
   require_path "无 Rubric GRPO 依赖" "$dependency"
 done
@@ -105,10 +109,23 @@ if [[ "$MAX_LENGTH" != "4096" || "$MAX_COMPLETION_LENGTH" != "512" || "$VLLM_MAX
   echo "本实验固定 prompt=4096、completion=512、vLLM context=4608。" >&2
   exit 1
 fi
-if [[ "$NDCG_K" != "1000" || "$SIMILARITY_WEIGHT" != "0.6" || "$GAIN_WEIGHT" != "0.4" ]]; then
-  echo "无 Rubric 对照固定 K=1000、similarity weight=0.6、gain weight=0.4。" >&2
+if [[ "$NDCG_K" != "1000" ]]; then
+  echo "无 Rubric NDCG gain 实验固定 K=1000。" >&2
   exit 1
 fi
+"$VENV/bin/python" - "$SIMILARITY_WEIGHT" "$GAIN_WEIGHT" <<'PY'
+import math
+import sys
+
+similarity_weight = float(sys.argv[1])
+gain_weight = float(sys.argv[2])
+if similarity_weight <= 0 or gain_weight <= 0:
+    raise SystemExit("similarity weight 与 gain weight 都必须大于 0")
+if not math.isclose(similarity_weight + gain_weight, 1.0, rel_tol=0.0, abs_tol=1e-9):
+    raise SystemExit(
+        "为保证实验权重含义清晰，similarity weight 与 gain weight 之和必须为 1"
+    )
+PY
 if [[ "$EPOCHS" != "3" ]]; then
   echo "当前无 Rubric 对照按用户确认固定训练 3 个 epoch。" >&2
   exit 1
@@ -196,7 +213,8 @@ print_param REFERENCE "$DATASET:reference_ndcg/reference_rank" "读取固定 API
 print_param ITEM_INFO "$ITEM_INFO" "冻结 12000-item 候选表；屏蔽历史物品时保留监督 target。"
 print_param REWARD_EMBEDDING "$REWARD_EMBEDDING" "冻结的 CoT-trained embedding epoch-01；new/reference 使用同一候选表和 seen-item mask。"
 print_param REWARD_FUNC cot_sim_ndcg1000_gain "独立无 Rubric reward 插件；不导入 Rubric scorer，不调用 API，也不读取 target 文本评分。"
-print_param REWARD_FORMULA "0.6*z(similarity)+0.4*z(delta_ndcg@1000)" "delta_ndcg=new-reference；similarity 与 gain 分别在同一 history 的四候选组内标准化。"
+print_param CHECKPOINT_STATE_PLUGIN "$CHECKPOINT_STATE_PLUGIN" "每次新 checkpoint 的 optimizer.pt 成功保存后，删除更早 checkpoint 的 optimizer.pt；模型与 LoRA 权重保持不变。"
+print_param REWARD_FORMULA "${SIMILARITY_WEIGHT}*z(similarity)+${GAIN_WEIGHT}*z(delta_ndcg@${NDCG_K})" "delta_ndcg=new-reference；similarity 与 gain 分别在同一 history 的四候选组内标准化。"
 print_param SIMILARITY_TEMPERATURE "$SIMILARITY_TEMPERATURE" "相似度项使用 seen-mask 后 12000-item 全候选 log-softmax，温度为 0.05。"
 print_param NDCG_K "$NDCG_K" "new/reference 均按目标物品排名计算 NDCG@1000。"
 print_param ZSCORE_EPSILON "$ZSCORE_EPSILON" "组内标准差小于该值时，该 reward 分量置 0，避免数值放大。"
@@ -214,6 +232,7 @@ print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, w
 print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建的 GRPO LoRA 参数。"
 print_param VLLM "colocate, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "vLLM 与训练位于同一张 A100；rollout 后释放权重和 KV cache。"
 print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "每 300 optimizer step 保存 checkpoint，三个 epoch 预计产生约 43 个周期 checkpoint；上限 50 可保留全部 checkpoint。"
+print_param OPTIMIZER_STATE_RETENTION latest "save_only_model=false；只在最新 checkpoint 保留 optimizer.pt，支持从最后一次成功保存的位置恢复训练。"
 print_param OUTPUT "$OUT" "独立保存无 Rubric checkpoint、trainer 日志和逐候选 reward 组件。"
 print_param API_USAGE disabled "训练不请求 Tokenverse、GLM 或其它外部 API，也不依赖本地代理。"
 print_param SEED "$SEED" "数据顺序、DataLoader、rollout 和训练随机种子固定为 42。"
@@ -269,7 +288,7 @@ export COT_SIM_NDCG1000_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.js
   --model_type qwen2_5 \
   --template qwen2_5 \
   --dataset "$DATASET" \
-  --external_plugins "$REWARD_PLUGIN" \
+  --external_plugins "$REWARD_PLUGIN" "$CHECKPOINT_STATE_PLUGIN" \
   --reward_funcs cot_sim_ndcg1000_gain \
   --reward_weights 1.0 \
   --num_generations "$NUM_GENERATIONS" \
@@ -314,7 +333,7 @@ export COT_SIM_NDCG1000_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.js
   --save_strategy steps \
   --save_steps "$SAVE_STEPS" \
   --save_total_limit "$SAVE_TOTAL_LIMIT" \
-  --save_only_model true \
+  --save_only_model false \
   --logging_steps 1 \
   --log_completions true \
   --dataloader_num_workers 0 \
