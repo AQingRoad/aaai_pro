@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用 vLLM 加载 Qwen2.5 LoRA，为指定 split 的 history 生成下一物品特征 CoT。"""
+"""使用 vLLM 加载完整模型或 LoRA，为指定 split 的 history 生成下一物品特征 CoT。"""
 
 from __future__ import annotations
 
@@ -37,7 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path, required=True)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--adapter", required=True)
+    parser.add_argument(
+        "--adapter",
+        default=None,
+        help="可选 LoRA adapter；不传时直接使用 --model 指向的完整模型权重。",
+    )
     parser.add_argument("--item-type", default="CD or vinyl release")
     parser.add_argument("--language", default="en")
     parser.add_argument("--generation-batch-size", type=int, default=32)
@@ -208,7 +212,7 @@ def build_output(
             "cot_word_count": words,
             "generator_model": args.model,
             "generator_adapter": args.adapter,
-            "generation_mode": "vllm_lora",
+            "generation_mode": "vllm_lora" if args.adapter else "vllm_full_model",
             "generation_attempt": attempt,
             "generation_seconds": round(elapsed, 6),
             "generation_finish_reason": finish_reason,
@@ -380,14 +384,14 @@ def main() -> None:
         raise ValueError("vllm-max-model-len 必须覆盖 max-prompt-tokens + max-new-tokens")
     if args.top_k == 0 or args.top_k < -1:
         raise ValueError("top-k 必须为 -1（关闭）或正整数")
-    validate_lora_base_model(args.model, args.adapter)
+    if args.adapter:
+        validate_lora_base_model(args.model, args.adapter)
 
     os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
     os.environ.setdefault("NCCL_P2P_DISABLE", "1")
     patch_transformers_tokenizer_compat()
     from transformers import AutoTokenizer
     from vllm import LLM, SamplingParams
-    from vllm.lora.request import LoRARequest
 
     source = read_jsonl(args.input)
     if not source or any(row.get("split") != args.expected_split for row in source):
@@ -396,7 +400,7 @@ def main() -> None:
         raise ValueError("输入 example_id 为空或重复")
 
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True, use_fast=True)
-    llm = LLM(
+    llm_kwargs = dict(
         model=args.model,
         tokenizer=args.model,
         trust_remote_code=True,
@@ -404,12 +408,19 @@ def main() -> None:
         max_model_len=args.vllm_max_model_len,
         max_num_seqs=args.vllm_max_num_seqs,
         gpu_memory_utilization=args.gpu_memory_utilization,
-        enable_lora=True,
-        max_lora_rank=64,
+        enable_lora=bool(args.adapter),
         seed=args.seed,
         disable_log_stats=True,
     )
-    lora_request = LoRARequest("runtime_adapter", 1, args.adapter)
+    if args.adapter:
+        llm_kwargs["max_lora_rank"] = 64
+    llm = LLM(**llm_kwargs)
+    if args.adapter:
+        from vllm.lora.request import LoRARequest
+
+        lora_request = LoRARequest("runtime_adapter", 1, args.adapter)
+    else:
+        lora_request = None
     generated = (
         load_existing(
             args.output,
