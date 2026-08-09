@@ -28,6 +28,7 @@ OUT=${OUT:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/$RUN_NAME}
 EXPECTED_ROWS=${EXPECTED_ROWS:-8578}
 EXPECTED_ITEMS=${EXPECTED_ITEMS:-12000}
 SEED=${SEED:-42}
+TRAIN_TYPE=${TRAIN_TYPE:-lora}
 NUM_GENERATIONS=${NUM_GENERATIONS:-4}
 GENERATION_BATCH_SIZE=${GENERATION_BATCH_SIZE:-32}
 BATCH_SIZE=${BATCH_SIZE:-8}
@@ -91,6 +92,10 @@ if [[ "$SEED" != "42" ]]; then
 fi
 if [[ "$GRAD_ACCUM" != "1" || "$NUM_GENERATIONS" != "4" ]]; then
   echo "当前对照固定 gradient_accumulation_steps=1、num_generations=4。" >&2
+  exit 1
+fi
+if [[ "$TRAIN_TYPE" != "lora" && "$TRAIN_TYPE" != "full" ]]; then
+  echo "TRAIN_TYPE 只能为 lora 或 full。" >&2
   exit 1
 fi
 if [[ "$CUDA_VISIBLE_DEVICES" != "0" ]]; then
@@ -202,10 +207,16 @@ prompts_per_step=$((BATCH_SIZE / NUM_GENERATIONS * GRAD_ACCUM))
 steps_per_epoch=$(((EXPECTED_ROWS + prompts_per_step - 1) / prompts_per_step))
 total_steps=$((steps_per_epoch * EPOCHS))
 steps_per_generation=$((GENERATION_BATCH_SIZE / BATCH_SIZE))
+checkpoint_count=$(((total_steps + SAVE_STEPS - 1) / SAVE_STEPS))
+if ((SAVE_TOTAL_LIMIT < checkpoint_count)); then
+  echo "SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT 小于预计 checkpoint 数 $checkpoint_count，会删除旧模型权重。" >&2
+  exit 1
+fi
 
-echo "Qwen2.5-3B 无 Rubric NDCG@1000 Gain LoRA GRPO 参数："
+echo "Qwen2.5-3B 无 Rubric NDCG@1000 Gain GRPO 参数："
 print_param GPU "$CUDA_VISIBLE_DEVICES" "当前服务器仅使用物理 GPU0：NVIDIA A100 80GB。"
-print_param MODEL "$MODEL" "前 20% 数据训练 1 epoch 的全参数 SFT checkpoint；GRPO 阶段新建 LoRA。"
+print_param MODEL "$MODEL" "前 20% 数据训练 1 epoch 的全参数 SFT checkpoint；policy 与 KL reference 均从该权重初始化。"
+print_param TRAIN_TYPE "$TRAIN_TYPE" "lora 只更新 adapter；full 更新 Qwen2.5-3B 的全部 30.86 亿参数。"
 print_param DATASET "$DATASET" "后 80% 的 8578 条 GRPO 样本；policy messages 只含 history，reference 指标只作为 reward metadata。"
 print_param INPUT_SCHEMA time_title_rating_store_categories_desc256_details256_v1 "SFT、GRPO history、reward embedding 和后续测试统一使用该字段口径。"
 print_param TARGET_TEXT_TRUNCATION disabled "target_item_text 仅用于监督检索，审计要求完整文本且不含 [TRUNCATED]。"
@@ -221,17 +232,21 @@ print_param ZSCORE_EPSILON "$ZSCORE_EPSILON" "组内标准差小于该值时，�
 print_param TRAINER_SCALE_REWARDS group "组合 reward 交给标准 GRPO 再计算同组 advantage；四条候选全部进入 loss。"
 print_param NUM_GENERATIONS "$NUM_GENERATIONS" "每个 history 采样四条 completion，组成一个 GRPO group。"
 print_param GENERATION_BATCH_SIZE "$GENERATION_BATCH_SIZE" "vLLM 每轮生成 32 条 completion，对应八个 history 组。"
-print_param BATCH_SIZE "$BATCH_SIZE" "单卡每次反向传播八条 completion，对应两个完整候选组。"
-print_param STEPS_PER_GENERATION "$steps_per_generation" "每轮 32 条 rollout 拆成四个 optimizer step。"
+print_param BATCH_SIZE "$BATCH_SIZE" "单卡每次反向传播的 completion 数；必须包含整数个四候选组。"
+print_param STEPS_PER_GENERATION "$steps_per_generation" "每轮 $GENERATION_BATCH_SIZE 条 rollout 拆成该数量的 optimizer step。"
 print_param GRAD_ACCUM "$GRAD_ACCUM" "梯度累积固定为 1。"
 print_param EPOCHS "$EPOCHS" "每个 epoch 约 $steps_per_epoch 个 optimizer step，三个 epoch 总计约 $total_steps step。"
 print_param MAX_LENGTH "$MAX_LENGTH" "policy prompt 与 reward query 上限 4096 tokens；policy 沿用左截断规则。"
 print_param MAX_COMPLETION_LENGTH "$MAX_COMPLETION_LENGTH" "每条 CoT 最多生成 512 tokens。"
 print_param ROLLOUT_SAMPLING "temperature=$GENERATION_TEMPERATURE, top_k=$GENERATION_TOP_K, top_p=$GENERATION_TOP_P" "沿用 Rubric 版本的 rollout 采样设置，固定奖励函数以外的生成变量。"
-print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, weight_decay=$WEIGHT_DECAY" "LoRA GRPO 的学习率、KL 系数、warmup step 和 AdamW 权重衰减。"
-print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建的 GRPO LoRA 参数。"
+print_param OPTIMIZATION "lr=$LEARNING_RATE, beta=$BETA, warmup=$WARMUP_STEPS, weight_decay=$WEIGHT_DECAY" "GRPO 的学习率、KL 系数、warmup step 和 AdamW 权重衰减。"
+if [[ "$TRAIN_TYPE" == "lora" ]]; then
+  print_param LORA "rank=$LORA_RANK, alpha=$LORA_ALPHA, dropout=$LORA_DROPOUT" "完整 SFT 基座冻结，只更新新建的 GRPO LoRA 参数。"
+else
+  print_param FULL_PARAMETER_UPDATE enabled "policy 的 embedding、36 层 Transformer 和 lm_head 均参与梯度更新；固定 reference 不参与更新。"
+fi
 print_param VLLM "colocate, utilization=$VLLM_GPU_MEMORY_UTILIZATION, context=$VLLM_MAX_MODEL_LEN, max_seqs=$VLLM_MAX_NUM_SEQS, sleep=$VLLM_SLEEP_LEVEL" "vLLM 与训练位于同一张 A100；rollout 后释放权重和 KV cache。"
-print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "每 300 optimizer step 保存 checkpoint，三个 epoch 预计产生约 43 个周期 checkpoint；上限 50 可保留全部 checkpoint。"
+print_param SAVE "every $SAVE_STEPS steps, limit=$SAVE_TOTAL_LIMIT" "预计保存约 $checkpoint_count 个 checkpoint；上限不低于该数量，避免删除旧模型权重。"
 print_param OPTIMIZER_STATE_RETENTION latest "save_only_model=false；只在最新 checkpoint 保留 optimizer.pt，支持从最后一次成功保存的位置恢复训练。"
 print_param OUTPUT "$OUT" "独立保存无 Rubric checkpoint、trainer 日志和逐候选 reward 组件。"
 print_param API_USAGE disabled "训练不请求 Tokenverse、GLM 或其它外部 API，也不依赖本地代理。"
@@ -282,6 +297,19 @@ export COT_SIM_NDCG1000_GAIN_DEVICE=cuda:0
 export COT_SIM_NDCG1000_GAIN_LOG_EVERY=1
 export COT_SIM_NDCG1000_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.jsonl"
 
+train_type_args=(--train_type "$TRAIN_TYPE")
+if [[ "$TRAIN_TYPE" == "lora" ]]; then
+  train_type_args+=(
+    --lora_rank "$LORA_RANK"
+    --lora_alpha "$LORA_ALPHA"
+    --lora_dropout "$LORA_DROPOUT"
+    --vllm_enable_lora true
+    --vllm_max_lora_rank "$LORA_RANK"
+  )
+else
+  train_type_args+=(--vllm_enable_lora false)
+fi
+
 "$VENV/bin/swift" rlhf \
   --rlhf_type grpo \
   --model "$MODEL" \
@@ -306,10 +334,7 @@ export COT_SIM_NDCG1000_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.js
   --loss_type grpo \
   --scale_rewards group \
   --num_iterations 1 \
-  --train_type lora \
-  --lora_rank "$LORA_RANK" \
-  --lora_alpha "$LORA_ALPHA" \
-  --lora_dropout "$LORA_DROPOUT" \
+  "${train_type_args[@]}" \
   --learning_rate "$LEARNING_RATE" \
   --weight_decay "$WEIGHT_DECAY" \
   --lr_scheduler_type cosine \
@@ -326,8 +351,6 @@ export COT_SIM_NDCG1000_GAIN_COMPONENT_LOG="$OUT/reward_components_rank{rank}.js
   --vllm_max_model_len "$VLLM_MAX_MODEL_LEN" \
   --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
   --sleep_level "$VLLM_SLEEP_LEVEL" \
-  --vllm_enable_lora true \
-  --vllm_max_lora_rank "$LORA_RANK" \
   --seed "$SEED" \
   --data_seed "$SEED" \
   --save_strategy steps \
