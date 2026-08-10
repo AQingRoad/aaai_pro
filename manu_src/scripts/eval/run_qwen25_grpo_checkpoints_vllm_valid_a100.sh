@@ -5,6 +5,7 @@ ROOT=${ROOT:-/home/user/aaai_pro}
 VENV=${VENV:-/home/user/.conda/envs/aaai_pro}
 BASE_MODEL=${BASE_MODEL:-}
 GRPO_RUN=${GRPO_RUN:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/grpo/qwen25_3b_lora_sft20_grpo80_cottrained_logsoftmaxsim_w0p8_ndcg100_w0p2_g4_genbs16_bs4_ga1_vllmsleep1_vllm0p10_lr2e5_ep1_vllmlen4608_clen512_seed42/v0-20260717-155416}
+CHECKPOINT_TYPE=${CHECKPOINT_TYPE:-lora}
 ITEM_INFO=${ITEM_INFO:-$ROOT/manu_src/datas/CDs_and_Vinyl/arrow_to_jsonls/item_info.jsonl}
 EMBEDDING_SCORER=${EMBEDDING_SCORER:-$ROOT/manu_src/model_outputs/CDs_and_Vinyl/embedding/qwen3emb06b_history_plus_glm52_non_target_cot_input_time_title_rating_store_categories_desc256_details256_v1_bs128_ga1_lr2e5_ep5_len4096_seed42/checkpoint-epoch-01}
 
@@ -53,6 +54,10 @@ if [[ "$MODE" != "generate" && "$MODE" != "evaluate" && "$MODE" != "all" ]]; the
   echo "MODE 必须为 generate、evaluate 或 all。" >&2
   exit 1
 fi
+if [[ "$CHECKPOINT_TYPE" != "lora" && "$CHECKPOINT_TYPE" != "full" ]]; then
+  echo "CHECKPOINT_TYPE 必须为 lora 或 full。" >&2
+  exit 1
+fi
 if [[ "$SEED" != "42" ]]; then
   echo "项目随机种子必须为 42。" >&2
   exit 1
@@ -72,18 +77,30 @@ IFS=',' read -r -a STEPS <<< "$CHECKPOINT_STEPS"
 CHECKPOINTS=()
 for step in "${STEPS[@]}"; do
   checkpoint="$GRPO_RUN/checkpoint-$step"
-  if [[ ! -s "$checkpoint/adapter_model.safetensors" ]]; then
-    echo "缺少完整 checkpoint：$checkpoint" >&2
-    exit 1
-  fi
-  if [[ ! -s "$checkpoint/adapter_config.json" ]]; then
-    echo "缺少 LoRA 配置：$checkpoint/adapter_config.json" >&2
-    exit 1
+  if [[ "$CHECKPOINT_TYPE" == "lora" ]]; then
+    if [[ ! -s "$checkpoint/adapter_model.safetensors" || ! -s "$checkpoint/adapter_config.json" ]]; then
+      echo "缺少完整 LoRA checkpoint：$checkpoint" >&2
+      exit 1
+    fi
+  else
+    if [[ ! -s "$checkpoint/config.json" ]]; then
+      echo "完整模型 checkpoint 缺少 config.json：$checkpoint" >&2
+      exit 1
+    fi
+    if [[ ! -s "$checkpoint/model.safetensors" && ! -s "$checkpoint/model.safetensors.index.json" ]]; then
+      echo "完整模型 checkpoint 缺少 safetensors 权重：$checkpoint" >&2
+      exit 1
+    fi
+    if [[ -e "$checkpoint/adapter_config.json" ]]; then
+      echo "full 模式检测到 LoRA 配置，拒绝混用：$checkpoint" >&2
+      exit 1
+    fi
   fi
   CHECKPOINTS+=("$checkpoint")
 done
 
-DERIVED_BASE_MODEL=$("$VENV/bin/python" - "${CHECKPOINTS[@]}" <<'PY'
+if [[ "$CHECKPOINT_TYPE" == "lora" ]]; then
+  DERIVED_BASE_MODEL=$("$VENV/bin/python" - "${CHECKPOINTS[@]}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -102,27 +119,50 @@ if len(set(base_models)) != 1:
     raise SystemExit(f"LoRA checkpoint 的基座不一致：{base_models}")
 print(base_models[0])
 PY
-)
+  )
+  if [[ -z "$BASE_MODEL" ]]; then
+    BASE_MODEL=$DERIVED_BASE_MODEL
+  fi
+  if [[ ! -e "$BASE_MODEL" ]]; then
+    echo "缺少 LoRA 声明的基座模型：$BASE_MODEL" >&2
+    exit 1
+  fi
+  if [[ "$(readlink -f "$BASE_MODEL")" != "$(readlink -f "$DERIVED_BASE_MODEL")" ]]; then
+    echo "BASE_MODEL 与 LoRA adapter_config 不一致。" >&2
+    echo "  BASE_MODEL=$BASE_MODEL" >&2
+    echo "  adapter base=$DERIVED_BASE_MODEL" >&2
+    exit 1
+  fi
+else
+  "$VENV/bin/python" - "${CHECKPOINTS[@]}" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-if [[ -z "$BASE_MODEL" ]]; then
-  BASE_MODEL=$DERIVED_BASE_MODEL
-fi
-if [[ ! -e "$BASE_MODEL" ]]; then
-  echo "缺少 LoRA 声明的基座模型：$BASE_MODEL" >&2
-  exit 1
-fi
-if [[ "$(readlink -f "$BASE_MODEL")" != "$(readlink -f "$DERIVED_BASE_MODEL")" ]]; then
-  echo "BASE_MODEL 与 LoRA adapter_config 不一致。" >&2
-  echo "  BASE_MODEL=$BASE_MODEL" >&2
-  echo "  adapter base=$DERIVED_BASE_MODEL" >&2
-  exit 1
+for checkpoint_text in sys.argv[1:]:
+    checkpoint = Path(checkpoint_text)
+    index_path = checkpoint / "model.safetensors.index.json"
+    if index_path.is_file():
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+        shards = sorted(set(payload.get("weight_map", {}).values()))
+        if not shards:
+            raise SystemExit(f"权重索引为空：{index_path}")
+        missing = [name for name in shards if not (checkpoint / name).is_file()]
+        if missing:
+            raise SystemExit(f"checkpoint 缺少权重分片：{checkpoint}: {missing}")
+PY
 fi
 
 echo "Qwen2.5-3B 标准 GRPO checkpoint $EVAL_SPLIT 评测参数："
 print_param MODE "$MODE" "all 表示依次生成 CoT 并执行完整候选检索评测。"
 print_param EVAL_SPLIT "$EVAL_SPLIT" "当前评测数据划分。"
-print_param CHECKPOINTS "$CHECKPOINT_STEPS" "按给定顺序评测这些标准 GRPO LoRA checkpoint。"
-print_param BASE_MODEL "$BASE_MODEL" "从各 checkpoint 的 adapter_config.json 自动读取并交叉验证；必须是 GRPO 训练使用的 full-SFT 基座。"
+print_param CHECKPOINTS "$CHECKPOINT_STEPS" "按给定顺序评测这些标准 GRPO checkpoint。"
+print_param CHECKPOINT_TYPE "$CHECKPOINT_TYPE" "lora 使用固定基座挂载 adapter；full 直接加载每个 checkpoint 的完整权重且不执行 LoRA 合并。"
+if [[ "$CHECKPOINT_TYPE" == "lora" ]]; then
+  print_param BASE_MODEL "$BASE_MODEL" "从各 checkpoint 的 adapter_config.json 自动读取并交叉验证；必须是 GRPO 训练使用的 full-SFT 基座。"
+else
+  print_param FULL_MODEL_SOURCE checkpoint "vLLM 的 model 参数直接指向当前 full checkpoint；不读取 adapter，不合并权重。"
+fi
 print_param EVAL_FILE "$EVAL_FILE" "$EXPECTED_ROWS 条 $EVAL_SPLIT history；target 字段不进入生成 prompt。"
 print_param EMBEDDING_SCORER "$EMBEDDING_SCORER" "固定使用 GRPO reward 对应的 CoT-trained embedding epoch-01。"
 print_param ITEM_INFO "$ITEM_INFO" "12000 个真实候选；沿用训练 positive formatter，并屏蔽历史物品。"
@@ -161,12 +201,17 @@ for checkpoint in "${CHECKPOINTS[@]}"; do
   mkdir -p "$checkpoint_dir"
 
   if [[ "$MODE" == "generate" || "$MODE" == "all" ]]; then
+    model_args=()
+    if [[ "$CHECKPOINT_TYPE" == "lora" ]]; then
+      model_args+=(--model "$BASE_MODEL" --adapter "$checkpoint")
+    else
+      model_args+=(--model "$checkpoint")
+    fi
     "$VENV/bin/python" manu_src/scripts/inference/vllm_lora_non_target_cot.py \
       --input "$EVAL_FILE" \
       --output "$predictions" \
       --audit-output "$audit" \
-      --model "$BASE_MODEL" \
-      --adapter "$checkpoint" \
+      "${model_args[@]}" \
       --item-type "CD or vinyl release" \
       --language en \
       --generation-batch-size "$GENERATION_BATCH_SIZE" \
